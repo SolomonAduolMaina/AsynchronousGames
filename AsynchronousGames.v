@@ -29,7 +29,7 @@ forall (x y z: M),
  /\ 
 (f x = true /\ leq y x -> f y = true)}.
 
-Definition EmptyPosition `(E: EventStructure M) : Position E.
+Definition EmptyPositionHelper `(E: EventStructure M) : Position E.
   refine (exist _ (fun _ => false) _). split.
 - intros. destruct H. inversion H.
 - intros. destruct H. inversion H.
@@ -42,8 +42,8 @@ exists (l : list M),forall (n : M), f n = true <-> In n l.
 Definition FinitePosition `(E : EventStructure M) :=
 {f : Position E | finite_position E f}.
 
-Definition InitialPosition `(E: EventStructure M) : FinitePosition E.
-  refine (exist _ (EmptyPosition E) _). simpl.
+Definition EmptyPosition `(E: EventStructure M) : FinitePosition E.
+  refine (exist _ (EmptyPositionHelper E) _). simpl.
 pose (witness := nil : list M).
 refine (ex_intro _ witness _).
 intros. simpl. unfold iff. split.
@@ -128,12 +128,12 @@ finite_payoff (inl f) = 1;
 (* TODO : change nat to int, change sign *)
 polarity_first :
 forall (m : M), initial_move E m -> 
-let (n, _) := polarity m in n = finite_payoff (inl(InitialPosition E));
+let (n, _) := polarity m in n = finite_payoff (inl(EmptyPosition E));
 
 (* TODO : Change nat to int *)
 polarity_second :
 forall (m : M), second_move E m -> 
-let (n, _) := polarity m in n = finite_payoff (inl(InitialPosition E));
+let (n, _) := polarity m in n = finite_payoff (inl(EmptyPosition E));
 
 empty_null :
 forall (w : Walk E), 
@@ -142,7 +142,74 @@ let (l, _) := w in length l = 1 -> finite_payoff (inr w) = 0;
 nonempty_payoff :
 forall (w : Walk E) (p : FinitePosition E),
 let (l, _) := w in length l > 1 /\ hd_error (rev l) = Some (inl p) /\
-In (inl (InitialPosition E)) l -> 
+In (inl (EmptyPosition E)) l -> 
 finite_payoff (inr w) = finite_payoff (inl p)
 }.
 
+(* TODO : Change nat to int *)
+Definition Path `(E : EventStructure M) := 
+{w : Walk E | let (l,_) := w in
+forall (m : M) (n : nat), In (inr(m,n)) l -> n = 1
+}.
+
+(* TODO : Change the nat to int. Change sign *)
+Program Fixpoint alternating_path `(E: EventStructure M) 
+(p : Path E) 
+{measure (let (p,_) := p in 
+let (l,_) := p in
+length l)} := 
+let (p,_) := p in 
+let (l,_) := p in
+match l with
+| inl(pos) :: nil => True
+| inl(pos1) :: inr(m1, ep1) :: inl(pos2) :: nil => True
+| inl(pos1) :: inr(m1, ep1) :: inl(pos2) :: inr(m2, ep2) :: xs => 
+(valid_walk E (inl(pos2) :: inr(m2, ep2) :: xs)) /\ ep1 = ep2
+| _ => False
+end.
+Next Obligation.
+now split. Qed.
+Next Obligation.
+now split. Qed.
+Next Obligation.
+now split. Qed.
+Next Obligation.
+now split. Qed.
+Next Obligation.
+now split. Qed.
+Next Obligation.
+now split. Qed.
+
+Definition Play `(E : EventStructure M) := 
+{p : Path E | 
+let (w, _) := p in
+let (l, _) := w in
+hd_error l = Some (inl(EmptyPosition E))
+}.
+
+Definition EmptyWalk `(E: EventStructure M) : Walk E.
+  refine (exist _ (inl(EmptyPosition E) :: nil) _).
+simpl. compute. auto.
+Defined.
+
+Definition EmptyPath `(E: EventStructure M) : Path E.
+  refine (exist _ (EmptyWalk E) _).
+simpl. intros. destruct H.
+- inversion H.
+- contradiction H.
+Defined.
+
+Definition EmptyPlay `(E: EventStructure M) : Play E.
+refine (exist _ (EmptyPath E) _).
+simpl. reflexivity.
+Defined.
+
+(* Definition EmptyPosition `(E: EventStructure M) : FinitePosition E.
+  refine (exist _ (EmptyPositionHelper E) _). simpl.
+pose (witness := nil : list M).
+refine (ex_intro _ witness _).
+intros. simpl. unfold iff. split.
+- intros. inversion H.
+- intros. contradiction H.
+Defined.
+*)
