@@ -168,17 +168,41 @@ match l with
 | _ => False
 end.
 Next Obligation.
-now split. Qed.
+split.
+- intros. discriminate.
+- split.
++ intros. discriminate.
++ intros. discriminate. Qed.
 Next Obligation.
-now split. Qed.
+split.
+- intros. discriminate.
+- split.
++ intros. discriminate.
++ intros. discriminate. Qed.
 Next Obligation.
-now split. Qed.
+split.
+- intros. discriminate.
+- split.
++ intros. discriminate.
++ intros. discriminate. Qed.
 Next Obligation.
-now split. Qed.
+split.
+- intros. discriminate.
+- split.
++ intros. discriminate.
++ intros. discriminate. Qed.
 Next Obligation.
-now split. Qed.
+split.
+- intros. discriminate.
+- split.
++ intros. discriminate.
++ intros. discriminate. Qed.
 Next Obligation.
-now split. Qed.
+split.
+- intros. discriminate.
+- split.
++ intros. discriminate.
++ intros. discriminate. Qed.
 
 Definition Play `(E : EventStructure M) := 
 {p : Path E | 
@@ -203,13 +227,3 @@ Definition EmptyPlay `(E: EventStructure M) : Play E.
 refine (exist _ (EmptyPath E) _).
 simpl. reflexivity.
 Defined.
-
-(* Definition EmptyPosition `(E: EventStructure M) : FinitePosition E.
-  refine (exist _ (EmptyPositionHelper E) _). simpl.
-pose (witness := nil : list M).
-refine (ex_intro _ witness _).
-intros. simpl. unfold iff. split.
-- intros. inversion H.
-- intros. contradiction H.
-Defined.
-*)
