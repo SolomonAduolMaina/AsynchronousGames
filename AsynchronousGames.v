@@ -50,6 +50,10 @@ intros. compute. split.
 + intros. contradiction H.
 Qed.
 
+Definition move_from `(E: EventStructure M) 
+(m : M) (p1 p2 : Position E) :=
+forall (n : M), n <> m -> p1 n = p2 n /\ p1 m = false.
+
 
 (* TODO : Change the nat to int *)
 Program Fixpoint valid_walk `(E: EventStructure M) 
@@ -59,11 +63,7 @@ match w with
 | inl(p1) :: inr(m, ep) :: inl(p2) :: xs => 
 finite_position E p1 /\ finite_position E p2 /\
 (valid_walk E (inl(p2) :: xs)) /\ 
-(
-(ep = 1 /\ p2 m = false /\ forall (n : M), n <> m -> p1 n = p2 n)
-\/
-(ep = 0 /\ p1 m = false /\ forall (n : M), n <> m -> p1 n = p2 n)
-)
+((ep = 1 /\ move_from E m p1 p2) \/ (ep = 0 /\ move_from E m p2 p1))
 | _ => False
 end.
 Next Obligation.
@@ -121,9 +121,8 @@ forall (m n : M), initial_move E m /\ initial_move E n
 
 (* TODO : Change nat to int *)
 initial_payoff :
-forall (f : Position E), 
-forall (m : M), f m = false -> finite_payoff (inl f) = 0 \/
-finite_payoff (inl f) = 1;
+let n := finite_payoff (inl (EmptyPosition E)) in
+ n = 0 \/ n= 1;
 
 (* TODO : change nat to int, change sign *)
 polarity_first :
@@ -142,7 +141,9 @@ w = inl (p) :: nil -> finite_payoff (inr w) = 0;
 
 nonempty_payoff :
 forall (w : Walk E) (p : Position E),
-length w > 1 /\ hd_error (rev w) = Some (inl p) /\
+valid_walk E w /\
+length w > 1 /\ 
+hd_error (rev w) = Some (inl p) /\
 In (inl (EmptyPosition E)) w -> 
 finite_payoff (inr w) = finite_payoff (inl p)
 }.
@@ -258,7 +259,52 @@ Definition player_move
 `(E: EventStructure M) (A : AsynchronousArena E) (m : M):=
 polarity m = 1.
 
-Definition AlternatingPlay `(E: EventStructure M) := Play E.
-
 Definition Strategy `(E: EventStructure M) (A : AsynchronousArena E) :=
-AlternatingPlay E -> bool.
+Play E -> bool.
+
+
+(* TODO : Change nat to int *)
+Definition valid_strategy
+`(E: EventStructure M) (A : AsynchronousArena E)
+(f : Strategy E A) :=
+(forall (s : Play E), 
+f s = true -> valid_alternating_play E s) 
+/\
+(f (EmptyPlay E) = true)
+ /\
+(forall (s : Play E),
+f s = true /\ length s > 1 -> 
+exists (m1 m2 : M) (n1 n2 : nat), 
+nth_error s 2 = Some (inr(m1, n1)) /\
+nth_error (rev s) 2 = Some (inr(m2, n2)) /\
+opponent_move E A m1 /\ player_move E A m2)
+/\
+(forall (s : Play E) (x y z: Position E) (m n: M),
+hd_error s = Some (inl (EmptyPosition E)) /\
+hd_error (rev s) = Some (inl x) /\
+move_from E m x y /\
+opponent_move E A m /\
+move_from E n y z /\
+player_move E A n ->
+f (s ++ ((inr (m,1) :: (inl y) :: 
+(inr (n,1)) :: (inl z) :: nil))) = true -> f s = true)
+/\
+(forall (s : Play E) (x y z1 z2: Position E) (m n1 n2: M),
+hd_error s = Some (inl (EmptyPosition E)) /\
+hd_error (rev s) = Some (inl x) /\
+move_from E m x y /\
+opponent_move E A m /\
+move_from E n1 y z1 /\
+player_move E A n1 /\
+move_from E n2 y z2 /\
+player_move E A n2 ->
+f (s ++ ((inr (m,1) :: (inl y) :: 
+(inr (n1,1)) :: (inl z1) :: nil))) = true 
+/\
+f (s ++ ((inr (m,1) :: (inl y) :: 
+(inr (n2,1)) :: (inl z2) :: nil))) = true 
+-> n1 = n2)
+.
+
+
+
