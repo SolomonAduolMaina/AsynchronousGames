@@ -1,6 +1,7 @@
 Require Import Lia.
 Require Import List.
 Require Coq.Program.Wf.
+Require Import ZArith.
 Generalizable All Variables.
 
 Class PartialOrder (A : Type) := {
@@ -54,16 +55,17 @@ Definition move_from `(E: EventStructure M)
 (m : M) (p1 p2 : Position E) :=
 forall (n : M), n <> m -> p1 n = p2 n /\ p1 m = false.
 
+Definition Walk `(E: EventStructure M) := 
+list (Position E + (M * bool)).
 
-(* TODO : Change the nat to int *)
 Program Fixpoint valid_walk `(E: EventStructure M) 
-(w : list (Position E + (M * nat))) {measure (length w)} :=
+(w : Walk E) {measure (length w)} :=
 match w with
 | inl(p1) :: nil => finite_position E p1
 | inl(p1) :: inr(m, ep) :: inl(p2) :: xs => 
 finite_position E p1 /\ finite_position E p2 /\
 (valid_walk E (inl(p2) :: xs)) /\ 
-((ep = 1 /\ move_from E m p1 p2) \/ (ep = 0 /\ move_from E m p2 p1))
+((ep = true /\ move_from E m p1 p2) \/ (ep = false /\ move_from E m p2 p1))
 | _ => False
 end.
 Next Obligation.
@@ -89,10 +91,6 @@ split.
 - intros. discriminate.
 - intros. discriminate. Qed.
 
-(* TODO : Change nat to int *)
-Definition Walk `(E: EventStructure M) := 
-list (Position E + (M * nat)) .
-
 Inductive Infinity : Type :=
 | plus_infinity : Infinity
 | minus_infinity : Infinity.
@@ -105,39 +103,35 @@ forall (n : M), In n (ideal m) ->  n = m \/
 initial_move E m.
 
 Class AsynchronousArena `(E : EventStructure M) := {
-(* TODO : Change nat to int *)
-polarity : M -> nat;
-(* TODO : Change nat to int *)
-finite_payoff : (Position E + Walk E) -> nat;
-(* TODO: Is infinity already represented in coq? *)
-infinite_payoff : Position E -> Infinity;
+polarity : M -> bool;
+finite_payoff : (Position E + Walk E) -> Z;
 
-(* TODO : Change nat to int *)
-polarity_unit : forall (m : M), polarity m = 0 \/ polarity m = 1;
+infinite_payoff : Position E -> Infinity;
 
 initial_incompatible :
 forall (m n : M), initial_move E m /\ initial_move E n 
 -> incompatible m n;
 
-(* TODO : Change nat to int *)
 initial_payoff :
 let n := finite_payoff (inl (EmptyPosition E)) in
- n = 0 \/ n= 1;
+ n = (-1)%Z \/ n = (1)%Z;
 
-(* TODO : change nat to int, change sign *)
 polarity_first :
 forall (m : M), initial_move E m -> 
-polarity m = finite_payoff (inl(EmptyPosition E));
+(polarity m = true -> finite_payoff (inl(EmptyPosition E)) = (-1)%Z)
+/\
+(polarity m = false -> finite_payoff (inl(EmptyPosition E)) = (1)%Z);
 
-(* TODO : Change nat to int *)
 polarity_second :
 forall (m : M), second_move E m -> 
-polarity m = finite_payoff (inl(EmptyPosition E));
+(polarity m = true -> finite_payoff (inl(EmptyPosition E)) = (1)%Z)
+/\
+(polarity m = false -> finite_payoff (inl(EmptyPosition E)) = (-1)%Z);
 
 empty_null :
 forall (w : Walk E), 
 exists (p : Position E), 
-w = inl (p) :: nil -> finite_payoff (inr w) = 0;
+w = inl (p) :: nil -> finite_payoff (inr w) = 0%Z;
 
 nonempty_payoff :
 forall (w : Walk E) (p : Position E),
@@ -148,48 +142,27 @@ In (inl (EmptyPosition E)) w ->
 finite_payoff (inr w) = finite_payoff (inl p)
 }.
 
-(* TODO : Change nat to int *)
+Definition Path `(E : EventStructure M) := Walk E.
+
 Definition valid_path `(E : EventStructure M) (p : Walk E) :=
 valid_walk E p /\
-forall (m : M) (n : nat), In (inr(m,n)) p -> n = 1.
+forall (m : M) (b : bool), In (inr(m, b)) p -> b = true.
+
+Definition Play `(E: EventStructure M) := Walk E.
 
 Definition valid_play `(E : EventStructure M) (p : Walk E) :=
 valid_path E p /\
 hd_error p = Some (inl(EmptyPosition E)).
 
-Definition Play `(E: EventStructure M) := Walk E.
-
-Definition EmptyPlay `(E: EventStructure M) : Play E :=
-inl(EmptyPosition E) :: nil.
-
-Fact empty_play_is_valid `(E: EventStructure M) :
-valid_play E (EmptyPlay E).
-Proof. unfold valid_play. split.
-- unfold valid_path. split.
-+ split.
-++ compute. intros. split.
-+++ intros. destruct H. inversion H.
-+++ intros. destruct H. inversion H.
-++ pose (witness := nil : list M).
-    refine (ex_intro _ witness _). intros. compute. split.
-+++ intros. inversion H.
-+++ intros. contradiction H.
-+ intros. compute in H. inversion H.
-++ inversion H0.
-++ contradiction H0.
-- compute. reflexivity.
-Qed.
-
-
-(* TODO : Change the nat to int. Change sign *)
-Program Fixpoint valid_alternating_play 
-`(E: EventStructure M) (p : Play E) {measure (length p)} := 
+Program Fixpoint valid_alternating_play `(E: EventStructure M)
+(A : AsynchronousArena E) (p : Path E) {measure (length p)} := 
 valid_play E p /\
 match p with
 | inl(pos) :: nil => True
 | inl(pos1) :: inr(m1, ep1) :: inl(pos2) :: nil => True
 | inl(pos1) :: inr(m1, ep1) :: inl(pos2) :: inr(m2, ep2) :: xs => 
-(valid_walk E (inl(pos2) :: inr(m2, ep2) :: xs)) /\ ep1 = ep2
+(valid_walk E (inl(pos2) :: inr(m2, ep2) :: xs)) /\ 
+polarity m1 = negb (polarity m2)
 | _ => False
 end.
 Next Obligation.
@@ -229,9 +202,30 @@ split.
 + intros. discriminate.
 + intros. discriminate. Qed.
 
+Definition EmptyPlay `(E: EventStructure M) : Play E :=
+inl(EmptyPosition E) :: nil.
 
-Fact empty_is_alternating `(E: EventStructure M) :
-valid_alternating_play E (EmptyPlay E).
+Fact empty_play_is_valid `(E: EventStructure M) :
+valid_play E (EmptyPlay E).
+Proof. unfold valid_play. split.
+- unfold valid_path. split.
++ split.
+++ compute. intros. split.
++++ intros. destruct H. inversion H.
++++ intros. destruct H. inversion H.
+++ pose (witness := nil : list M).
+    refine (ex_intro _ witness _). intros. compute. split.
++++ intros. inversion H.
++++ intros. contradiction H.
++ intros. compute in H. inversion H.
+++ inversion H0.
+++ contradiction H0.
+- compute. reflexivity.
+Qed.
+
+Fact empty_play_is_alternating `(E: EventStructure M)
+(A : AsynchronousArena E) :
+valid_alternating_play E A (EmptyPlay E).
 Proof. compute. split.
 - split.
 + split.
@@ -244,39 +238,37 @@ Proof. compute. split.
 intros. split.
 ++++ intros. inversion H.
 ++++ intros. compute in H. contradiction H.
-++ intros. inversion H. inversion H0. contradiction H0.
+++ intros. destruct H.
++++ inversion H.
++++ contradiction H.
 + reflexivity.
 - auto.
 Qed.
 
-(* TODO : Change nat to int. Change sign *)
-Definition opponent_move
-`(E: EventStructure M) (A : AsynchronousArena E) (m : M):=
-polarity m = 0.
-
-(* TODO : Change nat to int. Change sign *)
 Definition player_move
 `(E: EventStructure M) (A : AsynchronousArena E) (m : M):=
-polarity m = 1.
+polarity m = true.
+
+Definition opponent_move
+`(E: EventStructure M) (A : AsynchronousArena E) (m : M):=
+polarity m = false.
 
 Definition Strategy `(E: EventStructure M) (A : AsynchronousArena E) :=
 Play E -> bool.
 
-
-(* TODO : Change nat to int *)
 Definition valid_strategy
 `(E: EventStructure M) (A : AsynchronousArena E)
 (f : Strategy E A) :=
 (forall (s : Play E), 
-f s = true -> valid_alternating_play E s) 
+f s = true -> valid_alternating_play E A s) 
 /\
 (f (EmptyPlay E) = true)
  /\
 (forall (s : Play E),
 f s = true /\ length s > 1 -> 
-exists (m1 m2 : M) (n1 n2 : nat), 
-nth_error s 2 = Some (inr(m1, n1)) /\
-nth_error (rev s) 2 = Some (inr(m2, n2)) /\
+exists (m1 m2 : M) (b1 b2 : bool), 
+nth_error s 2 = Some (inr(m1, b1)) /\
+nth_error (rev s) 2 = Some (inr(m2, b2)) /\
 opponent_move E A m1 /\ player_move E A m2)
 /\
 (forall (s : Play E) (x y z: Position E) (m n: M),
@@ -286,8 +278,8 @@ move_from E m x y /\
 opponent_move E A m /\
 move_from E n y z /\
 player_move E A n ->
-f (s ++ ((inr (m,1) :: (inl y) :: 
-(inr (n,1)) :: (inl z) :: nil))) = true -> f s = true)
+f (s ++ ((inr (m,false) :: (inl y) :: 
+(inr (n,true)) :: (inl z) :: nil))) = true -> f s = true)
 /\
 (forall (s : Play E) (x y z1 z2: Position E) (m n1 n2: M),
 hd_error s = Some (inl (EmptyPosition E)) /\
@@ -298,13 +290,66 @@ move_from E n1 y z1 /\
 player_move E A n1 /\
 move_from E n2 y z2 /\
 player_move E A n2 ->
-f (s ++ ((inr (m,1) :: (inl y) :: 
-(inr (n1,1)) :: (inl z1) :: nil))) = true 
+f (s ++ ((inr (m,false) :: (inl y) :: 
+(inr (n1,true)) :: (inl z1) :: nil))) = true 
 /\
-f (s ++ ((inr (m,1) :: (inl y) :: 
-(inr (n2,1)) :: (inl z2) :: nil))) = true 
+f (s ++ ((inr (m,false) :: (inl y) :: 
+(inr (n2,true)) :: (inl z2) :: nil))) = true 
 -> n1 = n2)
 .
 
+Definition independent `(E: EventStructure M) (m n : M) :=
+incompatible m n /\ not (leq m n) /\ not (leq n m).
+
+Definition backward_consistent 
+`(E: EventStructure M) (A : AsynchronousArena E)
+(s : Strategy E A) :=
+valid_strategy E A s
+/\
+forall (s1 : Play E) (s2 : Path E) (m1 m2 n1 n2 : M)
+, 
+valid_play E s1 /\ valid_path E s2 /\
+(exists (p1 p2 p3: Position E),
+s (s1 ++ (inr(m1,true) :: inl(p1) :: 
+inr(n1,true) :: inl(p2) :: inr(m2,true) :: 
+inl(p3) :: inr(n2, true) :: nil) ++ s2) = true
+/\ (independent E n1 m2) /\ (independent E m1 m2)
+-> 
+(independent E n1 n2) /\ (independent E m1 n2) /\
+exists (p1' p2' p3': Position E),
+s (s1 ++ (inr(m2,true) :: inl(p1') :: 
+inr(n2,true) :: inl(p2') :: inr(m1,true) :: 
+inl(p3') :: inr(n1, true) :: nil) ++ s2) = true
+)
+.
+
+Definition forward_consistent 
+`(E: EventStructure M) (A : AsynchronousArena E)
+(s : Strategy E A) :=
+valid_strategy E A s
+/\
+forall (s1 : Play E) (m1 m2 n1 n2 : M), 
+valid_play E s1 /\
+(exists (p1 p2 p3 p4: Position E), 
+s (s1 ++ (inr(m1,true) :: inl(p1) :: inr(n1,true) :: inl(p2) :: nil)) = true
+/\ 
+s (s1 ++ (inr(m2,true) :: inl(p3) :: inr(n2,true) :: inl(p4) :: nil)) = true
+/\
+(independent E m1 m2) 
+/\
+(independent E m2 n1)
+-> 
+(independent E m1 n2) 
+/\ (independent E n1 n2) /\
+exists (p1' p2' p3' p4': Position E),
+s (s1 ++ (inr(m1,true) :: inl(p1') :: 
+inr(n1,true) :: inl(p2') :: inr(m2,true) :: 
+inl(p3') :: inr(n2, true) :: inl(p4') :: nil)) = true
+)
+.
+
+Definition innocent `(E: EventStructure M) (A : AsynchronousArena E)
+(s : Strategy E A) :=
+forward_consistent E A s /\ backward_consistent E A s.
 
 
