@@ -509,3 +509,65 @@ total_strategy E A sigma /\
 finite_nonnegative E A sigma /\
 infinite_nonnegative E A sigma /\
 walk_payoff E A sigma.
+
+Class Group (A : Type) := {
+mult : A -> A -> A;
+identity : A;
+
+associative : forall (x y z : A),
+mult x (mult y z) = mult (mult x y) z;
+identity_exists : forall (x : A), 
+mult identity x = mult x identity /\ mult x identity = x;
+inverses_exist : forall (x : A),
+exists (y : A), mult x y = identity /\ mult y x = identity;
+}.
+
+
+Class AsynchronousGame `(E : EventStructure M) 
+(A : AsynchronousArena E) `(X : Group G)
+`(Y : Group H) := {
+action : G -> M -> H -> M;
+
+action_identity : forall (m : M) (g : G) (h : H),
+action identity m identity = m;
+action_compatible : forall (m : M) (g g' : G) (h h' : H),
+action (mult g g') m (mult h h') = 
+action g (action g' m h) h';
+
+coherence_1 : forall (m n : M) (g : G) (h : H),
+leq m n -> leq (action g m h) (action g n h);
+coherence_2 : forall (m : M) (g : G) (h : H),
+polarity (action g m h) = polarity m;
+coherence_3 : forall (m : M) (g : G),
+(polarity m = false /\ forall (n : M), 
+leq m n -> n = action g n identity) -> 
+m = action g m identity;
+coherence_4 : forall (m : M) (h : H),
+(polarity m = true /\ forall (n : M), 
+leq m n -> n = action identity n h) -> 
+m = action identity m h
+}.
+
+Fixpoint action_play `(E : EventStructure M) 
+(A : AsynchronousArena E) `(X : Group G) `(Y : Group H)
+(B : AsynchronousGame E A X Y)
+ (p : Play E) (g : G) (h : H) : Play E :=
+match p with
+| nil => nil
+| inl (s) :: xs => inl (s) :: action_play E A X Y B xs g h
+| inr (m,b) :: xs =>
+inr (action g m h,b) :: action_play E A X Y B xs g h
+end.
+
+Definition uniform_strategy `(E : EventStructure M) 
+(A : AsynchronousArena E) `(X : Group G) `(Y : Group H)
+(B : AsynchronousGame E A X Y) (sigma : Strategy E A) :=
+forall (s : Play E) (h : H),
+sigma s = true -> exists (g : G),
+sigma (action_play E A X Y B s g h) = true.
+
+
+
+
+
+
