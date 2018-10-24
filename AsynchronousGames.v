@@ -131,8 +131,7 @@ forall (m : M), second_move E m ->
 (polarity m = false -> finite_payoff (inl(EmptyPosition E)) = (-1)%Z);
 
 empty_null :
-forall (w : Walk E), 
-exists (p : Position E), 
+forall (w : Walk E) (p : Position E), 
 w = inl (p) :: nil -> finite_payoff (inr w) = 0%Z;
 
 nonempty_payoff :
@@ -566,8 +565,91 @@ forall (s : Play E) (h : H),
 sigma s = true -> exists (g : G),
 sigma (action_play E A X Y B s g h) = true.
 
+Fact negation_negates : (forall (b : bool), 
+(negb b = false -> b = true) /\ (negb b = true -> b = false)). 
+Proof.
+intros. split.
++ destruct b.
+- compute. auto.
+- compute. auto.
++ destruct b.
+- compute. auto.
+- compute. auto.
+Qed.
 
+Fact zero_equals_zero : (forall (z : Z), (0 - z)%Z = 0%Z <-> z = 0%Z).
+Proof.
+intros. omega. Qed.
 
+Fact one_equals_one : (forall (z : Z), (0 - z)%Z = (-1)%Z <-> z = 1%Z).
+Proof.
+intros. omega. Qed.
 
+Fact minusone_equals_minusone : 
+(forall (z : Z), (0 - z)%Z = (1)%Z <-> z = (-1)%Z).
+Proof.
+intros. omega. Qed.
+
+Fact x_equals_x : (forall (x y : Z), (0 - x)%Z = (0-y)%Z <-> x = y).
+Proof.
+intros. unfold iff. split.
++ intros. omega.
++ intros. omega.
+Qed.
+
+Instance dual `(E : EventStructure M) 
+(A : AsynchronousArena E) : 
+AsynchronousArena E := {
+
+polarity m := negb (polarity m);
+finite_payoff c := (0 - (finite_payoff c))%Z;
+infinite_payoff p :=
+match (infinite_payoff p) with
+| plus_infinity => minus_infinity
+| minus_infinity => plus_infinity
+end;
+
+initial_incompatible := initial_incompatible;
+}.
+
+Proof.
+- assert (H :
+ finite_payoff (inl (EmptyPosition E)) = (-1)%Z \/ 
+finite_payoff (inl (EmptyPosition E)) = (1)%Z). {apply initial_payoff. }
+destruct H.
++ rewrite H. compute. right. reflexivity.
++ rewrite H. compute. left. reflexivity.
+- intros. 
+assert (forall (m : M), initial_move E m -> 
+(polarity m = true -> finite_payoff (inl(EmptyPosition E)) = (-1)%Z)
+/\
+(polarity m = false -> finite_payoff (inl(EmptyPosition E)) = (1)%Z)).
+{apply polarity_first. } 
+assert ((polarity m = true ->
+      finite_payoff (inl (EmptyPosition E)) =
+      (-1)%Z) /\
+     (polarity m = false ->
+      finite_payoff (inl (EmptyPosition E)) = 1%Z)).
+{apply H0 with (m := m). apply H. }
+split.
++ intros. apply negation_negates in H2. destruct H1.
+apply one_equals_one. apply H3. apply H2.
++ intros.
+apply negation_negates in H2.  destruct H1.
+apply minusone_equals_minusone. apply H1. apply H2.
+- intros. split.
++ intros. apply negation_negates in H0. apply minusone_equals_minusone.
+apply polarity_second with (m0:=m).
+++ apply H.
+++ apply H0.
++ intros. apply negation_negates in H0. apply one_equals_one.
+apply polarity_second with (m0:=m).
+++ apply H.
+++ apply H0.
+- intros. apply zero_equals_zero. apply empty_null with (w0:=w) (p0:=p).
+apply H.
+- intros. apply x_equals_x. apply nonempty_payoff with (w0:=w) (p0:=p).
+apply H.
+Defined.
 
 
