@@ -60,38 +60,16 @@ forall (n : M), n <> m -> p1 n = p2 n /\ p1 m = false.
 Definition Walk `(E: EventStructure M) := 
 list (Position E + (M * bool)).
 
-Program Fixpoint valid_walk `(E: EventStructure M) 
-(w : Walk E) {measure (length w)} :=
+Fixpoint valid_walk `(E: EventStructure M) 
+(w : Walk E):=
 match w with
 | inl(p1) :: nil => finite_position E p1
-| inl(p1) :: inr(m, ep) :: inl(p2) :: xs => 
+| inl(p1) :: inr(m, ep) :: ((inl(p2) :: xs) as s) => 
 finite_position E p1 /\ finite_position E p2 /\
-(valid_walk E (inl(p2) :: xs)) /\ 
+(valid_walk E s) /\ 
 ((ep = true /\ move_from E m p1 p2) \/ (ep = false /\ move_from E m p2 p1))
 | _ => False
 end.
-Next Obligation.
-simpl. lia. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- intros. discriminate. Qed.
 
 Inductive Infinity : Type :=
 | plus_infinity : Infinity
@@ -155,53 +133,16 @@ Definition valid_play `(E : EventStructure M) (p : Walk E) :=
 valid_path E p /\
 hd_error p = Some (inl(EmptyPosition E)).
 
-Program Fixpoint valid_alternating_play `(E: EventStructure M)
-(A : AsynchronousArena E) (p : Path E) {measure (length p)} := 
+Fixpoint valid_alternating_play `(E: EventStructure M)
+(A : AsynchronousArena E) (p : Path E) := 
 valid_play E p /\
 match p with
 | inl(pos) :: nil => True
 | inl(pos1) :: inr(m1, ep1) :: inl(pos2) :: nil => True
-| inl(pos1) :: inr(m1, ep1) :: inl(pos2) :: inr(m2, ep2) :: xs => 
-(valid_walk E (inl(pos2) :: inr(m2, ep2) :: xs)) /\ 
-polarity m1 = negb (polarity m2)
+| inl(pos1) :: inr(m1, ep1) :: ((inl(pos2) :: inr(m2, ep2) :: xs) as s) => 
+(valid_walk E s) /\ (polarity m1 = negb (polarity m2))
 | _ => False
 end.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
 
 Definition EmptyPlay `(E: EventStructure M) : Play E :=
 inl(EmptyPosition E) :: nil.
@@ -425,60 +366,25 @@ match b1,b2 with
 | false, false => true
 end.
 
-Program Fixpoint alternating_walk `(E: EventStructure M)
-(A : AsynchronousArena E) (w : Walk E) {measure (length w)} := 
+Fixpoint alternating_walk `(E: EventStructure M)
+(A : AsynchronousArena E) (w : Walk E) := 
 valid_walk E w /\
 match w with
 | inl(pos) :: nil => True
 | inl(pos1) :: inr(m1, ep1) :: inl(pos2) :: nil => True
-| inl(pos1) :: inr(m1, ep1) :: inl(pos2) :: inr(m2, ep2) :: xs => 
-multiply_bool (polarity m1) ep1 = 
-negb (multiply_bool (polarity m2) ep2)
+| inl(pos1) :: inr(m1, ep1) :: ((inl(pos2) :: inr(m2, ep2) :: xs) as s) => 
+(alternating_walk E A s) /\
+(multiply_bool (polarity m1) ep1 = 
+negb (multiply_bool (polarity m2) ep2))
 | _ => False
 end.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
-Next Obligation.
-split.
-- intros. discriminate.
-- split.
-+ intros. discriminate.
-+ intros. discriminate. Qed.
 
 Definition is_position `(E: EventStructure M)
 (A : AsynchronousArena E) (p : Position E) (sigma : Strategy E A) :=
 exists (s : Play E),
 sigma s = true /\ nth_error (rev s) 1 = Some (inl(p)).
 
-Definition valid_strategy_walk `(E: EventStructure M)
+Definition walk_on_strategy `(E: EventStructure M)
 (A : AsynchronousArena E) (w : Walk E) (sigma : Strategy E A) :=
 alternating_walk E A w /\
 (length w <= 3
@@ -498,7 +404,7 @@ is_position E A b sigma
 Definition walk_payoff `(E: EventStructure M)
 (A : AsynchronousArena E) (sigma : Strategy E A) :=
 forall (w : Walk E),
-valid_strategy_walk E A w sigma ->
+walk_on_strategy E A w sigma ->
 Z.geb (finite_payoff (inr (w))) (0%Z) = true.
 
 Definition winning_strategy
@@ -689,12 +595,13 @@ Proof.
 ++ auto.
 Defined.
 
-Definition leq_is_preserved `(M : PartialOrder P) :
+Fact leq_is_preserved `(M : PartialOrder P) :
 forall (p q : P), 
 let _ := lift_partial_order M in
 leq (inl(p)) (inl(q)) <-> leq p q.
-Proof. intros. unfold iff. split. 
-+  intros. compute in l. Admitted.
+Proof. intros. subst l. unfold iff. split. 
++  intros. simpl in H. apply H. 
++ intros. simpl. apply H. Qed.
 
 
 Fixpoint add_inl (A B : Type) (l : list A) :
@@ -721,13 +628,8 @@ Proof. intros. unfold iff. split.
 
 Fact in_tl_in_tl : (forall (A : Type) (a b : A) (l : list A),
 In a (b :: l) /\ a <> b -> In a l).
-Proof. intros. destruct H. destruct l.
-+ compute in H. destruct H.
-++ unfold not in H0. simpl. apply H0. rewrite H. reflexivity.
-++ contradiction H.
-+ simpl. simpl in H. destruct H.
-++ unfold not in H0. contradiction H0. rewrite H. reflexivity.
-++ apply H. Qed.
+Proof. intros. destruct H. destruct H. contradiction H0. rewrite H.
+reflexivity. apply H. Qed.
 
 Fact inl_neq_inr : forall (A B: Type) (a b : A + B),
 (exists (x : A) (y : B), a = inl x /\ b = inr y) -> a <> b.
