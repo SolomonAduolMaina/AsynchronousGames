@@ -689,12 +689,12 @@ Proof.
 ++ auto.
 Defined.
 
-
 Definition leq_is_preserved `(M : PartialOrder P) :
 forall (p q : P), 
 let _ := lift_partial_order M in
 leq (inl(p)) (inl(q)) <-> leq p q.
-Proof. intros. compute in l. Admitted.
+Proof. intros. unfold iff. split. 
++  intros. compute in l. Admitted.
 
 
 Fixpoint add_inl (A B : Type) (l : list A) :
@@ -703,27 +703,36 @@ match l with
 | nil => nil
 | x :: xs => inl(x) :: (add_inl A B xs)
 end.
+ 
 
-Definition add_inl_does_nothing (A B : Type) (l : list A) :
+Fact add_inl_does_nothing (A B : Type) (l : list A) :
 forall (a : A), In a l <-> In (inl(a)) (add_inl A B l).
-Proof. Admitted.
+Proof. intros. unfold iff. split.
++  intros. unfold add_inl. induction l.
+++ simpl in H. contradiction H.
+++ simpl. simpl in H. destruct H.
++++ left. rewrite H. reflexivity.
++++ right. apply IHl. apply H. 
++ intros. induction l.
+++ simpl in H. contradiction H.
+++ simpl. simpl in H. destruct H.
++++ left. inversion H. reflexivity.
++++ right. apply IHl. apply H. Qed.
 
-Definition in_is_in : (forall (A : Type) (a b : A) (l : list A),
-In a (b :: l) -> b = a \/ In a l).
-Proof. Admitted.
-
-Definition in_is_still_in : (forall (A : Type) (a b : A) (l : list A),
-In a l -> In a (b :: l)).
-Proof. Admitted.
-
-Definition in_tl_in_tl : (forall (A : Type) (a b : A) (l : list A),
+Fact in_tl_in_tl : (forall (A : Type) (a b : A) (l : list A),
 In a (b :: l) /\ a <> b -> In a l).
-Proof. Admitted.
+Proof. intros. destruct H. destruct l.
++ compute in H. destruct H.
+++ unfold not in H0. simpl. apply H0. rewrite H. reflexivity.
+++ contradiction H.
++ simpl. simpl in H. destruct H.
+++ unfold not in H0. contradiction H0. rewrite H. reflexivity.
+++ apply H. Qed.
 
-Definition inl_neq_inr : forall (A B: Type) (a b : A + B),
+Fact inl_neq_inr : forall (A B: Type) (a b : A + B),
 (exists (x : A) (y : B), a = inl x /\ b = inr y) -> a <> b.
 Proof. intros. destruct H. destruct H. destruct H. rewrite H. rewrite H0.
-Admitted.
+unfold not. intros. inversion H1. Qed.
 
 Instance lift_event_structure 
 `(M : PartialOrder P)
@@ -752,7 +761,7 @@ Proof. intros. destruct x.
 + intros. destruct x.
 ++ destruct y.
 +++ unfold iff. split.
-++++ intros. apply in_is_still_in. apply add_inl_does_nothing.
+++++ intros. apply in_cons. apply add_inl_does_nothing.
 assert (leq p0 p).
 { apply (leq_is_preserved M). apply H. }
 apply ideal_finite. apply H0.
