@@ -652,4 +652,153 @@ apply H.
 apply H.
 Defined.
 
+Inductive Singleton : Type :=
+| new : Singleton.
+
+Instance lift_partial_order `(M : PartialOrder P) :
+PartialOrder (sum P Singleton) :=
+{ leq m n := match m,n with
+| inl(m), inl(n) => leq m n
+| inr(m), _ => True
+| _, _ => False
+end
+}.
+Proof. 
+- intros. destruct x.
++ apply reflexive.
++ auto.
+- intros. destruct x.
++ destruct y.
+++ apply anti_symmetric in H. rewrite H. reflexivity.
+++ destruct H. contradiction H.
++ destruct y.
+++ destruct H. contradiction H0.
+++ destruct s. destruct s0. reflexivity.
+- intros. destruct x.
++ destruct y.
+++ destruct z.
++++ apply transitive in H. apply H.
++++ destruct H. contradiction H0.
+++ destruct z.
++++ destruct H. contradiction H.
++++ destruct H. contradiction H.
++ destruct y.
+++ destruct z.
++++ auto.
++++ auto.
+++ auto.
+Defined.
+
+
+Definition leq_is_preserved `(M : PartialOrder P) :
+forall (p q : P), 
+let _ := lift_partial_order M in
+leq (inl(p)) (inl(q)) <-> leq p q.
+Proof. intros. compute in l. Admitted.
+
+
+Fixpoint add_inl (A B : Type) (l : list A) :
+list (sum A B) :=
+match l with
+| nil => nil
+| x :: xs => inl(x) :: (add_inl A B xs)
+end.
+
+Definition add_inl_does_nothing (A B : Type) (l : list A) :
+forall (a : A), In a l <-> In (inl(a)) (add_inl A B l).
+Proof. Admitted.
+
+Definition in_is_in : (forall (A : Type) (a b : A) (l : list A),
+In a (b :: l) -> b = a \/ In a l).
+Proof. Admitted.
+
+Definition in_is_still_in : (forall (A : Type) (a b : A) (l : list A),
+In a l -> In a (b :: l)).
+Proof. Admitted.
+
+Definition in_tl_in_tl : (forall (A : Type) (a b : A) (l : list A),
+In a (b :: l) /\ a <> b -> In a l).
+Proof. Admitted.
+
+Definition inl_neq_inr : forall (A B: Type) (a b : A + B),
+(exists (x : A) (y : B), a = inl x /\ b = inr y) -> a <> b.
+Proof. intros. destruct H. destruct H. destruct H. rewrite H. rewrite H0.
+Admitted.
+
+Instance lift_event_structure 
+`(M : PartialOrder P)
+(N : EventStructure M)
+: EventStructure (lift_partial_order M) :=
+{
+incompatible m n := match m,n with
+| inl(m), inl(n) => incompatible m n
+| _, _ => False
+end;
+ideal m := match m with
+| inl(m) => inr(new) :: (add_inl P Singleton (ideal m))
+| inr(m) => inr(m) :: nil
+end
+}.
+Proof. intros. destruct x.
++ destruct y.
+++ apply symmetric. apply H.
+++ apply H.
++ destruct y.
+++ apply H.
+++ apply H.
++ intros. destruct x.
+++ apply irreflexive.
+++ auto.
++ intros. destruct x.
+++ destruct y.
++++ unfold iff. split.
+++++ intros. apply in_is_still_in. apply add_inl_does_nothing.
+assert (leq p0 p).
+{ apply (leq_is_preserved M). apply H. }
+apply ideal_finite. apply H0.
+++++ intros. 
+assert (In (inl p0)(add_inl P Singleton (ideal p))).
+{ apply in_tl_in_tl with (b:= inr new). split.
++ apply H.
++ apply inl_neq_inr. pose (witness := p0).
+  refine (ex_intro _ witness _). 
+pose (witness1 := new).
+  refine (ex_intro _ witness1 _).
+split.
+++ auto.
+++ auto.
+}
+apply leq_is_preserved. apply add_inl_does_nothing in H0. apply ideal_finite.
+apply H0.
++++ unfold iff. assert (s = new). { destruct s.  reflexivity. } split.
+++++ intros. rewrite H. compute. left. reflexivity.
+++++ intros. compute. auto.
+++ unfold iff. split.
++++ intros. assert (s = new). { destruct s.  reflexivity. } rewrite H0 in H.
+rewrite H0. destruct y.
+++++ compute in H. contradiction H.
+++++ assert (s0 = new). { destruct s0.  reflexivity. }
+rewrite H1. compute. left. reflexivity.
++++ intros. assert (s = new). { destruct s.  reflexivity. } rewrite H0 in H.
+destruct y.
+++++ compute in H. destruct H.
++++++ inversion H.
++++++ contradiction H.
+++++ assert (s0 = new). { destruct s0.  reflexivity. } rewrite H0. rewrite H1.
+apply reflexive.
++ intros. destruct x.
+++ destruct z.
++++ destruct y.
+++++ apply incompatible_closed with (y:= p1). destruct H.
+split.
++++++ apply H.
++++++ apply -> (leq_is_preserved M). apply H0.
+++++ destruct H. contradiction H.
++++ destruct y.
+++++ destruct H. assert (s = new). { destruct s.  reflexivity. }
+rewrite H1 in H0. compute in H0. contradiction H0.
+++++ destruct H. contradiction H.
+++ destruct H. contradiction H.
+Defined.
+
 
