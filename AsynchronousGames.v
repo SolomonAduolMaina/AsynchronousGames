@@ -61,10 +61,18 @@ Definition initial_move `(E: EventStructure M) (m : M) :=
 forall (n : M), In n (ideal m) <-> m = n.
 
 Definition second_move `(E: EventStructure M) (m : M) :=
-forall (n : M), In n (ideal m) ->  n = m \/ 
-initial_move E m.
+(forall (n : M), In n (ideal m) -> (n = m \/ initial_move E n))
+/\
+(exists (n : M), In n (ideal m) /\ n <> m).
 
-Definition InfinitePosition `(E : EventStructure M) := nat -> M.
+Definition InfinitePosition `(E : EventStructure M) := (nat -> M).
+
+Definition valid_infinite_position `(E : EventStructure M)
+(pos : InfinitePosition E) :=
+forall (p q: nat) (m n : M), 
+(pos p = m /\ pos q = n -> not (incompatible m n) /\ (p <> q -> m <> n))
+/\
+(pos q = n /\ leq m n -> leq m n).
 
 Class AsynchronousArena `(E : EventStructure M) := {
 polarity : M -> bool;
@@ -73,7 +81,7 @@ finite_payoff : (Position E + Walk E) -> Z;
 infinite_payoff : InfinitePosition E -> Infinity;
 
 initial_incompatible :
-forall (m n : M), initial_move E m /\ initial_move E n 
+forall (m n : M), initial_move E m /\ initial_move E n /\ m <> n
 -> incompatible m n;
 
 initial_payoff :
@@ -314,12 +322,14 @@ Definition infinite_position_of_strategy
 `(E: EventStructure M) (A : AsynchronousArena E) 
 (x : InfinitePosition E) (sigma : Strategy E A) :=
 exists (s : InfinitePlay E),
+valid_infinite_position E x
+/\
 infinite_play_valid E s 
 /\
 forall (k : nat), sigma (subsequence E s (4 * k)) = true
 /\
-forall (m : M) (a: nat) (p : Position E), 
-(x a = m <->  (exists (b : nat), s b = inl(p) /\ In m p)).
+forall (m : M) (a : nat) (p : Position E), 
+(x a = m <-> (exists (b : nat), s b = inl(p) /\ In m p)).
 
 
 Definition infinite_nonnegative
@@ -683,32 +693,188 @@ rewrite H1 in H0. compute in H0. contradiction H0.
 ++ destruct H. contradiction H.
 Defined.
 
-
-Definition not_contains_initial `(E : EventStructure M) (w : Walk E) :=
-In (inl(nil : Position E)) w.
-
-Definition empty_on_initial `(E : EventStructure M) (w : Walk E) :=
+Fixpoint contains_initial `(E : EventStructure M) (w : Walk E) :=
 match w with
-| inl(nil) :: nil => true
-| _ => false
+| nil => false
+| inl(nil) :: _ => true
+| inl(_ :: _) :: xs => contains_initial E xs
+| inr(_) :: xs =>  contains_initial E xs
 end.
+
+Fixpoint remove_inl (A B : Type) (l : list (A + B))
+: list A := 
+match l with
+| nil => nil
+| inl(x) :: xs => x :: (remove_inl A B xs)
+| inr(x) :: xs => (remove_inl A B xs)
+end.
+
+Fixpoint remove_sum `(M : PartialOrder P)
+(E : EventStructure M)
+(w : Walk (lift_event_structure M E)) : Walk E :=
+match w with
+| nil => nil
+| inl(p) :: xs => (inl(remove_inl P Singleton p)) :: (remove_sum M E xs)
+| inr(inl(p),b) :: xs => (inr (p,b)):: (remove_sum M E xs)
+| _ => nil
+end.
+
+Definition remove_sum_in_pos `(M : PartialOrder P)
+(E : EventStructure M)
+(pos : InfinitePosition (lift_event_structure M E))
+(default : P) : InfinitePosition E :=
+fun n =>
+(match pos n with
+| inl(x) => x
+| _ => default
+end).
 
 Instance lift_asynchronous_arena 
 `(M : PartialOrder P)
-(eq_dec : forall x y : (P + Singleton), {x = y} + {x <> y})
 (E : EventStructure M)
 (A : AsynchronousArena E)
 (p : nat)
+(default : P)
+(negative : forall m, initial_move E m -> polarity m = false)
 : AsynchronousArena (lift_event_structure M E) :=
 {
 finite_payoff m := match m with
 | inl(nil) => (-1)%Z
 | inl(inr(new) :: nil) => Z.of_nat p
-| inl(xs) => 
-finite_payoff (inl(remove eq_dec (inr(new)) xs))
+| inl(xs) => finite_payoff (inl (remove_inl P Singleton xs ))
+| inr(xs) => 
+if negb (contains_initial (lift_event_structure M E) xs) then 
+finite_payoff (inr(remove_sum M E xs)) else 
+(match xs with
+| inl(nil) :: nil => 0%Z
+| xs =>
+(match hd_error (rev xs) with
+| Some (inl(l)) => finite_payoff (inl (remove_inl P Singleton l ))
 | _ => 0%Z
+end)
+end)
+end;
+infinite_payoff f :=
+infinite_payoff (remove_sum_in_pos M E f default);
+polarity m :=
+match m with
+| inl(p) => polarity p
+| _ => true
 end
 }.
+Proof.
+assert 
+(H : forall n, initial_move (lift_event_structure M E) n <-> n = inr(new)).
+{ intros.  destruct n. 
++ unfold iff. split.
+++ intros. unfold initial_move in H. 
+assert (In (inr(new)) (ideal (inl p0))).
+{ simpl. left. reflexivity. }
+assert (inl(p0) = inr(new)).
+{ apply H. apply H0. }
+apply H1.
+++ intros. inversion H.
++ unfold iff. split.
+++ intros. destruct s. reflexivity.
+++ intros. unfold initial_move. intros. simpl. unfold iff. split.
++++ intros. destruct H0. apply H0. contradiction H0.
++++ intros. left. apply H0.
+}
+
+- intros. destruct m. 
+++ destruct H0.
+assert (inl(p0) = inr(new)).
+{ apply -> H. apply H0. }
+inversion H2.
+++ destruct n.
++++ destruct H0. destruct H1.
+assert (inl(p0) = inr(new)).
+{ apply -> H. apply H1. }
+inversion H3.
++++ destruct H0. destruct H1.  contradiction H2. destruct s. destruct s0.
+reflexivity.
+- simpl. left. reflexivity.
+- intros.
+assert 
+(H' : forall n, initial_move (lift_event_structure M E) n <-> n = inr(new)).
+{ intros.  destruct n. 
++ unfold iff. split.
+++ intros. unfold initial_move in H0. 
+assert (In (inr(new)) (ideal (inl p0))).
+{ simpl. left. reflexivity. }
+assert (inl(p0) = inr(new)).
+{ apply H0. apply H1. }
+apply H2.
+++ intros. inversion H0.
++ unfold iff. split.
+++ intros. destruct s. reflexivity.
+++ intros. unfold initial_move. intros. simpl. unfold iff. split.
++++ intros. destruct H1. apply H1. contradiction H1.
++++ intros. left. apply H1.
+}
+assert (m = inr(new)).
+{ apply -> H'. apply H. } 
+split.
++ rewrite H0. intros. reflexivity.  
++ rewrite H0. intros. inversion H1.
+- intros.  (*here bruv*)
+destruct m. unfold second_move in H.
+assert (initial_move E p0).
+{unfold initial_move. intros. unfold iff. split.
++ intros. 
+assert
+(H' : forall n, initial_move (lift_event_structure M E) n <-> n = inr(new)).
+{ intros.  destruct n0. 
++ unfold iff. split.
+++ intros. unfold initial_move in H1. 
+assert (In (inr(new)) (ideal (inl p1))).
+{ simpl. left. reflexivity. }
+assert (inl(p1) = inr(new)).
+{ apply H1. apply H2. }
+apply H3.
+++ intros. inversion H1.
++ unfold iff. split.
+++ intros. destruct s. reflexivity.
+++ intros. unfold initial_move. intros. simpl. unfold iff. split.
++++ intros. destruct H2. apply H2. contradiction H2.
++++ intros. left. apply H2.
+}
+
+assert ((inl(n) : P + Singleton) = (inl(p0) : P + Singleton) \/
+    initial_move (lift_event_structure M E) (inl(n))).
+{ apply H. simpl. right. apply (add_inl_does_nothing P Singleton).
+apply H0. }
+destruct H1. inversion H1. reflexivity.
+
+assert (inl(n) = inr(new)).
+{ apply -> H'. apply H1. }
+inversion H2.
++ intros. apply ideal_finite. rewrite H0. apply reflexive.
+ }
+split.
++ intros.
+assert (polarity p0 = false).
+{ apply negative. apply H0. }
+rewrite H1 in H2. inversion H2.
++ intros. reflexivity.
++ unfold second_move in H. destruct H. destruct H0.
+destruct x.
+++ simpl in H0. destruct H0. destruct H0.
++++ inversion H0.
++++ contradiction H0.
+++ destruct H0. destruct s0. destruct s. contradiction H1.
+reflexivity.
+- intros. destruct H. rewrite H0. simpl. destruct p0.
++ simpl. reflexivity.
++ simpl. destruct s.
+++ apply initial_null with
+(w0:=inl (p1 :: remove_inl P Singleton p0) :: nil)
+(p2:=p1 :: remove_inl P Singleton p0)
+. split.
++++ unfold valid_walk. unfold valid_position.
+
+
+
 
 
 
