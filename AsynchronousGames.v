@@ -74,16 +74,18 @@ Definition second_move `(E: EventStructure M) (m : M) :=
 /\
 (exists (n : M), In n (ideal m) /\ n <> m).
 
-Definition InfinitePosition `(E : EventStructure M) := (nat -> M).
+Definition InfinitePosition `(E : EventStructure M) := (M -> bool).
 
 Definition valid_infinite_position `(E : EventStructure M)
 (pos : InfinitePosition E) :=
-forall (p q: nat) (m n : M), 
-(pos p = m /\ pos q = n -> 
-not (incompatible m n) (*/\ (p <> q -> m <> n)
-/\ (p <= q <-> leq m n)*))
+forall (l : list M) (m n : M), 
+(pos m = true /\ pos n = true -> 
+not (incompatible m n))
 /\
-(pos q = n /\ leq m n -> leq m n).
+(pos n = true /\ leq m n -> pos m = true)
+/\
+(exists (a : M), pos a = true /\ not (In a l))
+.
 
 Class AsynchronousArena `(E : EventStructure M) := {
 polarity : M -> bool;
@@ -338,7 +340,7 @@ infinite_play_valid E s
 forall (k : nat), sigma (subsequence E s (4 * k)) = true
 /\
 forall (m : M) (a : nat) (p : Position E), 
-(x a = m <-> (exists (b : nat), s b = inl(p) /\ In m p)).
+(x m = true <-> (exists (b : nat), s b = inl(p) /\ In m p)).
 
 
 Definition infinite_nonnegative
@@ -749,26 +751,12 @@ match w with
 | _ => nil
 end.
 
-Definition remove_sum_in_pos `(M : PartialOrder P)
-(E : EventStructure M)
-(pos : InfinitePosition (lift_event_structure M E))
-(default : P) : InfinitePosition E :=
-let f := 
-fun n =>
-(match pos n with
-| inl(x) => x
-| _ => default
-end) in
-fun n => f (n+1).
-
 Instance lift_asynchronous_arena 
 `(M : PartialOrder P)
 (E : EventStructure M)
 (A : AsynchronousArena E)
 (p : nat)
-(negative : exists (m:P), True /\
-(forall m, initial_move E m -> polarity m = false))
-(default : P)
+(negative : forall m, initial_move E m -> polarity m = false)
 : AsynchronousArena (lift_event_structure M E) :=
 {
 finite_payoff m := match m with
@@ -788,7 +776,7 @@ end)
 end)
 end;
 infinite_payoff f :=
-infinite_payoff (remove_sum_in_pos M E f default);
+let g m := f (inl m) in infinite_payoff g;
 polarity m :=
 match m with
 | inl(p) => polarity p
@@ -887,8 +875,7 @@ inversion H2.
 split.
 + intros.
 assert (polarity p0 = false).
-{ destruct negative as (X, Y). destruct Y as (Y1,Y2).
- apply Y2. apply H0. }
+{ apply negative. apply H0. }
 rewrite H1 in H2. inversion H2.
 + intros. reflexivity.
 + unfold second_move in H. destruct H. destruct H0.
