@@ -126,306 +126,25 @@ In (inl (nil : Position E)) w ->
 finite_payoff (inr w) = finite_payoff (inl p)
 }.
 
-Definition Path `(E : EventStructure M) := Walk E.
-
-Definition valid_path `(E : EventStructure M) (p : Walk E) :=
-valid_walk E p /\
-forall (m : M) (b : bool), In (inr(m, b)) p -> b = true.
-
-Definition Play `(E: EventStructure M) := Walk E.
-
-Definition valid_play `(E : EventStructure M) (p : Walk E) :=
-valid_path E p /\
-hd_error p = Some (inl(nil : Position E)).
-
-Fixpoint valid_alternating_play `(E: EventStructure M)
-(A : AsynchronousArena E) (p : Path E) := 
-valid_play E p /\
-match p with
-| inl(pos) :: nil => True
-| inl(pos1) :: inr(m1, ep1) :: inl(pos2) :: nil => True
-| inl(pos1) :: inr(m1, ep1) :: ((inl(pos2) :: inr(m2, ep2) :: xs) as s) => 
-(valid_walk E s) /\ (polarity m1 = negb (polarity m2))
-| _ => False
-end.
-
-Definition initialPlay `(E: EventStructure M) : Play E :=
-inl(nil : Position E) :: nil.
-
-Fact initial_play_is_valid `(E: EventStructure M) :
-valid_play E (initialPlay E).
-Proof. unfold valid_play. split.
-- unfold valid_path. split.
-+ split. 
-++ intros. simpl in H. destruct H. contradiction H.
-++ intros. destruct H. simpl in H. contradiction H.
-+ intros. simpl in H. destruct H.
-++ inversion H.
-++ contradiction H.
-- simpl. reflexivity.
-Qed.
-
-Fact initial_play_is_alternating `(E: EventStructure M)
-(A : AsynchronousArena E) :
-valid_alternating_play E A (initialPlay E).
-Proof. simpl. split.
-- apply initial_play_is_valid.
-- auto. Qed. 
-
-
-Definition player_move
-`(E: EventStructure M) (A : AsynchronousArena E) (m : M):=
-polarity m = true.
-
-Definition opponent_move
-`(E: EventStructure M) (A : AsynchronousArena E) (m : M):=
-polarity m = false.
-
-Definition Strategy `(E: EventStructure M) (A : AsynchronousArena E) :=
-Play E -> bool.
-
-Definition valid_strategy
-`(E: EventStructure M) (A : AsynchronousArena E)
-(f : Strategy E A) :=
-(forall (s : Play E), 
-f s = true -> valid_alternating_play E A s) 
-/\
-(f (initialPlay E) = true)
- /\
-(forall (s : Play E),
-f s = true /\ length s > 1 -> 
-exists (m1 m2 : M) (b1 b2 : bool), 
-nth_error s 1 = Some (inr(m1, b1)) /\
-nth_error (rev s) 1 = Some (inr(m2, b2)) /\
-opponent_move E A m1 /\ player_move E A m2)
-/\
-(forall (s : Play E) (x y z: Position E) (m n: M),
-hd_error s = Some (inl (nil : Position E)) /\
-hd_error (rev s) = Some (inl x) /\
-move_from E m x y /\
-opponent_move E A m /\
-move_from E n y z /\
-player_move E A n ->
-f (s ++ ((inr (m,false) :: (inl y) :: 
-(inr (n,true)) :: (inl z) :: nil))) = true -> f s = true)
-/\
-(forall (s : Play E) (x y z1 z2: Position E) (m n1 n2: M),
-hd_error s = Some (inl (nil : Position E)) /\
-hd_error (rev s) = Some (inl x) /\
-move_from E m x y /\
-opponent_move E A m /\
-move_from E n1 y z1 /\
-player_move E A n1 /\
-move_from E n2 y z2 /\
-player_move E A n2 ->
-f (s ++ ((inr (m,false) :: (inl y) :: 
-(inr (n1,true)) :: (inl z1) :: nil))) = true 
-/\
-f (s ++ ((inr (m,false) :: (inl y) :: 
-(inr (n2,true)) :: (inl z2) :: nil))) = true 
--> n1 = n2)
-.
-
-Definition independent `(E: EventStructure M) (m n : M) :=
-incompatible m n /\ not (leq m n) /\ not (leq n m).
-
-Definition backward_consistent 
-`(E: EventStructure M) (A : AsynchronousArena E)
-(s : Strategy E A) :=
-valid_strategy E A s
-/\
-forall (s1 : Play E) (s2 : Path E) (m1 m2 n1 n2 : M)
-, 
-valid_play E s1 /\ valid_path E s2 /\
-(exists (p1 p2 p3: Position E),
-s (s1 ++ (inr(m1,true) :: inl(p1) :: 
-inr(n1,true) :: inl(p2) :: inr(m2,true) :: 
-inl(p3) :: inr(n2, true) :: nil) ++ s2) = true
-/\ (independent E n1 m2) /\ (independent E m1 m2)
--> 
-(independent E n1 n2) /\ (independent E m1 n2) /\
-exists (p1' p2' p3': Position E),
-s (s1 ++ (inr(m2,true) :: inl(p1') :: 
-inr(n2,true) :: inl(p2') :: inr(m1,true) :: 
-inl(p3') :: inr(n1, true) :: nil) ++ s2) = true
-)
-.
-
-Definition forward_consistent 
-`(E: EventStructure M) (A : AsynchronousArena E)
-(s : Strategy E A) :=
-valid_strategy E A s
-/\
-forall (s1 : Play E) (m1 m2 n1 n2 : M), 
-valid_play E s1 /\
-(exists (p1 p2 p3 p4: Position E), 
-s (s1 ++ (inr(m1,true) :: inl(p1) :: inr(n1,true) :: inl(p2) :: nil)) = true
-/\ 
-s (s1 ++ (inr(m2,true) :: inl(p3) :: inr(n2,true) :: inl(p4) :: nil)) = true
-/\
-(independent E m1 m2) 
-/\
-(independent E m2 n1)
--> 
-(independent E m1 n2) 
-/\ (independent E n1 n2) /\
-exists (p1' p2' p3' p4': Position E),
-s (s1 ++ (inr(m1,true) :: inl(p1') :: 
-inr(n1,true) :: inl(p2') :: inr(m2,true) :: 
-inl(p3') :: inr(n2, true) :: inl(p4') :: nil)) = true
-)
-.
-
-Definition innocent `(E: EventStructure M) (A : AsynchronousArena E)
-(s : Strategy E A) :=
-forward_consistent E A s /\ backward_consistent E A s.
-
-Definition InfinitePlay `(E: EventStructure M) :=
-nat -> (Position E + M).
-
-Definition even (n : nat) := exists (m : nat), n = 2*m.
-
-Definition infinite_play_valid `(E: EventStructure M)
-(p : InfinitePlay E) := 
-p 0 = inl(nil : Position E) /\
-
-forall (n : nat), even n -> 
-exists (m : M) (x x' : Position E),
-p n = inl(x) /\ p (n+1) = inr (m) /\ p (n+2) = inl(x') /\
-move_from E m x x'.
-
-Definition total_strategy
- `(E: EventStructure M) (A : AsynchronousArena E) (sigma : Strategy E A) :=
-forall (s : Play E) (m : M) (pos : Position E),
-(valid_play E (s ++ (inr(m,true) :: inl(pos) :: nil)) /\
-sigma s = true /\ opponent_move E A m)
--> exists (n : M) (pos' : Position E),
-(sigma (s ++ (inr(m,true) :: inl(pos) :: inr(n,true) :: inl(pos') :: nil)) 
-= true /\ player_move E A n).
-
-Definition finite_nonnegative
- `(E: EventStructure M) (A : AsynchronousArena E) (sigma : Strategy E A) :=
-forall (x : Position E),
-(exists (s : Play E), sigma s = true 
-/\ hd_error (rev s) = Some (inl(x)))
--> Z.geb (finite_payoff (inl (x))) (0%Z) = true.
-
-Fixpoint subsequence_helper
-`(E: EventStructure M) (s : InfinitePlay E) (m : nat) (temp : Play E) :=
-match m with
-| 0 => 
-(match (s 0) with
-  | inl(p) => inl(p) :: temp
-  | inr(m) => inr(m,true) :: temp
-end)
-| S m' => 
-(match (s m) with
-  | inl(p) => subsequence_helper E s m' (inl(p) :: temp)
-  | inr(m) => subsequence_helper E s m' (inr(m, true) :: temp)
-end)
-end.
-
-Definition subsequence
-`(E: EventStructure M) (s : InfinitePlay E) (m : nat):=
-subsequence_helper E s m nil.
-
-Definition infinite_position_of_strategy
-`(E: EventStructure M) (A : AsynchronousArena E) 
-(x : InfinitePosition E) (sigma : Strategy E A) :=
-exists (s : InfinitePlay E),
-valid_infinite_position E x
-/\
-infinite_play_valid E s 
-/\
-forall (k : nat), sigma (subsequence E s (4 * k)) = true
-/\
-forall (m : M) (a : nat) (p : Position E), 
-(x m = true <-> (exists (b : nat), s b = inl(p) /\ In m p)).
-
-
-Definition infinite_nonnegative
-`(E: EventStructure M) (A : AsynchronousArena E) 
-(sigma : Strategy E A) :=
-forall (x : InfinitePosition E),
-infinite_position_of_strategy E A x sigma
--> infinite_payoff x = plus_infinity.
-
-Definition multiply_bool (b1 b2 : bool) :=
-match b1,b2 with
-| true, true => true
-| true, false => false
-| false, true => false
-| false, false => true
-end.
-
-Fixpoint alternating_walk `(E: EventStructure M)
-(A : AsynchronousArena E) (w : Walk E) := 
-valid_walk E w /\
-match w with
-| inl(pos) :: nil => True
-| inl(pos1) :: inr(m1, ep1) :: inl(pos2) :: nil => True
-| inl(pos1) :: inr(m1, ep1) :: ((inl(pos2) :: inr(m2, ep2) :: xs) as s) => 
-(alternating_walk E A s) /\
-(multiply_bool (polarity m1) ep1 = 
-negb (multiply_bool (polarity m2) ep2))
-| _ => False
-end.
-
-Definition is_position `(E: EventStructure M)
-(A : AsynchronousArena E) (p : Position E) (sigma : Strategy E A) :=
-exists (s : Play E),
-sigma s = true /\ nth_error (rev s) 1 = Some (inl(p)).
-
-Definition walk_on_strategy `(E: EventStructure M)
-(A : AsynchronousArena E) (w : Walk E) (sigma : Strategy E A) :=
-alternating_walk E A w /\
-(length w <= 3
-\/
-(exists (m n : M) (p q : bool),
-nth_error w 1 = Some(inr(m, p)) /\
-nth_error (rev w) 1 = Some(inr(n, q)) /\
-multiply_bool (polarity m) p = false /\
-multiply_bool (polarity n) q = true
-)
-/\
-forall (b : Position E) (a : nat), 4 * a < length w /\
-nth_error w (4 * a) = Some (inl(b)) -> 
-is_position E A b sigma
-).
-
-Definition walk_payoff `(E: EventStructure M)
-(A : AsynchronousArena E) (sigma : Strategy E A) :=
-forall (w : Walk E),
-walk_on_strategy E A w sigma ->
-Z.geb (finite_payoff (inr (w))) (0%Z) = true.
-
-Definition winning_strategy
-`(E: EventStructure M)
-(A : AsynchronousArena E) (sigma : Strategy E A) :=
-total_strategy E A sigma /\
-finite_nonnegative E A sigma /\
-infinite_nonnegative E A sigma /\
-walk_payoff E A sigma.
-
 Class Group (A : Type) := {
 mult : A -> A -> A;
 identity : A;
+inverse : A -> A;
 
 associative : forall (x y z : A),
 mult x (mult y z) = mult (mult x y) z;
 identity_exists : forall (x : A), 
-mult identity x = mult x identity /\ mult x identity = x;
+mult identity x = x /\ mult x identity = x;
 inverses_exist : forall (x : A),
-exists (y : A), mult x y = identity /\ mult y x = identity;
+mult x (inverse x) = identity /\ mult (inverse x) x = identity;
 }.
-
 
 Class AsynchronousGame `(E : EventStructure M) 
 (A : AsynchronousArena E) `(X : Group G)
 `(Y : Group H) := {
 action : G -> M -> H -> M;
 
-action_identity : forall (m : M) (g : G) (h : H),
+action_identity : forall (m : M),
 action identity m identity = m;
 action_compatible : forall (m : M) (g g' : G) (h h' : H),
 action (mult g g') m (mult h h') = 
@@ -444,24 +163,6 @@ coherence_4 : forall (m : M) (h : H),
 leq m n -> n = action identity n h) -> 
 m = action identity m h
 }.
-
-Fixpoint action_play `(E : EventStructure M) 
-(A : AsynchronousArena E) `(X : Group G) `(Y : Group H)
-(B : AsynchronousGame E A X Y)
- (p : Play E) (g : G) (h : H) : Play E :=
-match p with
-| nil => nil
-| inl (s) :: xs => inl (s) :: action_play E A X Y B xs g h
-| inr (m,b) :: xs =>
-inr (action g m h,b) :: action_play E A X Y B xs g h
-end.
-
-Definition uniform_strategy `(E : EventStructure M) 
-(A : AsynchronousArena E) `(X : Group G) `(Y : Group H)
-(B : AsynchronousGame E A X Y) (sigma : Strategy E A) :=
-forall (s : Play E) (h : H),
-sigma s = true -> exists (g : G),
-sigma (action_play E A X Y B s g h) = true.
 
 Fact negation_negates : (forall (b : bool), 
 (negb b = false -> b = true) /\ (negb b = true -> b = false)). 
@@ -548,6 +249,110 @@ apply polarity_second with (m0:=m).
 apply H.
 - intros. apply x_equals_x. apply noninitial_payoff with (w0:=w) (p0:=p).
 apply H.
+Defined.
+
+Fact inverse_is_unique `(G: Group A) : forall (x y z: A),
+mult x y = identity /\ mult x z = identity -> y = z.
+Proof. intros. destruct H. rewrite <- H in H0.
+assert (mult (inverse x) (mult x z) = mult (inverse x) (mult x y) ).
+{  rewrite H0. reflexivity. }
+rewrite associative in H1. rewrite associative in H1.
+assert (mult (inverse x) x = identity).
+{ apply inverses_exist. }
+rewrite H2 in H1. 
+assert (mult identity z = z /\ mult identity y = y).
+{ split. 
++ apply identity_exists.
++ apply identity_exists. }
+destruct H3. rewrite H3 in H1. rewrite H4 in H1. auto.
+Qed.
+
+Fact mult_inverse `(G: Group A) : forall (g g': A),
+mult (inverse g') (inverse g) = inverse (mult g g').
+Proof. intros. 
+assert (mult (mult g g') (mult (inverse g') (inverse g)) = identity /\
+mult (mult g g') (inverse (mult g g')) = identity).
+{ assert (mult (mult g g') (inverse (mult g g')) = identity).
+{ apply inverses_exist. }
+assert (mult (mult g g') (mult (inverse g') (inverse g)) = identity).
+{ rewrite associative. 
+assert (mult (mult g g') (inverse g') = g).
+{ rewrite <- associative.
+assert (mult g' (inverse g') = identity).
+{ apply inverses_exist. }
+rewrite H0. apply identity_exists.
+  }
+rewrite H0. apply inverses_exist.
+ }
+rewrite H. rewrite H0. auto.
+} apply inverse_is_unique with (G0:=G) (x:=mult g g')
+(y:=mult (inverse g') (inverse g)) (z:=inverse (mult g g')).
+auto.
+Qed.
+
+Fact inverse_identity_is_identity `(G: Group A) :
+inverse identity = identity.
+Proof. apply inverse_is_unique with (G0:=G) (x:=identity) 
+(y:= inverse identity) (z:=identity). 
+split.
++ apply inverses_exist.
++ apply identity_exists.
+Qed.
+
+Instance dual_game `(E : EventStructure M) 
+(A : AsynchronousArena E)
+`(X : Group G)
+`(Y : Group H)
+(Game : AsynchronousGame E A X Y): 
+AsynchronousGame E (dual E A) Y X:= {
+action h m g := action (inverse g) m (inverse h)}.
+Proof.
+- intros.
+assert (((inverse identity) : G) = (identity : G)).
+{ apply inverse_identity_is_identity. } rewrite H0. 
+assert (((inverse identity) : H) = (identity : H)).
+{ apply inverse_identity_is_identity. } rewrite H1.
+apply action_identity.
+- intros.
+assert (inverse (mult h h') = mult (inverse h') (inverse h)).
+{ rewrite mult_inverse. reflexivity. }
+rewrite H0.
+assert (inverse (mult g g') = mult (inverse g') (inverse g)).
+{ rewrite mult_inverse. reflexivity. }
+rewrite H1. apply action_compatible.
+- intros. apply coherence_1. apply H0.
+- intros. simpl. assert (forall a b, negb a = negb b <-> a = b).
+{ intros. unfold iff. split. 
+-  intros. destruct a.
++ simpl in H0. destruct b.
+++ reflexivity.
+++ simpl in H0. inversion H0.
++ destruct b.
+++ simpl in H0. inversion H0.
+++ reflexivity.
+- intros. rewrite H0. reflexivity. }
+rewrite H0. apply coherence_2.
+- intros. rewrite inverse_identity_is_identity.
+rewrite inverse_identity_is_identity in H0.
+apply coherence_4. simpl in H0. 
+assert (forall b, negb b = false <-> b = true).
+{ intros. unfold iff. split.
++ intros. destruct b.
+++ reflexivity.
+++ simpl in H1. inversion H1.
++ intros. rewrite H1. simpl. reflexivity.  }
+rewrite H1 in H0. auto.
+
+- intros. rewrite inverse_identity_is_identity.
+rewrite inverse_identity_is_identity in H0.
+apply coherence_3. simpl in H0.
+assert (forall b, negb b = true <-> b = false).
+{ intros. unfold iff. split.
++ intros. destruct b.
+++ simpl in H1. inversion H1.
+++ reflexivity.
++ intros. rewrite H1. simpl. reflexivity.  }
+rewrite H1 in H0. auto.
 Defined.
 
 Inductive Singleton : Type :=
@@ -1023,6 +828,168 @@ rewrite H' in H6. inversion H6.
 rewrite H' in H3. inversion H3.
 Defined.
 
+Fact reverse_inversion A B:
+forall (a a' : A), (inl a : A + B) = (inl a' : A + B) <-> a = a'.
+Proof.
+intros. unfold iff. split.
++ intros. inversion H. reflexivity.
++ intros. rewrite H. reflexivity.
+Qed.
 
+Instance lift_asynchronous_game 
+`(M : PartialOrder P)
+(E : EventStructure M)
+(A : AsynchronousArena E)
+`(X : Group G)
+`(Y : Group H)
+(Game : AsynchronousGame E A X Y)
+(p : nat)
+(negative : forall m, initial_move E m -> polarity m = false)
+: AsynchronousGame (lift_event_structure M E)
+(lift_asynchronous_arena M E A p negative) X Y := {
+action g m h :=
+match m with
+| inl m => inl (action g m h)
+| inr m => inr m
+end
+}.
+Proof.
+- intros. destruct m.
++ apply reverse_inversion. apply action_identity.
++ reflexivity.
+- intros. destruct m.
++ apply reverse_inversion. apply action_compatible.
++ reflexivity.
+- intros. destruct m.
++ destruct n.
+++ simpl. simpl in H0. apply coherence_1. apply H0.
+++ simpl in H0. contradiction H0.
++ destruct n.
+++ simpl. auto.
+++ simpl. auto.
+- intros. destruct m.
++ simpl. apply coherence_2.
++ reflexivity.
+- intros. destruct m.
++ apply reverse_inversion. apply coherence_3.
+simpl in H0. destruct H0. split.
+++ apply H0.
+++ intros. 
+assert (n = action g n identity <->
+(inl n : P + Singleton) = inl (action g n identity)).
+{ rewrite reverse_inversion. unfold iff. auto.  }
+apply H3. apply H1. apply H2.
++ reflexivity.
+- intros. destruct m.
++ apply reverse_inversion. apply coherence_4.
+simpl in H0. destruct H0. split.
+++ apply H0.
+++ intros. 
+assert (n = action identity n h <->
+(inl n : P + Singleton) = inl (action identity n h)).
+{ rewrite reverse_inversion. unfold iff. auto.  }
+apply H3. apply H1. apply H2.
++ reflexivity.
+Defined.
 
+Definition empty_type := 
+{n : nat | False }.
+
+Instance zero_partial_order : PartialOrder empty_type := {
+leq x y := True
+}.
+Proof.
+- intros. destruct x. contradiction f.
+- intros. destruct x. contradiction f.
+- intros. destruct x. contradiction f.
+Defined.
+
+Instance zero_event_structure : 
+EventStructure zero_partial_order := {
+incompatible x y := True;
+ideal x := nil
+}.
+Proof. 
+- intros. destruct x. contradiction f.
+- intros. destruct x. contradiction f.
+- intros. destruct x. contradiction f.
+- intros. destruct x. contradiction f.
+Qed.
+
+Instance zero_asynchronous_arena : 
+AsynchronousArena zero_event_structure := {
+polarity m := true;
+finite_payoff m := 
+match m with
+| inl _ => 1%Z
+| inr _ => 0%Z
+end;
+infinite_payoff m := plus_infinity
+}.
+Proof. 
+- intros. destruct m. contradiction f.
+- intros. subst n. right. reflexivity.
+- intros. destruct m. contradiction f.
+- intros. destruct m. contradiction f.
+- intros. reflexivity.
+- intros. destruct H. destruct H0. destruct H1.
+destruct w.
++ simpl in H0. omega.
++ destruct w.
+++ destruct s.
++++ simpl in H0. omega.
++++ destruct p0. destruct e. contradiction f.
+++ destruct s. 
++++ destruct s0.
+++++ simpl in H. contradiction H.
+++++ destruct p1. destruct e. contradiction f.
++++ destruct p0. destruct e. contradiction f.
+Qed.
+
+Instance trivial_group : Group Singleton := {
+mult a b := new;
+identity := new
+}.
+Proof.
+- auto.
+- auto.
+- intros. destruct x. auto.
+- auto.
+Defined.
+
+Instance zero_asynchronous_game : 
+AsynchronousGame zero_event_structure
+zero_asynchronous_arena trivial_group trivial_group := {
+action g m h := m
+}.
+Proof.
+- intros. destruct m. contradiction f.
+- intros. destruct m. contradiction f.
+- intros. destruct m. contradiction f.
+- intros. destruct m. contradiction f.
+- intros. destruct m. contradiction f.
+- intros. destruct m. contradiction f.
+Defined.
+
+Definition top := dual_game
+zero_event_structure
+zero_asynchronous_arena
+trivial_group
+trivial_group
+zero_asynchronous_game.
+
+Fact negative : forall (m : empty_type),
+let _ := (dual zero_event_structure zero_asynchronous_arena) in
+initial_move (zero_event_structure) m -> polarity m = false.
+Proof. intros. destruct m. contradiction f. Qed.
+
+Definition one := lift_asynchronous_game
+zero_partial_order
+zero_event_structure
+(dual zero_event_structure zero_asynchronous_arena)
+trivial_group
+trivial_group
+top
+0
+negative.
 
