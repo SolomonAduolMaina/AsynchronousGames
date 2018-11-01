@@ -712,6 +712,31 @@ match w with
 | inr(_) :: xs =>  contains_initial E xs
 end.
 
+Fact contains_initial_makes_sense `(E : EventStructure M) (w : Walk E)
+: contains_initial E w = true <-> In (inl(nil)) w.
+Proof. 
+intros. unfold iff. split.
+- intros. induction w.
++ simpl in H. inversion H.
++ simpl in H. simpl. destruct a.
+++ destruct p.
++++ left. reflexivity.
++++ right. apply IHw. apply H.
+++ right. apply IHw. apply H.
+- intros. induction w.
++ simpl in H. contradiction H.
++ simpl. destruct a.
+++ destruct p.
++++ reflexivity.
++++ apply IHw. simpl in H. destruct H.
+++++ inversion H.
+++++ apply H.
+++ apply IHw. simpl in H. destruct H.
++++ inversion H.
++++ apply H.
+Qed.
+
+
 Fixpoint remove_inl (A B : Type) (l : list (A + B))
 : list A := 
 match l with
@@ -967,7 +992,7 @@ apply H4. apply H with (x:=inl x) (y:= inl y).
 auto.
 +++ reflexivity.
 - intros. destruct H. destruct H0. destruct H1.
-destruct (contains_initial (lift_event_structure M E) w).
+destruct (contains_initial (lift_event_structure M E) w) eqn:H'.
 + simpl. destruct w.
 ++ simpl in H0. omega.
 ++ destruct s.
@@ -980,7 +1005,23 @@ destruct (contains_initial (lift_event_structure M E) w).
 rewrite H1. reflexivity.
 ++++ simpl. simpl in H1. rewrite H1. reflexivity.
 +++ simpl. simpl in H1. rewrite H1. reflexivity.
-+ simpl.
++ simpl. destruct p0.
+++
+assert (forall A (l : list A) (a : A), hd_error l = Some a -> In a l).
+{ intros. destruct l.
++ simpl in H3.  inversion H3. 
++ simpl in H3. inversion H3. simpl. left. reflexivity.  }
+assert (In  (inl nil) (rev w)).
+{apply H3. apply H1. }
+assert (In (inl nil) w).
+{ apply in_rev. apply H4. } 
+assert (contains_initial (lift_event_structure M E) w = true).
+{ apply contains_initial_makes_sense. apply H5. }
+rewrite H' in H6. inversion H6.
+++ assert (contains_initial (lift_event_structure M E) w = true).
+{ apply contains_initial_makes_sense. apply H2. }
+rewrite H' in H3. inversion H3.
+Defined.
 
 
 
