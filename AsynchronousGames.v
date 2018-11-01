@@ -759,10 +759,15 @@ Instance lift_asynchronous_arena
 (negative : forall m, initial_move E m -> polarity m = false)
 : AsynchronousArena (lift_event_structure M E) :=
 {
-finite_payoff m := match m with
-| inl(nil) => (-1)%Z
-| inl(inr(new) :: nil) => Z.of_nat p
-| inl(xs) => finite_payoff (inl (remove_inl P Singleton xs ))
+finite_payoff m := 
+let g k :=
+(match k with
+| nil => (-1)%Z
+| inr(new) :: nil => Z.of_nat p
+| xs => finite_payoff (inl (remove_inl P Singleton xs ))
+end) in
+match m with
+| inl(k) => g k
 | inr(xs) => 
 if negb (contains_initial (lift_event_structure M E) xs) then 
 finite_payoff (inr(remove_sum M E xs)) else 
@@ -770,7 +775,7 @@ finite_payoff (inr(remove_sum M E xs)) else
 | inl(nil) :: nil => 0%Z
 | xs =>
 (match hd_error (rev xs) with
-| Some (inl(l)) => finite_payoff (inl (remove_inl P Singleton l ))
+| Some (inl(l)) => g l
 | _ => 0%Z
 end)
 end)
@@ -961,8 +966,21 @@ assert (In (inl y) (inr s :: p0) -> In (inl y) p0).
 apply H4. apply H with (x:=inl x) (y:= inl y).
 auto.
 +++ reflexivity.
-- intros.
-
+- intros. destruct H. destruct H0. destruct H1.
+destruct (contains_initial (lift_event_structure M E) w).
++ simpl. destruct w.
+++ simpl in H0. omega.
+++ destruct s.
++++ simpl. destruct p1.
+++++ destruct w.
++++++ simpl in H0. omega. 
++++++ simpl in H0. destruct s.
+++++++ destruct H.
+++++++ simpl in H1. simpl.
+rewrite H1. reflexivity.
+++++ simpl. simpl in H1. rewrite H1. reflexivity.
++++ simpl. simpl in H1. rewrite H1. reflexivity.
++ simpl.
 
 
 
