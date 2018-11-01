@@ -76,17 +76,6 @@ Definition second_move `(E: EventStructure M) (m : M) :=
 
 Definition InfinitePosition `(E : EventStructure M) := (M -> bool).
 
-Definition valid_infinite_position `(E : EventStructure M)
-(pos : InfinitePosition E) :=
-forall (l : list M) (m n : M), 
-(pos m = true /\ pos n = true -> 
-not (incompatible m n))
-/\
-(pos n = true /\ leq m n -> pos m = true)
-/\
-(exists (a : M), pos a = true /\ not (In a l))
-.
-
 Class AsynchronousArena `(E : EventStructure M) := {
 polarity : M -> bool;
 finite_payoff : (Position E + Walk E) -> Z;

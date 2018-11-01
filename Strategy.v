@@ -7,6 +7,16 @@ Require Import Init.Nat.
 
 Generalizable All Variables.
 
+Definition valid_infinite_position `(E : EventStructure M)
+(pos : InfinitePosition E) :=
+forall (l : list M) (m n : M), 
+(pos m = true /\ pos n = true -> 
+not (incompatible m n))
+/\
+(pos n = true /\ leq m n -> pos m = true)
+/\
+(exists (a : M), pos a = true /\ not (In a l)).
+
 Definition Path `(E : EventStructure M) := Walk E.
 
 Definition valid_path `(E : EventStructure M) (p : Walk E) :=
@@ -305,3 +315,4 @@ Definition uniform_strategy `(E : EventStructure M)
 forall (s : Play E) (h : H),
 sigma s = true -> exists (g : G),
 sigma (action_play E A X Y B s g h) = true.
+
