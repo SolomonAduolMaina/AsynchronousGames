@@ -92,9 +92,9 @@ let n := finite_payoff (inl (nil : Position E)) in
 
 polarity_first :
 forall (m : M), initial_move E m -> 
-(polarity m = true -> finite_payoff (inl(nil : Position E)) = (-1)%Z)
+(polarity m = true <-> finite_payoff (inl(nil : Position E)) = (-1)%Z)
 /\
-(polarity m = false -> finite_payoff (inl(nil : Position E)) = (1)%Z);
+(polarity m = false <-> finite_payoff (inl(nil : Position E)) = (1)%Z);
 
 polarity_second :
 forall (m : M), second_move E m -> 
@@ -154,7 +154,7 @@ m = action identity m h
 }.
 
 Fact negation_negates : (forall (b : bool), 
-(negb b = false -> b = true) /\ (negb b = true -> b = false)). 
+(negb b = false <-> b = true) /\ (negb b = true <-> b = false)). 
 Proof.
 intros. split.
 + destruct b.
@@ -163,27 +163,27 @@ intros. split.
 + destruct b.
 - compute. auto.
 - compute. auto.
-Qed.
+Defined.
 
 Fact zero_equals_zero : (forall (z : Z), (0 - z)%Z = 0%Z <-> z = 0%Z).
 Proof.
-intros. omega. Qed.
+intros. omega. Defined.
 
 Fact one_equals_one : (forall (z : Z), (0 - z)%Z = (-1)%Z <-> z = 1%Z).
 Proof.
-intros. omega. Qed.
+intros. omega. Defined.
 
 Fact minusone_equals_minusone : 
 (forall (z : Z), (0 - z)%Z = (1)%Z <-> z = (-1)%Z).
 Proof.
-intros. omega. Qed.
+intros. omega. Defined.
 
 Fact x_equals_x : (forall (x y : Z), (0 - x)%Z = (0-y)%Z <-> x = y).
 Proof.
 intros. unfold iff. split.
 + intros. omega.
 + intros. omega.
-Qed.
+Defined.
 
 Instance dual `(E : EventStructure M) 
 (A : AsynchronousArena E) : 
@@ -209,22 +209,27 @@ destruct H.
 + rewrite H. compute. left. reflexivity.
 - intros. 
 assert (forall (m : M), initial_move E m -> 
-(polarity m = true -> finite_payoff (inl(nil : Position E)) = (-1)%Z)
+(polarity m = true <-> finite_payoff (inl(nil : Position E)) = (-1)%Z)
 /\
-(polarity m = false -> finite_payoff (inl(nil : Position E)) = (1)%Z)).
+(polarity m = false <-> finite_payoff (inl(nil : Position E)) = (1)%Z)).
 {apply polarity_first. } 
-assert ((polarity m = true ->
+assert ((polarity m = true <->
       finite_payoff (inl (nil : Position E)) =
       (-1)%Z) /\
-     (polarity m = false ->
+     (polarity m = false <->
       finite_payoff (inl (nil : Position E)) = 1%Z)).
 {apply H0 with (m := m). apply H. }
 split.
-+ intros. apply negation_negates in H2. destruct H1.
++ intros. unfold iff. split.
+++ intros. apply negation_negates in H2. destruct H1.
 apply one_equals_one. apply H3. apply H2.
-+ intros.
-apply negation_negates in H2.  destruct H1.
-apply minusone_equals_minusone. apply H1. apply H2.
+++ intros. apply negation_negates. destruct H1.
+apply one_equals_one in H2. apply H3. apply H2.
++ intros. unfold iff. split.
+++ intros. apply negation_negates with (b:= polarity m) in H2. destruct H1.
+apply minusone_equals_minusone. apply H1. rewrite H2. reflexivity.
+++ intros. apply minusone_equals_minusone in H2. apply negation_negates
+with (b:= polarity m). destruct H1. apply H1. apply H2.
 - intros. split.
 + intros. apply negation_negates in H0. apply minusone_equals_minusone.
 apply polarity_second with (m0:=m).
@@ -233,7 +238,8 @@ apply polarity_second with (m0:=m).
 + intros. apply negation_negates in H0. apply one_equals_one.
 apply polarity_second with (m0:=m).
 ++ apply H.
-++ apply H0.
+++ apply negation_negates in H0. apply negation_negates
+with (b:=polarity m) in H0. apply H0.
 - intros. apply zero_equals_zero. apply initial_null with (w0:=w) (p0:=p).
 apply H.
 - intros. apply x_equals_x. apply noninitial_payoff with (w0:=w) (p0:=p).
@@ -254,7 +260,7 @@ assert (mult identity z = z /\ mult identity y = y).
 + apply identity_exists.
 + apply identity_exists. }
 destruct H3. rewrite H3 in H1. rewrite H4 in H1. auto.
-Qed.
+Defined.
 
 Fact mult_inverse `(G: Group A) : forall (g g': A),
 mult (inverse g') (inverse g) = inverse (mult g g').
@@ -277,7 +283,7 @@ rewrite H. rewrite H0. auto.
 } apply inverse_is_unique with (G0:=G) (x:=mult g g')
 (y:=mult (inverse g') (inverse g)) (z:=inverse (mult g g')).
 auto.
-Qed.
+Defined.
 
 Fact inverse_identity_is_identity `(G: Group A) :
 inverse identity = identity.
@@ -286,7 +292,7 @@ Proof. apply inverse_is_unique with (G0:=G) (x:=identity)
 split.
 + apply inverses_exist.
 + apply identity_exists.
-Qed.
+Defined.
 
 Instance dual_game `(E : EventStructure M) 
 (A : AsynchronousArena E)
@@ -387,7 +393,7 @@ let _ := lift_partial_order M in
 leq (inl(p)) (inl(q)) <-> leq p q.
 Proof. intros. subst l. unfold iff. split. 
 +  intros. simpl in H. apply H. 
-+ intros. simpl. apply H. Qed.
++ intros. simpl. apply H. Defined.
 
 
 Fixpoint add_inl (A B : Type) (l : list A) :
@@ -410,17 +416,17 @@ Proof. intros. unfold iff. split.
 ++ simpl in H. contradiction H.
 ++ simpl. simpl in H. destruct H.
 +++ left. inversion H. reflexivity.
-+++ right. apply IHl. apply H. Qed.
++++ right. apply IHl. apply H. Defined.
 
 Fact in_tl_in_tl : (forall (A : Type) (a b : A) (l : list A),
 In a (b :: l) /\ a <> b -> In a l).
 Proof. intros. destruct H. destruct H. contradiction H0. rewrite H.
-reflexivity. apply H. Qed.
+reflexivity. apply H. Defined.
 
 Fact inl_neq_inr : forall (A B: Type) (a b : A + B),
 (exists (x : A) (y : B), a = inl x /\ b = inr y) -> a <> b.
 Proof. intros. destruct H. destruct H. destruct H. rewrite H. rewrite H0.
-unfold not. intros. inversion H1. Qed.
+unfold not. intros. inversion H1. Defined.
 
 Instance lift_event_structure 
 `(M : PartialOrder P)
@@ -528,7 +534,7 @@ intros. unfold iff. split.
 ++ apply IHw. simpl in H. destruct H.
 +++ inversion H.
 +++ apply H.
-Qed.
+Defined.
 
 
 Fixpoint remove_inl (A B : Type) (l : list (A + B))
@@ -558,7 +564,7 @@ Proof. unfold iff. split.
 +++ apply IHl. destruct H.
 ++++ inversion H.
 ++++ apply H.
-Qed.
+Defined.
 
 Fixpoint remove_sum `(M : PartialOrder P)
 (E : EventStructure M)
@@ -575,7 +581,7 @@ Instance lift_asynchronous_arena
 (E : EventStructure M)
 (A : AsynchronousArena E)
 (p : nat)
-(negative : forall m, initial_move E m -> polarity m = false)
+(negative : finite_payoff (inl nil) = (1)%Z)
 : AsynchronousArena (lift_event_structure M E) :=
 {
 finite_payoff m := 
@@ -660,9 +666,11 @@ apply H2.
 assert (m = inr(new)).
 { apply -> H'. apply H. } 
 split.
-+ rewrite H0. intros. reflexivity.  
-+ rewrite H0. intros. inversion H1.
-- intros. 
++ rewrite H0. intros. unfold iff. auto. 
++ rewrite H0. intros. unfold iff. split.
+++ intros. inversion H1.
+++ intros. omega.
+- intros.
 destruct m. unfold second_move in H.
 assert (initial_move E p0).
 {unfold initial_move. intros. unfold iff. split.
@@ -699,7 +707,7 @@ inversion H2.
 split.
 + intros.
 assert (polarity p0 = false).
-{ apply negative. apply H0. }
+{ apply polarity_first. apply H0. apply negative. }
 rewrite H1 in H2. inversion H2.
 + intros. reflexivity.
 + unfold second_move in H. destruct H. destruct H0.
@@ -823,7 +831,7 @@ Proof.
 intros. unfold iff. split.
 + intros. inversion H. reflexivity.
 + intros. rewrite H. reflexivity.
-Qed.
+Defined.
 
 Instance lift_asynchronous_game 
 `(M : PartialOrder P)
@@ -833,7 +841,7 @@ Instance lift_asynchronous_game
 `(Y : Group H)
 (Game : AsynchronousGame E A X Y)
 (p : nat)
-(negative : forall m, initial_move E m -> polarity m = false)
+(negative : finite_payoff (inl nil) = (1)%Z)
 : AsynchronousGame (lift_event_structure M E)
 (lift_asynchronous_arena M E A p negative) X Y := {
 action g m h :=
@@ -903,21 +911,21 @@ Proof.
 - intros. destruct x. contradiction f.
 - intros. destruct x. contradiction f.
 - intros. destruct x. contradiction f.
-Qed.
+Defined.
 
 Instance zero_asynchronous_arena : 
 AsynchronousArena zero_event_structure := {
 polarity m := true;
 finite_payoff m := 
 match m with
-| inl _ => 1%Z
+| inl _ => (-1)%Z
 | inr _ => 0%Z
 end;
 infinite_payoff m := plus_infinity
 }.
 Proof. 
 - intros. destruct m. contradiction f.
-- intros. subst n. right. reflexivity.
+- intros. subst n. left. reflexivity.
 - intros. destruct m. contradiction f.
 - intros. destruct m. contradiction f.
 - intros. reflexivity.
@@ -933,7 +941,7 @@ destruct w.
 ++++ simpl in H. contradiction H.
 ++++ destruct p1. destruct e. contradiction f.
 +++ destruct p0. destruct e. contradiction f.
-Qed.
+Defined.
 
 Instance trivial_group : Group Singleton := {
 mult a b := new;
@@ -967,10 +975,10 @@ trivial_group
 trivial_group
 zero_asynchronous_game.
 
-Fact negative : forall (m : empty_type),
+Fact negative :
 let _ := (dual zero_event_structure zero_asynchronous_arena) in
-initial_move (zero_event_structure) m -> polarity m = false.
-Proof. intros. destruct m. contradiction f. Qed.
+finite_payoff (inl nil) = (1)%Z.
+Proof. simpl. reflexivity. Defined. 
 
 Definition one := lift_asynchronous_game
 zero_partial_order
