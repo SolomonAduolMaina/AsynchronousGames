@@ -163,27 +163,27 @@ intros. split.
 + destruct b.
 - compute. auto.
 - compute. auto.
-Defined.
+Qed.
 
 Fact zero_equals_zero : (forall (z : Z), (0 - z)%Z = 0%Z <-> z = 0%Z).
 Proof.
-intros. omega. Defined.
+intros. omega. Qed.
 
 Fact one_equals_one : (forall (z : Z), (0 - z)%Z = (-1)%Z <-> z = 1%Z).
 Proof.
-intros. omega. Defined.
+intros. omega. Qed.
 
 Fact minusone_equals_minusone : 
 (forall (z : Z), (0 - z)%Z = (1)%Z <-> z = (-1)%Z).
 Proof.
-intros. omega. Defined.
+intros. omega. Qed.
 
 Fact x_equals_x : (forall (x y : Z), (0 - x)%Z = (0-y)%Z <-> x = y).
 Proof.
 intros. unfold iff. split.
 + intros. omega.
 + intros. omega.
-Defined.
+Qed.
 
 Instance dual `(E : EventStructure M) 
 (A : AsynchronousArena E) : 
@@ -260,7 +260,7 @@ assert (mult identity z = z /\ mult identity y = y).
 + apply identity_exists.
 + apply identity_exists. }
 destruct H3. rewrite H3 in H1. rewrite H4 in H1. auto.
-Defined.
+Qed.
 
 Fact mult_inverse `(G: Group A) : forall (g g': A),
 mult (inverse g') (inverse g) = inverse (mult g g').
@@ -283,7 +283,7 @@ rewrite H. rewrite H0. auto.
 } apply inverse_is_unique with (G0:=G) (x:=mult g g')
 (y:=mult (inverse g') (inverse g)) (z:=inverse (mult g g')).
 auto.
-Defined.
+Qed.
 
 Fact inverse_identity_is_identity `(G: Group A) :
 inverse identity = identity.
@@ -292,7 +292,7 @@ Proof. apply inverse_is_unique with (G0:=G) (x:=identity)
 split.
 + apply inverses_exist.
 + apply identity_exists.
-Defined.
+Qed.
 
 Instance dual_game `(E : EventStructure M) 
 (A : AsynchronousArena E)
@@ -348,7 +348,7 @@ assert (forall b, negb b = true <-> b = false).
 ++ reflexivity.
 + intros. rewrite H1. simpl. reflexivity.  }
 rewrite H1 in H0. auto.
-Defined.
+Qed.
 
 Inductive Singleton : Type :=
 | new : Singleton.
@@ -393,7 +393,7 @@ let _ := lift_partial_order M in
 leq (inl(p)) (inl(q)) <-> leq p q.
 Proof. intros. subst l. unfold iff. split. 
 +  intros. simpl in H. apply H. 
-+ intros. simpl. apply H. Defined.
++ intros. simpl. apply H. Qed.
 
 
 Fixpoint add_inl (A B : Type) (l : list A) :
@@ -416,17 +416,17 @@ Proof. intros. unfold iff. split.
 ++ simpl in H. contradiction H.
 ++ simpl. simpl in H. destruct H.
 +++ left. inversion H. reflexivity.
-+++ right. apply IHl. apply H. Defined.
++++ right. apply IHl. apply H. Qed.
 
 Fact in_tl_in_tl : (forall (A : Type) (a b : A) (l : list A),
 In a (b :: l) /\ a <> b -> In a l).
 Proof. intros. destruct H. destruct H. contradiction H0. rewrite H.
-reflexivity. apply H. Defined.
+reflexivity. apply H. Qed.
 
 Fact inl_neq_inr : forall (A B: Type) (a b : A + B),
 (exists (x : A) (y : B), a = inl x /\ b = inr y) -> a <> b.
 Proof. intros. destruct H. destruct H. destruct H. rewrite H. rewrite H0.
-unfold not. intros. inversion H1. Defined.
+unfold not. intros. inversion H1. Qed.
 
 Instance lift_event_structure 
 `(M : PartialOrder P)
@@ -534,7 +534,7 @@ intros. unfold iff. split.
 ++ apply IHw. simpl in H. destruct H.
 +++ inversion H.
 +++ apply H.
-Defined.
+Qed.
 
 
 Fixpoint remove_inl (A B : Type) (l : list (A + B))
@@ -564,7 +564,7 @@ Proof. unfold iff. split.
 +++ apply IHl. destruct H.
 ++++ inversion H.
 ++++ apply H.
-Defined.
+Qed.
 
 Fixpoint remove_sum `(M : PartialOrder P)
 (E : EventStructure M)
@@ -831,7 +831,7 @@ Proof.
 intros. unfold iff. split.
 + intros. inversion H. reflexivity.
 + intros. rewrite H. reflexivity.
-Defined.
+Qed.
 
 Instance lift_asynchronous_game 
 `(M : PartialOrder P)
@@ -978,7 +978,7 @@ zero_asynchronous_game.
 Fact negative :
 let _ := (dual zero_event_structure zero_asynchronous_arena) in
 finite_payoff (inl nil) = (1)%Z.
-Proof. simpl. reflexivity. Defined. 
+Proof. simpl. reflexivity. Qed. 
 
 Definition one := lift_asynchronous_game
 zero_partial_order
