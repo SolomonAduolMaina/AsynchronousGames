@@ -38,11 +38,11 @@ Definition valid_position `(E: EventStructure M) (p : Position E) :=
 forall (x y: M), 
 (In x p /\ In y p ->  not (incompatible x y))
  /\ 
-(In x p /\ leq y x -> In y p).
+(In x p /\ leq y x -> In y p)
 (*/\
 (NoDup p)
 /\
-(in_order E p).*)
+(in_order E p)*).
 
 Definition move_from `(E: EventStructure M) 
 (m : M) (p1 p2 : Position E) :=
@@ -396,11 +396,17 @@ Proof. intros. subst l. unfold iff. split.
 + intros. simpl. apply H. Qed.
 
 
-Fixpoint add_inl (A B : Type) (l : list A) :
-list (sum A B) :=
+Fixpoint add_inl (A B : Type) (l : list A) : list (sum A B) :=
 match l with
 | nil => nil
 | x :: xs => inl(x) :: (add_inl A B xs)
+end.
+ 
+
+Fixpoint add_inr (A B : Type) (l : list B) : list (sum A B) :=
+match l with
+| nil => nil
+| x :: xs => inr(x) :: (add_inr A B xs)
 end.
  
 
@@ -417,6 +423,41 @@ Proof. intros. unfold iff. split.
 ++ simpl. simpl in H. destruct H.
 +++ left. inversion H. reflexivity.
 +++ right. apply IHl. apply H. Qed.
+
+Fact add_inr_does_nothing (A B : Type) (l : list B) :
+forall (b : B), In b l <-> In (inr b) (add_inr A B l).
+Proof. intros. unfold iff. split.
++  intros. induction l.
+++ simpl in H. contradiction H.
+++ simpl. simpl in H. destruct H.
++++ left. rewrite H. reflexivity.
++++ right. apply IHl. apply H. 
++ intros. induction l.
+++ simpl in H. contradiction H.
+++ simpl. simpl in H. destruct H.
++++ left. inversion H. reflexivity.
++++ right. apply IHl. apply H. Qed.
+
+Fact inr_not_in_add_inl (A B : Type) (l : list A) :
+forall (b : B), not (In (inr b) (add_inl A B l)).
+Proof.
+intros. unfold not. intros. induction l.
++ simpl in H. apply H.
++ simpl in H. destruct H.
+++ inversion H.
+++ apply IHl. apply H.
+Qed.
+
+Fact inl_not_in_add_inr (A B : Type) (l : list B) :
+forall (a : A), not (In (inl a) (add_inr A B l)).
+Proof.
+intros. unfold not. intros. induction l.
++ simpl in H. apply H.
++ simpl in H. destruct H.
+++ inversion H.
+++ apply IHl. apply H.
+Qed.
+
 
 Fact in_tl_in_tl : (forall (A : Type) (a b : A) (l : list A),
 In a (b :: l) /\ a <> b -> In a l).
@@ -537,16 +578,22 @@ intros. unfold iff. split.
 Qed.
 
 
-Fixpoint remove_inl (A B : Type) (l : list (A + B))
-: list A := 
+Fixpoint cast_to_left (A B : Type) (l : list (A + B)) : list A := 
 match l with
 | nil => nil
-| inl(x) :: xs => x :: (remove_inl A B xs)
-| inr(x) :: xs => (remove_inl A B xs)
+| inl(x) :: xs => x :: (cast_to_left A B xs)
+| inr(x) :: xs => (cast_to_left A B xs)
 end.
 
-Fact remove_inl_is_boring (A B : Type) (x : A) (l : list (A + B)):
-In x (remove_inl A B l) <-> In (inl(x)) l.
+Fixpoint cast_to_right (A B : Type) (l : list (A + B)) : list B := 
+match l with
+| nil => nil
+| inr(x) :: xs => x :: (cast_to_right A B xs)
+| inl(x) :: xs => (cast_to_right A B xs)
+end.
+
+Fact cast_to_left_is_boring (A B : Type) (x : A) (l : list (A + B)):
+In x (cast_to_left A B l) <-> In (inl(x)) l.
 Proof. unfold iff. split.
 + intros. induction l.
 ++ simpl in H. contradiction H.
@@ -571,7 +618,7 @@ Fixpoint remove_sum `(M : PartialOrder P)
 (w : Walk (lift_event_structure M E)) : Walk E :=
 match w with
 | nil => nil
-| inl(p) :: xs => (inl(remove_inl P Singleton p)) :: (remove_sum M E xs)
+| inl(p) :: xs => (inl(cast_to_left P Singleton p)) :: (remove_sum M E xs)
 | inr(inl(p),b) :: xs => (inr (p,b)):: (remove_sum M E xs)
 | _ => nil
 end.
@@ -589,7 +636,7 @@ let g k :=
 (match k with
 | nil => (-1)%Z
 | inr(new) :: nil => Z.of_nat p
-| xs => finite_payoff (inl (remove_inl P Singleton xs ))
+| xs => finite_payoff (inl (cast_to_left P Singleton xs ))
 end) in
 match m with
 | inl(k) => g k
@@ -721,18 +768,18 @@ reflexivity.
 + simpl. reflexivity.
 + simpl. destruct s.
 ++ apply initial_null with
-(w0:=inl (p1 :: remove_inl P Singleton p0) :: nil)
-(p2:=p1 :: remove_inl P Singleton p0)
+(w0:=inl (p1 :: cast_to_left P Singleton p0) :: nil)
+(p2:=p1 :: cast_to_left P Singleton p0)
 . split.
 +++ subst w. simpl in H. simpl. unfold valid_position.
 unfold valid_position in H. intros. split.
 ++++ intros. destruct H0. 
 assert (In (inl(x)) (inl p1 :: p0)).
-{ apply -> remove_inl_is_boring. simpl. simpl in H0. 
+{ apply -> cast_to_left_is_boring. simpl. simpl in H0. 
 apply H0.
 }
 assert (In (inl(y)) (inl p1 :: p0)).
-{ apply -> remove_inl_is_boring. simpl. simpl in H1. 
+{ apply -> cast_to_left_is_boring. simpl. simpl in H1. 
 apply H1.
 }
 assert (not (incompatible (inl x) (inl y))).
@@ -740,9 +787,9 @@ assert (not (incompatible (inl x) (inl y))).
 + apply H2.
 + apply H3. }
 simpl in H4. apply H4.
-++++ intros. destruct H0. simpl in H0.
- rewrite remove_inl_is_boring in H0.
-simpl. rewrite remove_inl_is_boring.
+++++ intros. (* HAPA *)destruct H0. simpl in H0.
+ rewrite cast_to_left_is_boring in H0.
+simpl. rewrite cast_to_left_is_boring.
 assert (forall x y,
 (inl x : P + Singleton) = (inl y : P + Singleton) <-> x = y).
 { intros. unfold iff. split.
@@ -760,8 +807,8 @@ split.
 +++++ simpl. apply H1.
 +++ reflexivity.
 ++ apply initial_null with 
-(w0:=inl (remove_inl P Singleton p0) :: nil)
-(p1:=remove_inl P Singleton p0)
+(w0:=inl (cast_to_left P Singleton p0) :: nil)
+(p1:=cast_to_left P Singleton p0)
 . split.
 +++ simpl. subst w. simpl in H. unfold valid_position.
 unfold valid_position in H. intros.
@@ -769,8 +816,8 @@ split.
 ++++ intros. destruct H0.
 assert (In (inl x) p0 /\ In (inl y) p0).
 { split.
-+ apply remove_inl_is_boring. apply H0. 
-+ apply remove_inl_is_boring. apply H1. }
++ apply cast_to_left_is_boring. apply H0. 
++ apply cast_to_left_is_boring. apply H1. }
 destruct H2.
 assert (In (inl x) (inr s :: p0) /\ In (inl y) (inr s :: p0)).
 { split.
@@ -780,8 +827,8 @@ assert (In (inl x) (inr s :: p0) /\ In (inl y) (inr s :: p0)).
 assert (not (incompatible (inl x) (inl y))).
 { apply H. apply H4. }
 simpl in H5. apply H5.
-++++ intros. destruct H0. apply remove_inl_is_boring.
-apply remove_inl_is_boring in H0.
+++++ intros. destruct H0. apply cast_to_left_is_boring.
+apply cast_to_left_is_boring in H0.
 assert (In (inl x) (inr s :: p0)).
 { simpl. right. apply H0. }
 assert (leq (inl y) (inl x)).
@@ -825,12 +872,40 @@ rewrite H' in H6. inversion H6.
 rewrite H' in H3. inversion H3.
 Defined.
 
-Fact reverse_inversion A B:
+Fact reverse_inversion_left A B:
 forall (a a' : A), (inl a : A + B) = (inl a' : A + B) <-> a = a'.
 Proof.
 intros. unfold iff. split.
 + intros. inversion H. reflexivity.
 + intros. rewrite H. reflexivity.
+Qed.
+
+Fact reverse_inversion_right A B:
+forall (a a' : B), (inr a : A + B) = (inr a' : A + B) <-> a = a'.
+Proof.
+intros. unfold iff. split.
++ intros. inversion H. reflexivity.
++ intros. rewrite H. reflexivity.
+Qed.
+
+Fact reverse_inversion_opposite_left A B:
+forall (a a' : A), (inl a : A + B) <> (inl a' : A + B) <-> a <> a'.
+Proof.
+intros. unfold iff. split.
++ intros. unfold not in H. unfold not. intros. apply H. 
+apply reverse_inversion_left. apply H0.
++ intros. unfold not in H. unfold not. intros. apply H.
+apply reverse_inversion_left in H0. apply H0.
+Qed.
+
+Fact reverse_inversion_opposite_right A B:
+forall (a a' : B), (inr a : A + B) <> (inr a' : A + B) <-> a <> a'.
+Proof.
+intros. unfold iff. split.
++ intros. unfold not in H. unfold not. intros. apply H. 
+apply reverse_inversion_right. apply H0.
++ intros. unfold not in H. unfold not. intros. apply H.
+apply reverse_inversion_right in H0. apply H0.
 Qed.
 
 Instance lift_asynchronous_game 
@@ -852,10 +927,10 @@ end
 }.
 Proof.
 - intros. destruct m.
-+ apply reverse_inversion. apply action_identity.
++ apply reverse_inversion_left. apply action_identity.
 + reflexivity.
 - intros. destruct m.
-+ apply reverse_inversion. apply action_compatible.
++ apply reverse_inversion_left. apply action_compatible.
 + reflexivity.
 - intros. destruct m.
 + destruct n.
@@ -868,29 +943,28 @@ Proof.
 + simpl. apply coherence_2.
 + reflexivity.
 - intros. destruct m.
-+ apply reverse_inversion. apply coherence_3.
++ apply reverse_inversion_left. apply coherence_3.
 simpl in H0. destruct H0. split.
 ++ apply H0.
 ++ intros. 
 assert (n = action g n identity <->
 (inl n : P + Singleton) = inl (action g n identity)).
-{ rewrite reverse_inversion. unfold iff. auto.  }
+{ rewrite reverse_inversion_left. unfold iff. auto.  }
 apply H3. apply H1. apply H2.
 + reflexivity.
 - intros. destruct m.
-+ apply reverse_inversion. apply coherence_4.
++ apply reverse_inversion_left. apply coherence_4.
 simpl in H0. destruct H0. split.
 ++ apply H0.
 ++ intros. 
 assert (n = action identity n h <->
 (inl n : P + Singleton) = inl (action identity n h)).
-{ rewrite reverse_inversion. unfold iff. auto.  }
+{ rewrite reverse_inversion_left. unfold iff. auto.  }
 apply H3. apply H1. apply H2.
 + reflexivity.
 Defined.
 
-Definition empty_type := 
-{n : nat | False }.
+Definition empty_type := {b : bool | False}.
 
 Instance zero_partial_order : PartialOrder empty_type := {
 leq x y := True
@@ -989,4 +1063,342 @@ trivial_group
 top
 0
 negative.
+
+Instance partial_order_sum `(P : PartialOrder A) `(Q : PartialOrder B) :
+PartialOrder (A + B) := {
+leq m n :=
+match m, n with
+| inl m, inl n => leq m n
+| inr m, inr n => leq m n
+| _, _ => False
+end
+}.
+Proof.
+- intros. destruct x.
++ apply reflexive.
++ apply reflexive.
+- intros. destruct x.
++ destruct y.
+++ apply reverse_inversion_left. apply anti_symmetric. apply H.
+++ destruct H. contradiction H.
++ destruct y.
+++ destruct H. contradiction H.
+++ apply reverse_inversion_right. apply anti_symmetric. apply H.
+- destruct x.
++ destruct y.
+++ destruct z.
++++ apply transitive.
++++ intros. destruct H. contradiction H0.
+++ destruct z.
++++ intros. destruct H. contradiction H.
++++ intros. destruct H. contradiction H.
++ destruct y.
+++ destruct z.
++++ intros. destruct H. contradiction H.
++++ intros. destruct H. contradiction H.
+++ destruct z.
++++ intros. destruct H. contradiction H0.
++++ apply transitive.
+Defined.
+
+Instance event_structure_sum
+`(P : PartialOrder A) `(Q : PartialOrder B)
+(E : EventStructure P) (F : EventStructure Q) :
+EventStructure (partial_order_sum P Q) :=
+{ incompatible m n := 
+match m,n with
+| inl m, inl n => incompatible m n
+| inr m, inr n => incompatible m n
+| _, _ => True
+end;
+ideal m := match m with
+| inl m => add_inl A B (ideal m)
+| inr m => add_inr A B (ideal m)
+end
+}.
+Proof.
+- destruct x.
++ destruct y.
+++ apply symmetric.
+++ auto.
++ destruct y.
+++ auto.
+++ apply symmetric.
+- intros. destruct x.
++ apply irreflexive.
++ apply irreflexive.
+- intros. destruct x.
++ destruct y.
+++ intros. unfold iff. split.
++++ intros. simpl in H. apply add_inl_does_nothing.
+apply ideal_finite. apply H.
++++ intros. simpl. apply add_inl_does_nothing in H. 
+apply ideal_finite. apply H.
+++ unfold iff. split.
++++ intros. simpl in H. contradiction H.
++++ intros. 
+assert (not (In (inr b) (add_inl A B (ideal a)))).
+{ apply inr_not_in_add_inl. }
+contradiction H0.
++ unfold iff. split.
+++ intros. destruct y.
++++ simpl in H. contradiction H.
++++ apply add_inr_does_nothing. apply ideal_finite.
+simpl in H. apply H.
+++ destruct y.
++++ intros.
+assert (not (In (inl a) (add_inr A B (ideal b)))).
+{ apply inl_not_in_add_inr. }
+contradiction H0.
++++ intros. apply add_inr_does_nothing in H. simpl. apply ideal_finite.
+apply H.
+- intros. destruct x.
++ destruct y.
+++ destruct z.
++++ simpl in H. apply incompatible_closed with (y:=a0). apply H.
++++ auto.
+++ destruct z.
++++ destruct H. simpl in H0. contradiction H0.
++++ auto.
++ destruct y.
+++ destruct z.
++++ auto.
++++ simpl in H. destruct H. contradiction H0.
+++ destruct z.
++++ auto.
++++ simpl in H. apply incompatible_closed with (y:=b0). apply H.
+Defined.
+
+Fixpoint cast_to_left_in_walk 
+`(P : PartialOrder X)
+`(Q : PartialOrder Y)
+(E : EventStructure P)
+(F : EventStructure Q)
+(w : Walk (event_structure_sum P Q E F)) : Walk E
+:= match w with
+| (inl p) :: xs => 
+(inl (cast_to_left X Y p)) :: (cast_to_left_in_walk P Q E F xs)
+| (inr (inl x, b)) :: xs => 
+(inr (x, b)) :: (cast_to_left_in_walk P Q E F xs)
+| _ => nil
+end. 
+
+Fixpoint cast_to_right_in_walk 
+`(P : PartialOrder X)
+`(Q : PartialOrder Y)
+(E : EventStructure P)
+(F : EventStructure Q)
+(w : Walk (event_structure_sum P Q E F)) : Walk F
+:= match w with
+| (inl p) :: xs => 
+(inl (cast_to_right X Y p)) :: (cast_to_right_in_walk P Q E F xs)
+| (inr (inr x, b)) :: xs => 
+(inr (x, b)) :: (cast_to_right_in_walk P Q E F xs)
+| _ => nil
+end. 
+
+Instance asynchronous_arena_sum
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q)
+(A : AsynchronousArena E) (B : AsynchronousArena F)
+(positive1 : finite_payoff (inl (nil : Position E)) = (-1)%Z)
+(positive2 : finite_payoff (inl (nil : Position F)) = (-1)%Z)
+: AsynchronousArena (event_structure_sum P Q E F) :=
+{ polarity m := match m with
+| inl m => polarity m
+| inr m => polarity m
+end;
+
+finite_payoff m := match m with
+| inl nil => (-1)%Z 
+| inl (((inl _) :: _) as l) => 
+finite_payoff (inl (cast_to_left X Y l))
+| inl (((inr _) :: _) as l) => 
+finite_payoff (inl (cast_to_right X Y l))
+| inr (w) => 
+(match w with 
+| inl ((inl _) :: _) :: xs => 
+finite_payoff (inr (cast_to_left_in_walk P Q E F w))
+| inl ((inr _) :: _) :: xs => 
+finite_payoff (inr (cast_to_right_in_walk P Q E F w))
+| _ => 0%Z
+end)
+end;
+infinite_payoff f :=
+let g m := f (inl m) in
+let h m := f (inr m) in
+match infinite_payoff g, infinite_payoff h with
+| plus_infinity, plus_infinity => plus_infinity
+| minus_infinity, minus_infinity => minus_infinity
+| _, _ => plus_infinity
+end
+}.
+Proof.
+- intros. destruct H. destruct H0.
+destruct m.
++ destruct n.
+++ simpl.
+unfold initial_move in H. simpl in H.
+assert (initial_move E x).
+{ unfold initial_move. intros. unfold iff.  split. 
+- intros. apply reverse_inversion_left with (A:=X) (B:=Y).
+apply H. apply add_inl_does_nothing. apply H2.
+- intros. apply add_inl_does_nothing with (A:=X) (B:=Y).
+apply H. apply reverse_inversion_left with (A:=X) (B:=Y). apply H2.
+}
+unfold initial_move in H0. simpl in H0.
+assert (initial_move E x0).
+{ unfold initial_move. intros. unfold iff.  split. 
+- intros. apply reverse_inversion_left with (A:=X) (B:=Y).
+apply H0. apply add_inl_does_nothing. apply H3.
+- intros. apply add_inl_does_nothing with (A:=X) (B:=Y).
+apply H0. apply reverse_inversion_left with (A:=X) (B:=Y). apply H3.
+} apply initial_incompatible. split.
++++ apply H2.
++++ split.
+++++ apply H3.
+++++ apply reverse_inversion_opposite_left in H1. apply H1.
+++ simpl. auto.
++ destruct n.
+++ simpl. auto.
+++ unfold initial_move in H. simpl in H.
+assert (initial_move F y).
+{ unfold initial_move. intros. unfold iff.  split. 
+- intros. apply reverse_inversion_right with (A:=X) (B:=Y).
+apply H. apply add_inr_does_nothing. apply H2.
+- intros. apply add_inr_does_nothing with (A:=X) (B:=Y).
+apply H. apply reverse_inversion_right with (A:=X) (B:=Y). apply H2.
+}
+unfold initial_move in H0. simpl in H0.
+assert (initial_move F y0).
+{ unfold initial_move. intros. unfold iff.  split. 
+- intros. apply reverse_inversion_right with (A:=X) (B:=Y).
+apply H0. apply add_inr_does_nothing. apply H3.
+- intros. apply add_inr_does_nothing with (A:=X) (B:=Y).
+apply H0. apply reverse_inversion_right with (A:=X) (B:=Y). apply H3.
+} simpl. apply initial_incompatible. split.
++++ apply H2.
++++ split.
+++++ apply H3.
+++++ apply reverse_inversion_opposite_right in H1. apply H1.
+- left. reflexivity.
+- intros. destruct m.
++ assert (initial_move E x).
+{ unfold initial_move. intros. unfold iff.  split. 
+- intros. apply reverse_inversion_left with (A:=X) (B:=Y).
+apply H. apply add_inl_does_nothing. apply H0.
+- intros. apply add_inl_does_nothing with (A:=X) (B:=Y).
+apply H. apply reverse_inversion_left with (A:=X) (B:=Y). apply H0.
+} 
+
+assert
+((polarity x = true <-> finite_payoff (inl(nil : Position E)) = (-1)%Z)
+/\
+(polarity x = false <-> finite_payoff (inl(nil : Position E)) = (1)%Z)).
+{ apply polarity_first. apply H0. }
+split.
+++ unfold iff. split.
++++ intros. reflexivity.
++++ intros. apply H1. apply positive1.
+++ unfold iff. split.
++++ intros.
+assert (polarity x = true).
+{ apply H1. apply positive1. }
+rewrite H2 in H3. inversion H3.
++++ intros. omega.
++ unfold initial_move in H. 
+assert (initial_move F y).
+{ unfold initial_move. intros. unfold iff.  split. 
+- intros. apply reverse_inversion_right with (A:=X) (B:=Y).
+apply H. apply add_inr_does_nothing. apply H0.
+- intros. apply add_inr_does_nothing with (A:=X) (B:=Y).
+apply H. apply reverse_inversion_right with (A:=X) (B:=Y). apply H0.
+}
+split.
+++ unfold iff. split.
++++ intros. reflexivity.
++++ intros. 
+assert
+((polarity y = true <-> finite_payoff (inl(nil : Position F)) = (-1)%Z)
+/\
+(polarity y = false <-> finite_payoff (inl(nil : Position F)) = (1)%Z)).
+{ apply polarity_first. apply H0. }
+apply H2. apply positive2.
+++ unfold iff. split.
++++ intros.
+assert
+((polarity y = true <-> finite_payoff (inl(nil : Position F)) = (-1)%Z)
+/\
+(polarity y = false <-> finite_payoff (inl(nil : Position F)) = (1)%Z)).
+{ apply polarity_first. apply H0. }
+assert (polarity y = true).
+{ apply H2.  apply positive2. }
+rewrite H1 in H3. inversion H3.
++++ intros. omega.
+- intros. destruct m.
++ split. 
+++ intros.
+assert (second_move E x).
+{ unfold second_move. unfold second_move in H. split. 
++  intros.
+assert ((inl n : X + Y) = inl x \/
+     initial_move (event_structure_sum P Q E F)
+       (inl n)).
+{ apply H. simpl. apply add_inl_does_nothing. apply H1. }
+destruct H2.
+++ inversion H2. left. reflexivity.
+++ right.
+unfold initial_move. intros. unfold iff.  split. 
++++ intros. apply reverse_inversion_left with (A:=X) (B:=Y).
+apply H2. apply add_inl_does_nothing. apply H3.
++++ intros. apply add_inl_does_nothing with (A:=X) (B:=Y).
+apply H2. apply reverse_inversion_left with (A:=X) (B:=Y). apply H3.
++ destruct H. destruct H1. destruct x0.
+++ refine (ex_intro _ x0 _). destruct H1. split.
++++  simpl in H1. apply add_inl_does_nothing in H1. apply H1.
++++ apply reverse_inversion_opposite_left with (A:= X) (B:=Y) in H2.
+apply H2.
+++ destruct H1.  simpl in H1. apply inr_not_in_add_inl in H1.
+contradiction H1.
+ }
+assert 
+(polarity x = true -> finite_payoff (inl(nil : Position E)) = (1)%Z).
+{ apply polarity_second. apply H1. }
+assert (finite_payoff (inl(nil : Position E)) = (1)%Z).
+{ apply H2. apply H0. }
+rewrite positive1 in H3. apply H3.
+++ intros. auto.
++ split.
+++ intros.
+assert (second_move F y).
+{ unfold second_move. unfold second_move in H. split. 
++  intros.
+assert ((inr n : X + Y) = inr y \/
+     initial_move (event_structure_sum P Q E F)
+       (inr n)).
+{ apply H. simpl. apply add_inr_does_nothing. apply H1. }
+destruct H2.
+++ inversion H2. left. reflexivity.
+++ right.
+unfold initial_move. intros. unfold iff.  split. 
++++ intros. apply reverse_inversion_right with (A:=X) (B:=Y).
+apply H2. apply add_inr_does_nothing. apply H3.
++++ intros. apply add_inr_does_nothing with (A:=X) (B:=Y).
+apply H2. apply reverse_inversion_right with (A:=X) (B:=Y). apply H3.
++ destruct H. destruct H1. destruct x.
+++ destruct H1.  simpl in H1. apply inl_not_in_add_inr in H1.
+contradiction H1.
+++ refine (ex_intro _ y0 _). destruct H1. split.
++++  simpl in H1. apply add_inr_does_nothing in H1. apply H1.
++++ apply reverse_inversion_opposite_right with (A:= X) (B:=Y) in H2.
+apply H2.
+ }
+assert 
+(polarity y = true -> finite_payoff (inl(nil : Position F)) = (1)%Z).
+{ apply polarity_second. apply H1. }
+assert (finite_payoff (inl(nil : Position F)) = (1)%Z).
+{ apply H2. apply H0. }
+rewrite positive2 in H3. apply H3.
+++ intros. auto.
+
 
