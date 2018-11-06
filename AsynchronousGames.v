@@ -1400,5 +1400,42 @@ assert (finite_payoff (inl(nil : Position F)) = (1)%Z).
 { apply H2. apply H0. }
 rewrite positive2 in H3. apply H3.
 ++ intros. auto.
+- intros. destruct H. subst w. simpl in H. destruct p eqn:H'.
++ reflexivity.
++ unfold valid_position in H. destruct s.
+++ simpl.
+assert (valid_position E (x :: cast_to_left X Y p0)).
+{ unfold valid_position. intros. split.
++ intros.
+assert ((In (inl x0) (inl x :: p0) /\ In (inl y) (inl x :: p0) ->
+     ~ incompatible (inl x0) (inl y)) /\
+    (In (inl x0) (inl x :: p0) /\ leq (inl y) (inl x0) 
+-> In (inl y) (inl x :: p0))).
+{ apply H. }
+destruct H1. simpl incompatible in H1. apply H1. split.
+++ apply cast_to_left_is_boring. simpl cast_to_left. destruct H0.
++++ apply H0.
+++ destruct H0. apply cast_to_left_is_boring. simpl cast_to_left.
+apply H3.
++ intros. 
+assert 
+((In (inl x0) (inl x :: p0) /\ In (inl y) (inl x :: p0) ->
+     ~ incompatible (inl x0) (inl y))
+ /\ (In (inl x0) (inl x :: p0) /\ 
+leq (inl y) (inl x0) -> In (inl y) (inl x :: p0))).
+{ apply H. }
+destruct H1. simpl leq in H2.
+assert (x :: cast_to_left X Y p0 = cast_to_left X Y (inl x :: p0)).
+{ simpl. reflexivity. }
+rewrite H3. apply cast_to_left_is_boring. 
+apply H2. destruct H0.
+rewrite H3 in H0. apply cast_to_left_is_boring in H0. auto.
+ }
+apply initial_null with (p1:=x :: cast_to_left X Y p0).
+simpl. auto.
+
+
+
+
 
 
