@@ -634,6 +634,50 @@ Proof. unfold iff. split.
 ++++ right. apply IHl. apply H.
 Qed.
 
+Fact cast_to_left_monotonic (A B : Type) (l : list (A + B)):
+length (cast_to_left A B l) < length l \/ 
+length (cast_to_left A B l) = length l.
+Proof.
+intros.  induction l.
++ simpl. lia.
++ simpl. destruct a.
+++ simpl. lia.
+++ lia.
+Qed.
+
+Fact cast_to_left_iso (A B : Type) (l : list (A + B)):
+(length (cast_to_left A B l) = length l ->
+forall x, In x l -> (exists y, x = inl y))
+/\
+(length (cast_to_left A B l) < length l ->
+exists x, In (inr x) l).
+Proof. induction l.
++ split.
+++ simpl. intros. contradiction H0.
+++ simpl. intros. lia.
++ destruct IHl. split.
+++ intros. destruct a.
++++ simpl in H1. 
+assert (length (cast_to_left A B l) = length l).
+{ lia. }
+destruct H2. 
+++++ refine (ex_intro _ a _). auto.
+++++ apply H. apply H3. apply H2.
++++ simpl in H1.
+assert (length (cast_to_left A B l) < length l \/ 
+length (cast_to_left A B l) = length l).
+{ apply cast_to_left_monotonic. }
+lia.
+++ intros. destruct a.
++++ simpl in H1.
+assert (length (cast_to_left A B l) < length l).
+{ lia. } 
+simpl. 
+assert (exists x : B, In (inr x) l).
+{ apply H0. apply H2. }
+destruct H3. refine (ex_intro _ x _). auto.
++++ refine (ex_intro _ b _). simpl. left. auto.
+Qed.
 
 Fixpoint remove_sum `(M : PartialOrder P)
 (E : EventStructure M)
