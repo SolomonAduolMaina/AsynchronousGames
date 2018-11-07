@@ -1238,12 +1238,23 @@ finite_payoff (inl (cast_to_left X Y l))
 | inl (((inr _) :: _) as l) => 
 finite_payoff (inl (cast_to_right X Y l))
 | inr (w) => 
-(match w with 
-| inl ((inl _) :: _) :: xs => 
-finite_payoff (inr (cast_to_left_in_walk P Q E F w))
-| inl ((inr _) :: _) :: xs => 
-finite_payoff (inr (cast_to_right_in_walk P Q E F w))
+(match w with
+| (inl _) :: nil => 0%Z
+| _ => 
+if beq_nat (length w) 
+(length (cast_to_left_in_walk P Q E F w)) then
+finite_payoff (inr (cast_to_left_in_walk P Q E F w)) else
+if beq_nat (length w) 
+(length (cast_to_right_in_walk P Q E F w)) then
+finite_payoff (inr (cast_to_right_in_walk P Q E F w)) else
+(match (rev w) with
+| nil => (-1)%Z
+| inl ((inl _ :: _) as pos) :: _ => 
+ finite_payoff (inl (cast_to_left X Y pos))
+| inl ((inr _ :: _) as pos) :: _ => 
+ finite_payoff (inl (cast_to_right X Y pos))
 | _ => 0%Z
+end)
 end)
 end;
 infinite_payoff f :=
@@ -1422,68 +1433,30 @@ assert (finite_payoff (inl(nil : Position F)) = (1)%Z).
 { apply H2. apply H0. }
 rewrite positive2 in H3. apply H3.
 ++ intros. auto.
-- intros. destruct H. subst w. simpl in H. destruct p eqn:H'.
-+ reflexivity.
-+ unfold valid_position in H. destruct s.
-++ simpl.
-assert (valid_position E (x :: cast_to_left X Y p0)).
-{ unfold valid_position. intros. split.
-+ intros.
-assert ((In (inl x0) (inl x :: p0) /\ In (inl y) (inl x :: p0) ->
-     ~ incompatible (inl x0) (inl y)) /\
-    (In (inl x0) (inl x :: p0) /\ leq (inl y) (inl x0) 
--> In (inl y) (inl x :: p0))).
-{ apply H. }
-destruct H1. simpl incompatible in H1. apply H1. split.
-++ apply cast_to_left_is_boring. simpl cast_to_left. destruct H0.
-+++ apply H0.
-++ destruct H0. apply cast_to_left_is_boring. simpl cast_to_left.
-apply H3.
-+ intros. 
-assert 
-((In (inl x0) (inl x :: p0) /\ In (inl y) (inl x :: p0) ->
-     ~ incompatible (inl x0) (inl y))
- /\ (In (inl x0) (inl x :: p0) /\ 
-leq (inl y) (inl x0) -> In (inl y) (inl x :: p0))).
-{ apply H. }
-destruct H1. simpl leq in H2.
-assert (x :: cast_to_left X Y p0 = cast_to_left X Y (inl x :: p0)).
-{ simpl. reflexivity. }
-rewrite H3. apply cast_to_left_is_boring. 
-apply H2. destruct H0.
-rewrite H3 in H0. apply cast_to_left_is_boring in H0. auto.
- }
-apply initial_null with (p1:=x :: cast_to_left X Y p0).
-simpl. auto.
-++
-assert (valid_position F (y :: cast_to_right X Y p0)).
-{ unfold valid_position. intros. split.
-+ intros.
-assert ((In (inr x) (inr y :: p0) /\ In (inr y0) (inr y :: p0) ->
-     ~ incompatible (inr x) (inr y0)) /\
-    (In (inr x) (inr y :: p0) /\ leq (inr y0) (inr x) 
--> In (inr y0) (inr y :: p0))).
-{ apply H. }
-destruct H1. simpl incompatible in H1. apply H1. split.
-++ apply cast_to_right_is_boring. simpl cast_to_left. destruct H0.
-+++ apply H0.
-++ destruct H0. apply cast_to_right_is_boring. simpl cast_to_right.
-apply H3.
-+ intros. 
-assert ((In (inr x) (inr y :: p0) /\ In (inr y0) (inr y :: p0) ->
-     ~ incompatible (inr x) (inr y0)) /\
-    (In (inr x) (inr y :: p0) /\ leq (inr y0) (inr x) 
--> In (inr y0) (inr y :: p0))).
-{ apply H. }
-destruct H1. simpl leq in H2.
-assert (y :: cast_to_right X Y p0 = cast_to_right X Y (inr y :: p0)).
-{ simpl. reflexivity. }
-rewrite H3. apply cast_to_right_is_boring. 
-apply H2. destruct H0.
-rewrite H3 in H0. apply cast_to_right_is_boring in H0. auto.
- }
-apply initial_null with (p1:=y :: cast_to_right X Y p0).
-simpl. auto.
+- intros. destruct H. subst w. simpl in H. reflexivity. 
+- intros. destruct H. destruct H0. destruct H1.
+destruct w.
++ simpl in H0. lia.
++ destruct s.
+++ destruct w.
++++ simpl in H0. lia.
++++ 
+destruct (length (inl p0 :: s :: w) =?
+  length (cast_to_left_in_walk P Q E F (inl p0 :: s :: w))).
+++++ (* Walk is on the left side *) admit.
+++++ destruct (length (inl p0 :: s :: w) =?
+  length (cast_to_right_in_walk P Q E F (inl p0 :: s :: w))).
++++++ (* Walk is on the right side *) admit.
++++++ (* Walk is on both sides hence must cross the initial;
+last portion of walk is either on left or on right. *) admit.
+++ destruct (length (inr p0 :: w) =?
+  length (cast_to_left_in_walk P Q E F (inr p0 :: w))).
++++ (* Walk is on the left side *) admit.
++++ destruct (length (inr p0 :: w) =?
+  length (cast_to_right_in_walk P Q E F (inr p0 :: w))).
+++++ (* Walk is on the right side *) admit.
+++++ (* Walk is on both sides hence must cross the initial;
+last portion of walk is either on left or on right. *) admit.
 
 
 
