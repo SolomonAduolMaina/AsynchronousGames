@@ -613,6 +613,28 @@ Proof. unfold iff. split.
 ++++ apply H.
 Qed.
 
+Fact cast_to_right_is_boring (A B : Type) (x : B) (l : list (A + B)):
+In x (cast_to_right A B l) <-> In (inr(x)) l.
+Proof. unfold iff. split.
++ intros. induction l.
+++ simpl in H. contradiction H.
+++ simpl in H. destruct a.
++++ apply in_cons. apply IHl. apply H.
++++ simpl in H. destruct H.
+++++ simpl. left. rewrite H. reflexivity.
+++++ simpl. right. apply IHl. apply H.
++ intros. induction l.
+++ simpl in H. contradiction H.
+++ destruct a.
++++ destruct H.
+++++ inversion H.
+++++ simpl. apply IHl. apply H.
++++ simpl. simpl in H. destruct H.
+++++ left. inversion H. reflexivity.
+++++ right. apply IHl. apply H.
+Qed.
+
+
 Fixpoint remove_sum `(M : PartialOrder P)
 (E : EventStructure M)
 (w : Walk (lift_event_structure M E)) : Walk E :=
@@ -1433,7 +1455,35 @@ rewrite H3 in H0. apply cast_to_left_is_boring in H0. auto.
  }
 apply initial_null with (p1:=x :: cast_to_left X Y p0).
 simpl. auto.
-
+++
+assert (valid_position F (y :: cast_to_right X Y p0)).
+{ unfold valid_position. intros. split.
++ intros.
+assert ((In (inr x) (inr y :: p0) /\ In (inr y0) (inr y :: p0) ->
+     ~ incompatible (inr x) (inr y0)) /\
+    (In (inr x) (inr y :: p0) /\ leq (inr y0) (inr x) 
+-> In (inr y0) (inr y :: p0))).
+{ apply H. }
+destruct H1. simpl incompatible in H1. apply H1. split.
+++ apply cast_to_right_is_boring. simpl cast_to_left. destruct H0.
++++ apply H0.
+++ destruct H0. apply cast_to_right_is_boring. simpl cast_to_right.
+apply H3.
++ intros. 
+assert ((In (inr x) (inr y :: p0) /\ In (inr y0) (inr y :: p0) ->
+     ~ incompatible (inr x) (inr y0)) /\
+    (In (inr x) (inr y :: p0) /\ leq (inr y0) (inr x) 
+-> In (inr y0) (inr y :: p0))).
+{ apply H. }
+destruct H1. simpl leq in H2.
+assert (y :: cast_to_right X Y p0 = cast_to_right X Y (inr y :: p0)).
+{ simpl. reflexivity. }
+rewrite H3. apply cast_to_right_is_boring. 
+apply H2. destruct H0.
+rewrite H3 in H0. apply cast_to_right_is_boring in H0. auto.
+ }
+apply initial_null with (p1:=y :: cast_to_right X Y p0).
+simpl. auto.
 
 
 
