@@ -1263,6 +1263,52 @@ Fixpoint cast_to_right_in_walk
 | _ => nil
 end. 
 
+Fact destruct_list :
+forall {A} {B} (w : list (A + B)),
+w = nil 
+\/
+(exists m xs, w = inr m :: xs)
+\/
+(exists p1 , w = inl(p1) :: nil)
+\/
+(exists p1 p2 xs, w = inl(p1) :: (inl p2) :: xs)
+\/
+(exists p1 m, w = (inl p1) :: (inr m) :: nil)
+\/
+(exists p1 m m' xs, w = (inl p1) :: (inr m) :: (inr m') :: xs)
+\/
+(exists p1 m p2 xs, w = (inl p1) :: (inr m) :: (inl p2) :: xs).
+Proof.
+intros. destruct w.
++ left. reflexivity.
++ destruct s.
+++ right. destruct w.
++++ right. left. refine (ex_intro _ a _). reflexivity.
++++ destruct s.
+++++ right. right. left.
+refine (ex_intro _ a _).
+refine (ex_intro _ a0 _).
+refine (ex_intro _ w _). reflexivity.
+++++ destruct w.
++++++ right. right. right. left.
+refine (ex_intro _ a _).
+refine (ex_intro _ b _). reflexivity.
++++++ destruct s.
+++++++ right. right. right. right. right.
+refine (ex_intro _ a _).
+refine (ex_intro _ b _).
+refine (ex_intro _ a0 _).
+refine (ex_intro _ w _). reflexivity.
+++++++ right. right. right. right. left.
+refine (ex_intro _ a _).
+refine (ex_intro _ b _).
+refine (ex_intro _ b0 _).
+refine (ex_intro _ w _). reflexivity.
+++ right. left.
+refine (ex_intro _ b _).
+refine (ex_intro _ w _). reflexivity.
+Qed.
+
 Instance asynchronous_arena_sum
 `(P : PartialOrder X) `(Q : PartialOrder Y)
 (E : EventStructure P) (F : EventStructure Q)
@@ -1479,27 +1525,87 @@ rewrite positive2 in H3. apply H3.
 ++ intros. auto.
 - intros. destruct H. subst w. simpl in H. reflexivity. 
 - intros. destruct H. destruct H0. destruct H1.
+destruct (length w =?
+  length (cast_to_left_in_walk P Q E F w)) eqn:H'.
+++++ 
+assert (H'' : forall pos, (length w =?
+  length (cast_to_left_in_walk P Q E F w)) = true ->
+In (inl pos) w -> length pos = length (cast_to_left X Y pos)).
+{ admit. }
+assert (valid_walk E (cast_to_left_in_walk P Q E F w)).
+{ destruct (destruct_list w).
++ subst w. simpl in H0. lia.
++ destruct H3.
+++ destruct H3. destruct H3. subst w. simpl in H. contradiction H.
+++ destruct H3.
++++ destruct H3. subst w. simpl in H0. lia.
++++ destruct H3.
+++++ destruct H3. destruct H3. destruct H3.
+subst w. simpl in H. contradiction H.
+++++ destruct H3.
++++++ destruct H3. destruct H3. subst w. simpl in H.
+destruct x0. contradiction H.
++++++ destruct H3.
+++++++ destruct H3. destruct H3. destruct H3. destruct H3.
+subst w. simpl in H. destruct x0. contradiction H.
+++++++ destruct H3.
++++++++ destruct H3. destruct H3. destruct H3.
+subst w.  destruct x0. 
+assert (length x = length ((cast_to_left X Y x))).
+{ apply H''. 
++ apply H'. 
++ simpl. left. reflexivity. }
+assert (length x1 = length ((cast_to_left X Y x1))).
+{ apply H''. 
++ apply H'. 
++ simpl. right. right. left. reflexivity. }
+assert (forall z, In z x -> (exists y, z = inl y)).
+{ apply cast_to_left_iso. rewrite H3. reflexivity. }
+assert (forall z, In z x1 -> (exists y, z = inl y)).
+{ apply cast_to_left_iso. rewrite H4. reflexivity. }
+simpl. destruct s.
+++++++++ (* Need to induct on w2 here *)
+admit.
+++++++++ (* Valid position x -> valid_position cast_to_left *)
+admit.
+}
+assert (hd_error (rev (cast_to_left_in_walk P Q E F w))
+= Some (inl (cast_to_left X Y p))  ).
+{ admit. }
+assert (In (inl nil) (cast_to_left_in_walk P Q E F w)).
+{ admit. }
+assert (
+(length w = length (cast_to_left_in_walk P Q E F w))).
+{ apply beq_nat_eq. auto.  }
+assert (length (cast_to_left_in_walk P Q E F w) > 1).
+{ rewrite <- H6. apply H0. }
+assert (
+finite_payoff (inr (cast_to_left_in_walk P Q E F w)) = 
+finite_payoff (inl (cast_to_left X Y p))).
+{ apply noninitial_payoff.  auto. }
+rewrite H8.
 destruct w.
-+ simpl in H0. lia.
-+ destruct s.
++ simpl in H7. lia.
++ simpl. destruct s.
 ++ destruct w.
-+++ simpl in H0. lia.
-+++ 
-destruct (length (inl p0 :: s :: w) =?
-  length (cast_to_left_in_walk P Q E F (inl p0 :: s :: w))).
-++++ (* Walk is on the left side *) admit.
-++++ destruct (length (inl p0 :: s :: w) =?
-  length (cast_to_right_in_walk P Q E F (inl p0 :: s :: w))).
++++ simpl in H7. lia.
++++ destruct p.
++++++ simpl. apply positive1.
++++++ destruct s0.
+++++++ reflexivity.
+++++++ (*look at H1. inr y is in p which is
+a contradiction *)admit.
+++ destruct p.
++++ simpl. apply positive1.
++++ destruct s.
++++++ reflexivity.
++++++ (*look at H1. inr y is in p which is
+a contradiction *)admit.
+
+++++ destruct (length w =?
+     length (cast_to_right_in_walk P Q E F w)) eqn:H''.
 +++++ (* Walk is on the right side *) admit.
 +++++ (* Walk is on both sides hence must cross the initial;
-last portion of walk is either on left or on right. *) admit.
-++ destruct (length (inr p0 :: w) =?
-  length (cast_to_left_in_walk P Q E F (inr p0 :: w))).
-+++ (* Walk is on the left side *) admit.
-+++ destruct (length (inr p0 :: w) =?
-  length (cast_to_right_in_walk P Q E F (inr p0 :: w))).
-++++ (* Walk is on the right side *) admit.
-++++ (* Walk is on both sides hence must cross the initial;
 last portion of walk is either on left or on right. *) admit.
 
 
