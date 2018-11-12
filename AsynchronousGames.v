@@ -1586,6 +1586,7 @@ assert (In (inl y) p).
 + simpl. apply H1. }
 apply cast_to_left_is_boring. apply H2.
 }
+
 intros. destruct H0. destruct H1. destruct H2.
 
 assert (forall w,
@@ -1680,7 +1681,143 @@ destruct H7.
 ++++ lia.
 ++++ lia.
 }
-
+assert
+(forall w : Walk (event_structure_sum P Q E F),
+     valid_walk (event_structure_sum P Q E F) w ->
+valid_walk _ (cast_to_left_in_walk P Q E F w)).
+{ intros. induction w0.
++ simpl. apply valid_empty_walk with (p1:=(cast_to_left X Y p0)).
+++ reflexivity.
+++ destruct H5.
++++ inversion H5. apply H. apply H6.
++++ inversion H5.
++++ inversion H5.
++ destruct H5.
+++ inversion H5.
+++ inversion H5. subst p0. subst p1. subst w0. simpl.
+destruct m. apply valid_one_move_walk
+with (m:=x) (ep0:=ep) (p1:=(cast_to_left X Y p2))
+(p4:=(cast_to_left X Y p3)).
++++ reflexivity.
++++ split.
+++++ destruct H6. apply H. apply H6.
+++++ split.
++++++ destruct H6. destruct H7.
+++++++ destruct H7.
++++++++ apply valid_empty_walk with (p1:=(cast_to_left X Y p3)).
+++++++++ reflexivity.
+++++++++ inversion H7. apply H. apply H9.
++++++++ inversion H7.
++++++++ inversion H7.
++++++ destruct ep.
+++++++ left. destruct H6. destruct H7. destruct H8.
++++++++ split.
+++++++++ reflexivity.
+++++++++ unfold move_from. destruct H8.
+unfold move_from in H9.
++++++++++ unfold iff. split.
+++++++++++ destruct H9. apply cast_to_left_is_boring.
+apply H9.
+++++++++++ split.
++++++++++++ destruct H9. destruct H10. unfold not. intros.
+apply cast_to_left_is_boring in H12. auto.
++++++++++++ intros. destruct H9. destruct H11.
+unfold iff in H12. 
+assert ((inl n : X + Y) <> inl x ->
+      (In (inl n) p2 -> In (inl n) p3) /\ 
+(In (inl n) p3 -> In (inl n) p2)).
+{ apply H12. }
+rewrite cast_to_left_is_boring.
+rewrite cast_to_left_is_boring.
+apply H13. unfold not. intros.
+inversion H14. auto.
++++++++ destruct H8. inversion H8.
+++++++ right. destruct H6. destruct H7. destruct H8.
++++++++ destruct H8. inversion H8.
++++++++ split.
+++++++++ reflexivity.
+++++++++ destruct H8. unfold move_from.
+unfold move_from in H9. split.
++++++++++ destruct H9. apply cast_to_left_is_boring.
+apply H9.
++++++++++ split.
+++++++++++ unfold not. intros. destruct H9. destruct H11.
+apply cast_to_left_is_boring in H10. auto.
+++++++++++ destruct H9. destruct H10. intros.
+assert (In (inl n : X + Y) p3 <-> In (inl n : X + Y) p2).
+{ apply H11. unfold not. intros. inversion H13. auto. }
+rewrite cast_to_left_is_boring.
+rewrite cast_to_left_is_boring.
+apply H13.
++++ apply valid_empty_walk with (p0:=(cast_to_left X Y p3)).
+++++ reflexivity.
+++++ destruct H6. destruct H7. destruct H7.
++++++ inversion H7. apply H. apply H9.
++++++ inversion H7.
++++++ inversion H7.
+++ inversion H5. subst p0. subst p1. subst w0.
+simpl. destruct m.
++++ destruct m'. simpl in IHw0. destruct s. 
+++++ apply valid_non_empty_walk
+with (p1:=(cast_to_left X Y p2)) (m:=x)
+(ep0:=ep) (p4:=(cast_to_left X Y p3)) (m':=(x0, b))
+(w'0:=(cast_to_left_in_walk P Q E F w')).
++++++ reflexivity.
++++++ split.
+++++++ destruct H6. apply H. apply H6.
+++++++ split.
++++++++ destruct H6. destruct H7. simpl in IHw0.
+apply IHw0. apply H7.
++++++++ destruct H6. destruct H7. destruct H8.
+++++++++ left. split.
++++++++++ destruct H8. apply H8.
++++++++++ destruct H8. unfold move_from. unfold
+move_from in H9. split.
+++++++++++ destruct H9. apply cast_to_left_is_boring.
+apply H9.
+++++++++++ split.
++++++++++++ destruct H9. destruct H10. unfold not. intros.
+ apply cast_to_left_is_boring in H12. auto.
++++++++++++ intros.
+ rewrite cast_to_left_is_boring.
+ rewrite cast_to_left_is_boring.
+apply H9. unfold not. intros. inversion H11. auto.
+++++++++ destruct H8. right. split.
++++++++++ apply H8.
++++++++++ unfold move_from. unfold move_from in H9. split.
+++++++++++ destruct H9. apply cast_to_left_is_boring. apply H9.
+++++++++++ split.
++++++++++++ destruct H9. destruct H10. unfold not. intros.
+apply cast_to_left_is_boring in H12. auto.
++++++++++++ intros.
+ rewrite cast_to_left_is_boring.
+ rewrite cast_to_left_is_boring. apply H9. unfold not. intros.
+ inversion H11. auto.
+++++ simpl in IHw0.
+assert (valid_walk E (cast_to_left_in_walk P Q E F w')).
+{ apply IHw0. destruct H6. destruct H7. apply H7. }
+destruct w'.
++++++ simpl. destruct H6. destruct H8.
+destruct H8.
+++++++ inversion H8.
+++++++ inversion H8. subst p3. subst m. subst b. subst p4.
+admit. (* Hopefully Not hard *)
+++++++ inversion H8.
++++++ simpl. destruct p1. simpl in H7. destruct s.
+++++++ apply valid_non_empty_walk
+with (p1:=(cast_to_left X Y p2)) (m:=x) (ep0:=ep) (p4:=(cast_to_left X Y p0))
+(m':=(x0,b0)) (w'0:=(cast_to_left_in_walk P Q E F w')).
++++++++ reflexivity.
++++++++ admit. (* Hopefully Not hard *)
+++++++ destruct (cast_to_left_in_walk P Q E F w') eqn:IND.
++++++++ admit. (* Hopefully Not hard *)
++++++++ admit. (* Hopefully Not hard *)
++++ destruct m'. destruct s.
+++++ simpl in IHw0. apply IHw0. destruct H6.
+destruct H7. apply H7.
+++++ simpl in IHw0. apply IHw0. destruct H6.
+destruct H7. apply H7.
+}
 
 destruct (length_walk (event_structure_sum P Q E F) w =?
   length_walk E (cast_to_left_in_walk P Q E F w)) eqn:H'.
