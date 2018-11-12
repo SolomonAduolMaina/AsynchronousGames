@@ -27,39 +27,74 @@ incompatible_closed : forall (x y z : M),
 
 Definition Position `(E : EventStructure M) := list M.
 
-Fixpoint in_order `(E: EventStructure M) (p : Position E) :=
-match p with
-| nil => True
-| x :: nil => True
-| x :: ((y :: xs) as s) => leq x y /\ in_order E s
-end.
-
 Definition valid_position `(E: EventStructure M) (p : Position E) :=
 forall (x y: M), 
 (In x p /\ In y p ->  not (incompatible x y))
  /\ 
-(In x p /\ leq y x -> In y p)
-(*/\
-(NoDup p)
-/\
-(in_order E p)*).
+(In x p /\ leq y x -> In y p).
 
 Definition move_from `(E: EventStructure M) 
 (m : M) (p1 p2 : Position E) :=
 (In m p2) /\ (not (In m p1)) 
 /\ (forall (n : M), n <> m -> (In n p1 <-> In n p2)).
 
-Definition Walk `(E: EventStructure M) := 
-list (Position E + (M * bool)).
+Inductive Walk `(E: EventStructure M) := 
+| empty_walk : Position E -> Walk E
+| non_empty_walk : Position E -> (M * bool) -> Walk E -> Walk E.
 
-Fixpoint valid_walk `(E: EventStructure M) 
-(w : Walk E):=
-match w with
-| inl(p1) :: nil => valid_position E p1
-| inl(p1) :: inr(m, ep) :: ((inl(p2) :: xs) as s) => 
-(valid_position E p1) /\ (valid_position E p2) /\ (valid_walk E s) /\
+Inductive valid_walk `(E: EventStructure M) (w : Walk E) : Prop :=
+| valid_empty_walk : 
+forall p, w = (empty_walk E p) ->
+valid_position E p -> valid_walk E w
+| valid_one_move_walk :
+forall p1 m ep p2, 
+w = (non_empty_walk E p1 (m, ep) (empty_walk E p2)) ->
+(valid_position E p1) /\ (valid_walk E (empty_walk E p2)) /\
 ((ep = true /\ move_from E m p1 p2) \/ (ep = false /\ move_from E m p2 p1))
-| _ => False
+-> valid_walk E w
+| valid_non_empty_walk :
+forall p1 m ep p2 m' w',
+w = (non_empty_walk E p1 (m, ep) (non_empty_walk E p2 m' w')) ->
+(valid_position E p1) /\ (valid_walk E (non_empty_walk E p2 m' w')) /\
+((ep = true /\ move_from E m p1 p2) \/ (ep = false /\ move_from E m p2 p1))
+-> valid_walk E w.
+
+Fixpoint length_walk `(E: EventStructure M) (w : Walk E) :=
+match w with
+| empty_walk _ _ => 1
+| non_empty_walk _ _ _ w => 2 + (length_walk E w)
+end.
+
+
+Fact beq_nat_iff_equal : forall m n, (m =? n) = true <-> m = n.
+Proof. intros. unfold iff. split.
++ intros. apply beq_nat_true. apply H.
++ intros. rewrite H. induction n.
+++ simpl. reflexivity.
+++ simpl.
+assert (forall n, (n =? n) = true).
+{ intros. induction n0. 
++  simpl. reflexivity.
++ simpl. apply IHn0. }
+apply H0.
+Qed.
+
+Fixpoint target_walk `(E: EventStructure M) (w : Walk E) :=
+match w with
+| empty_walk _ p => p
+| non_empty_walk _ _ _ w => target_walk E w
+end.
+
+Fixpoint position_in_walk `(E: EventStructure M) (p : Position E) (w : Walk E) :=
+match w with
+| empty_walk _ p' => p' = p
+| non_empty_walk _ p' _ w => (p' = p) \/ (position_in_walk E p w)
+end.
+
+Fixpoint move_in_walk `(E: EventStructure M) p (w : Walk E) :=
+match w with
+| empty_walk _ p' => False
+| non_empty_walk _ _ p' w => (p' = p) \/ (move_in_walk E p w)
 end.
 
 Inductive Infinity : Type :=
@@ -74,6 +109,7 @@ Definition second_move `(E: EventStructure M) (m : M) :=
 /\
 (exists (n : M), In n (ideal m) /\ n <> m).
 
+(*TODO: We need to redefine this *)
 Definition InfinitePosition `(E : EventStructure M) := (M -> bool).
 
 Class AsynchronousArena `(E : EventStructure M) := {
@@ -104,14 +140,14 @@ forall (m : M), second_move E m ->
 
 initial_null :
 forall (w : Walk E) (p : Position E), 
-(valid_walk E w /\ w = inl (p) :: nil) -> finite_payoff (inr w) = 0%Z;
+(valid_walk E w /\ w = empty_walk E p) -> finite_payoff (inr w) = 0%Z;
 
 noninitial_payoff :
 forall (w : Walk E) (p : Position E),
 valid_walk E w /\
-length w > 1 /\ 
-hd_error (rev w) = Some (inl p) /\
-In (inl (nil : Position E)) w -> 
+length_walk E w > 1 /\ 
+target_walk E w = p /\
+position_in_walk E nil w -> 
 finite_payoff (inr w) = finite_payoff (inl p)
 }.
 
@@ -199,7 +235,6 @@ end;
 
 initial_incompatible := initial_incompatible;
 }.
-
 Proof.
 - assert (H :
  finite_payoff (inl (nil : Position E)) = (-1)%Z \/ 
@@ -395,20 +430,17 @@ Proof. intros. subst l. unfold iff. split.
 +  intros. simpl in H. apply H. 
 + intros. simpl. apply H. Qed.
 
-
 Fixpoint add_inl (A B : Type) (l : list A) : list (sum A B) :=
 match l with
 | nil => nil
 | x :: xs => inl(x) :: (add_inl A B xs)
 end.
- 
 
 Fixpoint add_inr (A B : Type) (l : list B) : list (sum A B) :=
 match l with
 | nil => nil
 | x :: xs => inr(x) :: (add_inr A B xs)
 end.
- 
 
 Fact add_inl_does_nothing (A B : Type) (l : list A) :
 forall (a : A), In a l <-> In (inl(a)) (add_inl A B l).
@@ -457,7 +489,6 @@ intros. unfold not. intros. induction l.
 ++ inversion H.
 ++ apply IHl. apply H.
 Qed.
-
 
 Fact in_tl_in_tl : (forall (A : Type) (a b : A) (l : list A),
 In a (b :: l) /\ a <> b -> In a l).
@@ -544,39 +575,6 @@ rewrite H1 in H0. compute in H0. contradiction H0.
 ++++ destruct H. contradiction H.
 ++ destruct H. contradiction H.
 Defined.
-
-Fixpoint contains_initial `(E : EventStructure M) (w : Walk E) :=
-match w with
-| nil => false
-| inl(nil) :: _ => true
-| inl(_ :: _) :: xs => contains_initial E xs
-| inr(_) :: xs =>  contains_initial E xs
-end.
-
-Fact contains_initial_makes_sense `(E : EventStructure M) (w : Walk E)
-: contains_initial E w = true <-> In (inl(nil)) w.
-Proof. 
-intros. unfold iff. split.
-- intros. induction w.
-+ simpl in H. inversion H.
-+ simpl in H. simpl. destruct a.
-++ destruct p.
-+++ left. reflexivity.
-+++ right. apply IHw. apply H.
-++ right. apply IHw. apply H.
-- intros. induction w.
-+ simpl in H. contradiction H.
-+ simpl. destruct a.
-++ destruct p.
-+++ reflexivity.
-+++ apply IHw. simpl in H. destruct H.
-++++ inversion H.
-++++ apply H.
-++ apply IHw. simpl in H. destruct H.
-+++ inversion H.
-+++ apply H.
-Qed.
-
 
 Fixpoint cast_to_left (A B : Type) (l : list (A + B)) : list A := 
 match l with
@@ -679,14 +677,41 @@ destruct H3. refine (ex_intro _ x _). auto.
 +++ refine (ex_intro _ b _). simpl. left. auto.
 Qed.
 
+Fixpoint contains_initial `(E : EventStructure M) (w : Walk E) :=
+match w with
+| empty_walk _ nil => true
+| empty_walk _ _ => false
+| non_empty_walk _ nil _ w => true
+| non_empty_walk _ _ _ w => contains_initial E w
+end.
+
+Fact contains_initial_if_nil_position_in_walk `(E : EventStructure M) (w : Walk E)
+: position_in_walk E nil w <-> contains_initial E w = true.
+Proof. intros. induction w.
++ simpl. split.
+++ intros. subst p. reflexivity.
+++ destruct p.
++++ auto.
++++ intros. inversion H.
++ split.
+++ intros. simpl. simpl in H. destruct H.
++++ subst p. reflexivity.
++++ destruct p.
+++++ reflexivity.
+++++ apply IHw. apply H.
+++ intros. simpl. simpl in H. destruct p.
++++ left. reflexivity.
++++ right. apply IHw. apply H.
+Qed.
+
 Fixpoint remove_sum `(M : PartialOrder P)
 (E : EventStructure M)
 (w : Walk (lift_event_structure M E)) : Walk E :=
 match w with
-| nil => nil
-| inl(p) :: xs => (inl(cast_to_left P Singleton p)) :: (remove_sum M E xs)
-| inr(inl(p),b) :: xs => (inr (p,b)):: (remove_sum M E xs)
-| _ => nil
+| empty_walk _ p => empty_walk E (cast_to_left P Singleton p)
+| non_empty_walk _ p (inl m ,b) w =>
+non_empty_walk E (cast_to_left P Singleton p) (m, b) (remove_sum M E w)
+| non_empty_walk _ p (inr m ,b) w => remove_sum M E w
 end.
 
 Instance lift_asynchronous_arena 
@@ -706,16 +731,12 @@ let g k :=
 end) in
 match m with
 | inl(k) => g k
-| inr(xs) => 
-if negb (contains_initial (lift_event_structure M E) xs) then 
-finite_payoff (inr(remove_sum M E xs)) else 
-(match xs with
-| inl(nil) :: nil => 0%Z
-| xs =>
-(match hd_error (rev xs) with
-| Some (inl(l)) => g l
-| _ => 0%Z
-end)
+| inr(w) => 
+if negb (contains_initial (lift_event_structure M E) w) then 
+finite_payoff (inr(remove_sum M E w)) else 
+(match w with
+| empty_walk _ nil => 0%Z
+| _ => g (target_walk (lift_event_structure M E) w)
 end)
 end;
 infinite_payoff f :=
@@ -744,7 +765,6 @@ apply H1.
 +++ intros. destruct H0. apply H0. contradiction H0.
 +++ intros. left. apply H0.
 }
-
 - intros. destruct m. 
 ++ destruct H0.
 assert (inl(p0) = inr(new)).
@@ -830,112 +850,56 @@ destruct x.
 +++ contradiction H0.
 ++ destruct H0. destruct s0. destruct s. contradiction H1.
 reflexivity.
-- intros. destruct H. rewrite H0. simpl. destruct p0.
-+ simpl. reflexivity.
-+ simpl. destruct s.
-++ apply initial_null with
-(w0:=inl (p1 :: cast_to_left P Singleton p0) :: nil)
-(p2:=p1 :: cast_to_left P Singleton p0)
-. split.
-+++ subst w. simpl in H. simpl. unfold valid_position.
-unfold valid_position in H. intros. split.
-++++ intros. destruct H0. 
-assert (In (inl(x)) (inl p1 :: p0)).
-{ apply -> cast_to_left_is_boring. simpl. simpl in H0. 
-apply H0.
-}
-assert (In (inl(y)) (inl p1 :: p0)).
-{ apply -> cast_to_left_is_boring. simpl. simpl in H1. 
-apply H1.
-}
-assert (not (incompatible (inl x) (inl y))).
-{ apply H. split.
-+ apply H2.
-+ apply H3. }
+- intros. 
+destruct (negb (contains_initial (lift_event_structure M E) w)) eqn:H'.
++ destruct w.
+++ simpl. destruct H. inversion H0. subst p1.
+assert (valid_walk E (empty_walk E (cast_to_left P Singleton p0))).
+{ apply valid_empty_walk with (p1:=cast_to_left P Singleton p0).
++ reflexivity.
++ inversion H. inversion H1. subst p1.
+++ unfold valid_position. unfold valid_position in H2. intros. split.
++++ intros.
+assert (~ incompatible (inl x) (inl y)).
+{ apply H2. destruct H3. split.
+++ apply cast_to_left_is_boring. apply H3.
+++ apply cast_to_left_is_boring. apply H4.  }
 simpl in H4. apply H4.
-++++ intros. (* HAPA *)destruct H0. simpl in H0.
- rewrite cast_to_left_is_boring in H0.
-simpl. rewrite cast_to_left_is_boring.
-assert (forall x y,
-(inl x : P + Singleton) = (inl y : P + Singleton) <-> x = y).
-{ intros. unfold iff. split.
-+  intros. inversion H2. reflexivity.
-+ intros. rewrite H2. reflexivity. }
-rewrite <- H2. rewrite <- H2 in H0. 
-assert (forall A (x y : A) (l : list A), 
-(x = y \/ In y l) <-> In y (x::l)).
-{ intros. unfold iff. split.
-+ intros. simpl. apply H3.
-+ intros. simpl in H3. apply H3. }
-rewrite H3. rewrite H3 in H0. apply H with (x:=inl(x)) (y:=inl(y)).
-split.
-+++++ apply H0.
-+++++ simpl. apply H1.
-+++ reflexivity.
-++ apply initial_null with 
-(w0:=inl (cast_to_left P Singleton p0) :: nil)
-(p1:=cast_to_left P Singleton p0)
-. split.
-+++ simpl. subst w. simpl in H. unfold valid_position.
-unfold valid_position in H. intros.
-split.
-++++ intros. destruct H0.
-assert (In (inl x) p0 /\ In (inl y) p0).
-{ split.
-+ apply cast_to_left_is_boring. apply H0. 
-+ apply cast_to_left_is_boring. apply H1. }
-destruct H2.
-assert (In (inl x) (inr s :: p0) /\ In (inl y) (inr s :: p0)).
-{ split.
-+ simpl. right. apply H2.
-+ simpl. right. apply H3.
++++ intros. destruct H3.
+apply cast_to_left_is_boring.
+assert (In (inl y) p0).
+{ apply H2 with (x:=inl x). split.
++ apply cast_to_left_is_boring. apply H3.
++ simpl. apply H4.
+ } apply H5.
+++ inversion H1.
+++ inversion H1.
 }
-assert (not (incompatible (inl x) (inl y))).
-{ apply H. apply H4. }
-simpl in H5. apply H5.
-++++ intros. destruct H0. apply cast_to_left_is_boring.
-apply cast_to_left_is_boring in H0.
-assert (In (inl x) (inr s :: p0)).
-{ simpl. right. apply H0. }
-assert (leq (inl y) (inl x)).
-{ simpl. apply H1. }
-assert (In (inl y) (inr s :: p0) -> In (inl y) p0).
-{ intros. destruct H4. 
-+ inversion H4.
-+ apply H4. }
-apply H4. apply H with (x:=inl x) (y:= inl y).
-auto.
+apply initial_null with
+(p1:=(cast_to_left P Singleton p0)). split.
++++ apply H1.
 +++ reflexivity.
-- intros. destruct H. destruct H0. destruct H1.
-destruct (contains_initial (lift_event_structure M E) w) eqn:H'.
+++ destruct H. inversion H0.
 + simpl. destruct w.
-++ simpl in H0. omega.
-++ destruct s.
-+++ simpl. destruct p1.
-++++ destruct w.
-+++++ simpl in H0. omega. 
-+++++ simpl in H0. destruct s.
-++++++ destruct H.
-++++++ simpl in H1. simpl.
-rewrite H1. reflexivity.
-++++ simpl. simpl in H1. rewrite H1. reflexivity.
-+++ simpl. simpl in H1. rewrite H1. reflexivity.
-+ simpl. destruct p0.
-++
-assert (forall A (l : list A) (a : A), hd_error l = Some a -> In a l).
-{ intros. destruct l.
-+ simpl in H3.  inversion H3. 
-+ simpl in H3. inversion H3. simpl. left. reflexivity.  }
-assert (In  (inl nil) (rev w)).
-{apply H3. apply H1. }
-assert (In (inl nil) w).
-{ apply in_rev. apply H4. } 
-assert (contains_initial (lift_event_structure M E) w = true).
-{ apply contains_initial_makes_sense. apply H5. }
-rewrite H' in H6. inversion H6.
-++ assert (contains_initial (lift_event_structure M E) w = true).
-{ apply contains_initial_makes_sense. apply H2. }
-rewrite H' in H3. inversion H3.
+++ destruct H. inversion H0. subst p1.
+apply negation_negates with
+(b:=(contains_initial (lift_event_structure M E)
+          (empty_walk (lift_event_structure M E) p0))) in H'.
+simpl in H'. destruct p0.
++++ reflexivity.
++++ inversion H'.
+++ destruct H. inversion H0.
+- intros. destruct H. destruct H0. destruct H1. destruct w.
++ simpl in H0. lia.
++ apply contains_initial_if_nil_position_in_walk in H2.
+apply negation_negates in H2.
+destruct
+(negb
+    (contains_initial (lift_event_structure M E)
+       (non_empty_walk (lift_event_structure M E)
+          p1 p2 w))) eqn:H'.
+++ inversion H2.
+++ simpl. simpl in H1. subst p0. reflexivity.
 Defined.
 
 Fact reverse_inversion_left A B:
@@ -1072,15 +1036,9 @@ Proof.
 - intros. destruct H. destruct H0. destruct H1.
 destruct w.
 + simpl in H0. omega.
-+ destruct w.
-++ destruct s.
-+++ simpl in H0. omega.
-+++ destruct p0. destruct e. contradiction f.
-++ destruct s. 
-+++ destruct s0.
-++++ simpl in H. contradiction H.
-++++ destruct p1. destruct e. contradiction f.
-+++ destruct p0. destruct e. contradiction f.
++ destruct p.
+++ destruct p1. destruct e. contradiction f.
+++ destruct p1. destruct e. contradiction f.
 Defined.
 
 Instance trivial_group : Group Singleton := {
@@ -1242,71 +1200,112 @@ Fixpoint cast_to_left_in_walk
 (F : EventStructure Q)
 (w : Walk (event_structure_sum P Q E F)) : Walk E
 := match w with
-| (inl p) :: xs => 
-(inl (cast_to_left X Y p)) :: (cast_to_left_in_walk P Q E F xs)
-| (inr (inl x, b)) :: xs => 
-(inr (x, b)) :: (cast_to_left_in_walk P Q E F xs)
-| _ => nil
+| empty_walk _ p => empty_walk E (cast_to_left X Y p)
+| non_empty_walk _ p (inl m, b) w
+=> non_empty_walk _ (cast_to_left X Y p) (m, b) 
+(cast_to_left_in_walk P Q E F w)
+| non_empty_walk _ p (inr m, b) w
+=> cast_to_left_in_walk P Q E F w
 end. 
 
-Fixpoint cast_to_right_in_walk 
+Fixpoint cast_to_right_position_in_walk 
 `(P : PartialOrder X)
 `(Q : PartialOrder Y)
 (E : EventStructure P)
 (F : EventStructure Q)
 (w : Walk (event_structure_sum P Q E F)) : Walk F
 := match w with
-| (inl p) :: xs => 
-(inl (cast_to_right X Y p)) :: (cast_to_right_in_walk P Q E F xs)
-| (inr (inr x, b)) :: xs => 
-(inr (x, b)) :: (cast_to_right_in_walk P Q E F xs)
-| _ => nil
-end. 
+| empty_walk _ p => empty_walk _ (cast_to_right X Y p)
+| non_empty_walk _ p (inr m, b) w
+=> non_empty_walk _ (cast_to_right X Y p) (m, b) 
+(cast_to_right_position_in_walk P Q E F w)
+| non_empty_walk _ p (inl m, b) w
+=> cast_to_right_position_in_walk P Q E F w
+end.
 
-Fact destruct_list :
-forall {A} {B} (w : list (A + B)),
-w = nil 
+Fact cast_to_left_in_walk_monotonic 
+`(P : PartialOrder X)
+`(Q : PartialOrder Y)
+(E : EventStructure P)
+(F : EventStructure Q)
+: forall (w : Walk (event_structure_sum P Q E F)),
+length_walk E (cast_to_left_in_walk P Q E F w) <
+length_walk (event_structure_sum P Q E F) w
 \/
-(exists m xs, w = inr m :: xs)
-\/
-(exists p1 , w = inl(p1) :: nil)
-\/
-(exists p1 p2 xs, w = inl(p1) :: (inl p2) :: xs)
-\/
-(exists p1 m, w = (inl p1) :: (inr m) :: nil)
-\/
-(exists p1 m m' xs, w = (inl p1) :: (inr m) :: (inr m') :: xs)
-\/
-(exists p1 m p2 xs, w = (inl p1) :: (inr m) :: (inl p2) :: xs).
+length_walk E (cast_to_left_in_walk P Q E F w) =
+length_walk (event_structure_sum P Q E F) w
+.
+Proof. intros. induction w.
++ simpl. right. reflexivity.
++ simpl. destruct p0. destruct s.
+++ simpl. destruct IHw.
++++ left. lia.
++++ right. lia.
+++ destruct IHw. 
++++ left. lia.
++++ left. lia.
+Qed.
+
+Fact cast_to_left_in_walk_iso
+`(P : PartialOrder X)
+`(Q : PartialOrder Y)
+(E : EventStructure P)
+(F : EventStructure Q)
+: forall (w : Walk (event_structure_sum P Q E F)),
+(length_walk E (cast_to_left_in_walk P Q E F w) =
+length_walk (event_structure_sum P Q E F) w
+->
+(forall m ep, move_in_walk _ (m,ep) w -> exists y, m = inl y))
+/\
+(length_walk E (cast_to_left_in_walk P Q E F w) <
+length_walk (event_structure_sum P Q E F) w
+->
+(exists y ep, move_in_walk _ (inr y,ep) w)).
 Proof.
-intros. destruct w.
-+ left. reflexivity.
-+ destruct s.
-++ right. destruct w.
-+++ right. left. refine (ex_intro _ a _). reflexivity.
-+++ destruct s.
-++++ right. right. left.
-refine (ex_intro _ a _).
-refine (ex_intro _ a0 _).
-refine (ex_intro _ w _). reflexivity.
-++++ destruct w.
-+++++ right. right. right. left.
-refine (ex_intro _ a _).
-refine (ex_intro _ b _). reflexivity.
-+++++ destruct s.
-++++++ right. right. right. right. right.
-refine (ex_intro _ a _).
+intros. induction w. split.
++ intros. simpl in H0. contradiction H0.
++ intros. simpl in H. lia.
++ destruct IHw. simpl. destruct p0. split.
+++ intros. destruct s.
++++ simpl in H1. 
+assert (length_walk E (cast_to_left_in_walk P Q E F w)
+=
+length_walk (event_structure_sum P Q E F) w).
+{ lia. }
+assert (forall (m : X + Y) (ep : bool),
+    move_in_walk (event_structure_sum P Q E F) (m, ep) w ->
+    exists y : X, m = inl y).
+{ apply H. apply H3. }
+destruct H2.
+++++ inversion H2. refine (ex_intro _ x _).
+reflexivity.
+++++ apply H4 with (ep:=ep). apply H2.
++++
+assert (length_walk E (cast_to_left_in_walk P Q E F w) <
+length_walk (event_structure_sum P Q E F) w
+\/
+length_walk E (cast_to_left_in_walk P Q E F w) =
+length_walk (event_structure_sum P Q E F) w).
+{ apply cast_to_left_in_walk_monotonic. }
+lia.
+++ destruct s.
++++ intros. simpl in H1.
+assert 
+(length_walk E (cast_to_left_in_walk P Q E F w) <
+     length_walk (event_structure_sum P Q E F) w).
+{ lia. }
+assert (exists (y : Y) (ep : bool),
+       move_in_walk (event_structure_sum P Q E F) 
+         (inr y, ep) w).
+{apply H0.  apply H2. }
+destruct H3. destruct H3.
+refine (ex_intro _ x0 _).
+refine (ex_intro _ x1 _).
+right. apply H3.
++++ intros.
+refine (ex_intro _ y _).
 refine (ex_intro _ b _).
-refine (ex_intro _ a0 _).
-refine (ex_intro _ w _). reflexivity.
-++++++ right. right. right. right. left.
-refine (ex_intro _ a _).
-refine (ex_intro _ b _).
-refine (ex_intro _ b0 _).
-refine (ex_intro _ w _). reflexivity.
-++ right. left.
-refine (ex_intro _ b _).
-refine (ex_intro _ w _). reflexivity.
+left. reflexivity.
 Qed.
 
 Instance asynchronous_arena_sum
@@ -1327,24 +1326,19 @@ finite_payoff m := match m with
 finite_payoff (inl (cast_to_left X Y l))
 | inl (((inr _) :: _) as l) => 
 finite_payoff (inl (cast_to_right X Y l))
-| inr (w) => 
-(match w with
-| (inl _) :: nil => 0%Z
-| _ => 
-if beq_nat (length w) 
-(length (cast_to_left_in_walk P Q E F w)) then
+| inr (w) =>
+if beq_nat (length_walk _ w) 
+(length_walk _ (cast_to_left_in_walk P Q E F w)) then
 finite_payoff (inr (cast_to_left_in_walk P Q E F w)) else
-if beq_nat (length w) 
-(length (cast_to_right_in_walk P Q E F w)) then
-finite_payoff (inr (cast_to_right_in_walk P Q E F w)) else
-(match (rev w) with
+if beq_nat (length_walk _ w) 
+(length_walk _ (cast_to_right_position_in_walk P Q E F w)) then
+finite_payoff (inr (cast_to_right_position_in_walk P Q E F w)) else
+(match (target_walk _ w) with
 | nil => (-1)%Z
-| inl ((inl _ :: _) as pos) :: _ => 
+| ((inl _ :: _) as pos) => 
  finite_payoff (inl (cast_to_left X Y pos))
-| inl ((inr _ :: _) as pos) :: _ => 
+| ((inr _ :: _) as pos) => 
  finite_payoff (inl (cast_to_right X Y pos))
-| _ => 0%Z
-end)
 end)
 end;
 infinite_payoff f :=
@@ -1523,91 +1517,173 @@ assert (finite_payoff (inl(nil : Position F)) = (1)%Z).
 { apply H2. apply H0. }
 rewrite positive2 in H3. apply H3.
 ++ intros. auto.
-- intros. destruct H. subst w. simpl in H. reflexivity. 
-- intros. destruct H. destruct H0. destruct H1.
-destruct (length w =?
-  length (cast_to_left_in_walk P Q E F w)) eqn:H'.
-++++ 
-assert (H'' : forall pos, (length w =?
-  length (cast_to_left_in_walk P Q E F w)) = true ->
-In (inl pos) w -> length pos = length (cast_to_left X Y pos)).
-{ admit. }
-assert (valid_walk E (cast_to_left_in_walk P Q E F w)).
-{ destruct (destruct_list w).
-+ subst w. simpl in H0. lia.
-+ destruct H3.
-++ destruct H3. destruct H3. subst w. simpl in H. contradiction H.
-++ destruct H3.
-+++ destruct H3. subst w. simpl in H0. lia.
-+++ destruct H3.
-++++ destruct H3. destruct H3. destruct H3.
-subst w. simpl in H. contradiction H.
-++++ destruct H3.
-+++++ destruct H3. destruct H3. subst w. simpl in H.
-destruct x0. contradiction H.
-+++++ destruct H3.
-++++++ destruct H3. destruct H3. destruct H3. destruct H3.
-subst w. simpl in H. destruct x0. contradiction H.
-++++++ destruct H3.
-+++++++ destruct H3. destruct H3. destruct H3.
-subst w.  destruct x0. 
-assert (length x = length ((cast_to_left X Y x))).
-{ apply H''. 
-+ apply H'. 
-+ simpl. left. reflexivity. }
-assert (length x1 = length ((cast_to_left X Y x1))).
-{ apply H''. 
-+ apply H'. 
-+ simpl. right. right. left. reflexivity. }
-assert (forall z, In z x -> (exists y, z = inl y)).
-{ apply cast_to_left_iso. rewrite H3. reflexivity. }
-assert (forall z, In z x1 -> (exists y, z = inl y)).
-{ apply cast_to_left_iso. rewrite H4. reflexivity. }
-simpl. destruct s.
-++++++++ (* Need to induct on w2 here *)
-admit.
-++++++++ (* Valid position x -> valid_position cast_to_left *)
-admit.
+- intros. destruct H. subst w. simpl in H. simpl.
+assert (valid_position E (cast_to_left X Y p)).
+{ unfold valid_position in H. unfold valid_position.
+intros. split.
++ intros. destruct H0.
+assert ((In (inl x) p /\ In (inl y) p -> 
+~ incompatible (inl x) (inl y))).
+{ inversion H. 
++ inversion H2.
+subst p.  unfold valid_position in H3. apply H3.
++ inversion H2.
++ inversion H2.
+ }
+assert (~ incompatible (inl x) (inl y)).
+{ apply H2. split.
++ apply cast_to_left_is_boring. apply H0.
++ apply cast_to_left_is_boring. apply H1. }
+simpl in H3. apply H3.
++ intros. destruct H0.
+assert (In (inl y) p).
+{ inversion H.
++ unfold valid_position in H3.
+inversion H2. subst p. apply H3 with (x:=inl x). split.
+++ apply cast_to_left_is_boring. apply H0.
+++ simpl. apply H1.
++ inversion H2.
++ inversion H2.
+ }
+apply cast_to_left_is_boring. apply H2.
 }
-assert (hd_error (rev (cast_to_left_in_walk P Q E F w))
-= Some (inl (cast_to_left X Y p))  ).
-{ admit. }
-assert (In (inl nil) (cast_to_left_in_walk P Q E F w)).
-{ admit. }
-assert (
-(length w = length (cast_to_left_in_walk P Q E F w))).
-{ apply beq_nat_eq. auto.  }
-assert (length (cast_to_left_in_walk P Q E F w) > 1).
-{ rewrite <- H6. apply H0. }
-assert (
-finite_payoff (inr (cast_to_left_in_walk P Q E F w)) = 
-finite_payoff (inl (cast_to_left X Y p))).
-{ apply noninitial_payoff.  auto. }
-rewrite H8.
-destruct w.
-+ simpl in H7. lia.
-+ simpl. destruct s.
-++ destruct w.
-+++ simpl in H7. lia.
-+++ destruct p.
-+++++ simpl. apply positive1.
-+++++ destruct s0.
-++++++ reflexivity.
-++++++ (*look at H1. inr y is in p which is
-a contradiction *)admit.
-++ destruct p.
-+++ simpl. apply positive1.
-+++ destruct s.
+apply initial_null with (p0:=(cast_to_left X Y p)).
+inversion H. split.
++ apply valid_empty_walk with (p1:=(cast_to_left X Y p)). 
+reflexivity. inversion H1. subst p. apply H0.
++ reflexivity.
++ inversion H1.
++ inversion H1.
+- 
+assert (Incomp : forall p x y, 
+valid_position (event_structure_sum P Q E F) p ->
+~ (In (inl x) p /\ In (inr y) p)).
+{ intros. unfold not. intros. destruct H0.
+ unfold valid_position in H. 
+assert (~ incompatible (inl x) (inr y)).
+{ apply H.  auto. }
+simpl in H2. auto.
+}
+
+assert (forall p, 
+valid_position (event_structure_sum P Q E F)p 
+-> valid_position E (cast_to_left X Y p)).
+{ intros. unfold valid_position in H. unfold valid_position.
+intros. split.
++ intros. destruct H0.
+assert ((In (inl x) p /\ In (inl y) p -> 
+~ incompatible (inl x) (inl y))).
+{ apply H. }
+assert (~ incompatible (inl x) (inl y)).
+{ apply H2. split.
++ apply cast_to_left_is_boring. apply H0.
++ apply cast_to_left_is_boring. apply H1. }
+simpl in H3. apply H3.
++ intros. destruct H0.
+assert (In (inl y) p).
+{ apply H with (x:=inl x). split.
++ apply cast_to_left_is_boring. apply H0.
++ simpl. apply H1. }
+apply cast_to_left_is_boring. apply H2.
+}
+intros. destruct H0. destruct H1. destruct H2.
+
+assert (forall w,
+valid_walk (event_structure_sum P Q E F) w /\
+length_walk (event_structure_sum P Q E F) w =?
+  length_walk E (cast_to_left_in_walk P Q E F w) = true
+-> (forall m ep, move_in_walk _ (m, ep) w -> exists n, m = inl n
+)).
+{ intros. destruct H4. generalize dependent m. induction w0.
++ intros. simpl in H5. contradiction H5.
++ simpl. intros. destruct p1. destruct H5.
+++ destruct s.
++++ refine (ex_intro _ x _). inversion H5. reflexivity.
++++ inversion H5.
+++++
+assert ((length_walk E
+        (cast_to_left_in_walk P Q E F
+           (non_empty_walk (event_structure_sum P Q E F) p0
+              (inr y, b) w0))
+=? length_walk E (cast_to_left_in_walk P Q E F w0)) = true
+).
+{ simpl.  apply beq_nat_iff_equal. reflexivity. }
+subst m. subst b. apply beq_nat_iff_equal in H6.
+apply beq_nat_iff_equal in H7. rewrite H7 in H6.
+apply IHw0.
++++++ destruct H4.
+++++++ inversion H4.
+++++++ inversion H4. subst p0. subst m. subst ep.
+destruct H8. destruct H9. apply H9.
+++++++ simpl in H7. simpl in H6.
+assert (length_walk E (cast_to_left_in_walk P Q E F w0) <
+length_walk (event_structure_sum P Q E F) w0
+\/
+length_walk E (cast_to_left_in_walk P Q E F w0) =
+length_walk (event_structure_sum P Q E F) w0).
+{ apply cast_to_left_in_walk_monotonic. }
+destruct H9.
++++++++ lia.
++++++++ lia.
++++++ apply beq_nat_iff_equal. simpl in H6.
+assert (length_walk E (cast_to_left_in_walk P Q E F w0) <
+length_walk (event_structure_sum P Q E F) w0
+\/
+length_walk E (cast_to_left_in_walk P Q E F w0) =
+length_walk (event_structure_sum P Q E F) w0).
+{ apply cast_to_left_in_walk_monotonic. }
+destruct H8.
++++++++ lia.
++++++++ lia.
++++++ simpl in H6.
+assert (length_walk E (cast_to_left_in_walk P Q E F w0) <
+length_walk (event_structure_sum P Q E F) w0
+\/
+length_walk E (cast_to_left_in_walk P Q E F w0) =
+length_walk (event_structure_sum P Q E F) w0).
+{ apply cast_to_left_in_walk_monotonic. }
+destruct H8.
++++++++ lia.
++++++++ lia.
+++ apply beq_nat_iff_equal in H6. simpl in H6.
+destruct s.
++++ simpl in H6.
+assert (length_walk (event_structure_sum P Q E F) w0 =
+    length_walk E (cast_to_left_in_walk P Q E F w0)).
+{ lia. }
+inversion H4.
+++++ inversion H8.
+++++ inversion H8. subst p1. subst m0. subst b.
+subst w0. apply IHw0. apply valid_empty_walk
+with (p1:=p2).
 +++++ reflexivity.
-+++++ (*look at H1. inr y is in p which is
-a contradiction *)admit.
++++++ destruct H9. destruct H10.
+inversion H10.
+++++++ inversion H12. subst p2. apply H13.
+++++++ inversion H12.
+++++++ inversion H12.
++++++ apply beq_nat_iff_equal. simpl. reflexivity.
++++++ simpl. simpl in H5. contradiction H5.
+++++ inversion H8. subst p0. subst m0. subst b. subst w0.
+apply IHw0.
++++++ destruct H9. destruct H10. apply H10.
++++++ apply beq_nat_iff_equal. apply H7.
++++++ apply H5.
++++
+assert (length_walk E (cast_to_left_in_walk P Q E F w0) <
+length_walk (event_structure_sum P Q E F) w0
+\/
+length_walk E (cast_to_left_in_walk P Q E F w0) =
+length_walk (event_structure_sum P Q E F) w0).
+{ apply cast_to_left_in_walk_monotonic. }
+destruct H7.
+++++ lia.
+++++ lia.
+}
 
-++++ destruct (length w =?
-     length (cast_to_right_in_walk P Q E F w)) eqn:H''.
-+++++ (* Walk is on the right side *) admit.
-+++++ (* Walk is on both sides hence must cross the initial;
-last portion of walk is either on left or on right. *) admit.
 
+destruct (length_walk (event_structure_sum P Q E F) w =?
+  length_walk E (cast_to_left_in_walk P Q E F w)) eqn:H'.
 
 
 
