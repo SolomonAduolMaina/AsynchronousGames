@@ -1267,6 +1267,31 @@ assert (In (inl y) p).
 apply cast_to_left_is_boring. apply H2.
 Qed.
 
+Fact sum_valid_position_valid_inr
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q): (forall p, 
+valid_position (event_structure_sum P Q E F) p 
+-> valid_position F (cast_to_right X Y p)).
+Proof.
+intros. unfold valid_position in H. unfold valid_position.
+intros. split.
++ intros. destruct H0.
+assert ((In (inr x) p /\ In (inr y) p -> 
+~ incompatible (inr x) (inr y))).
+{ apply H. }
+assert (~ incompatible (inr x) (inr y)).
+{ apply H2. split.
++ apply cast_to_right_is_boring. apply H0.
++ apply cast_to_right_is_boring. apply H1. }
+simpl in H3. apply H3.
++ intros. destruct H0.
+assert (In (inr y) p).
+{ apply H with (x:=inr x). split.
++ apply cast_to_right_is_boring. apply H0.
++ simpl. apply H1. }
+apply cast_to_right_is_boring. apply H2.
+Qed.
+
 Fact not_inl_equals_inr X Y : forall (m : X + Y),
 not (exists y, m = inl y) <-> exists y, m = inr y.
 Proof.
@@ -1371,6 +1396,22 @@ destruct H0. inversion H0. apply IHp.
 intros. apply H. simpl. right. apply H0.
 Qed.
 
+Fact cast_inl_to_inr_nil
+`(P : PartialOrder X) `(Q : PartialOrder Y):
+forall p,
+(forall m : X + Y, In m p -> exists x : X, m = inl x) ->
+cast_to_right X Y p = nil.
+Proof.
+intros. induction p.
++ simpl. reflexivity.
++ simpl. destruct a.
+++ apply IHp. intros. apply H. simpl. right. apply H0.
+++
+assert (exists x : X, inr y = inl x).
+{apply H. simpl. left. reflexivity. }
+destruct H0. inversion H0. 
+Qed.
+
 Fact cast_to_nil_inr 
 `(P : PartialOrder X) `(Q : PartialOrder Y)
 (E : EventStructure P) (F : EventStructure Q)
@@ -1416,7 +1457,7 @@ apply H4.
 +++ inversion H1.
 +++ inversion H1.
 ++ inversion H.
-+ intros. simpl. destruct p0. destruct s.
++ simpl. destruct p0. destruct s.
 ++ simpl. destruct H. destruct H. destruct H.
 destruct H.
 +++ inversion H.
@@ -1425,269 +1466,68 @@ destruct H.
 subst p1. subst m. subst x2. subst p2. subst m'. subst w'.
 destruct H0. destruct H1. destruct H1.
 ++++ inversion H1.
-++++ inversion H1. subst p1. subst m. subst ep0. subst w.
-destruct H3. destruct H4. destruct H4.
-+++++ inversion H4. subst p2.
-destruct H5.
-++++++ destruct H2.
-assert (forall m, (In m p ->(exists y, m = inl y)) /\
-(In m p0 ->(exists y, m = inl y))).
-{destruct H5. apply inl_move_implies_inl with (y:=x).
-auto. }
-assert (forall m, (In m x0 ->(exists y, m = inr y)) /\
-(In m p ->(exists y, m = inr y))).
-{destruct H2. apply inr_move_implies_inr with (y:=x1).
-auto. }
-assert (p = nil).
-{ destruct p. 
-+ reflexivity.
-+ destruct s.
-++ assert (exists y : Y, inl x2 = inr y).
-{apply H8. simpl. left. reflexivity. }
-destruct H9. inversion H9.
-++ 
-assert (forall m : X + Y,
-     (In m (inr y :: p) -> exists y : X, m = inl y)).
-{apply H7. }
-assert (exists x : X, inr y = inl x).
-{apply H9. simpl. left. reflexivity. }
-destruct H10. inversion H10.
-} subst p. simpl. reflexivity.
-+++++++
-assert (forall m, (In m p ->(exists y, m = inl y)) /\
-(In m p0 ->(exists y, m = inl y))).
-{destruct H5. apply inl_move_implies_inl with (y:=x).
-auto. }
-assert (forall m, (In m p ->(exists y, m = inr y)) /\
-(In m x0 ->(exists y, m = inr y))).
-{destruct H2. apply inr_move_implies_inr with (y:=x1).
-auto. }
-assert (p = nil).
-{ destruct p. 
-+ reflexivity.
-+ destruct s.
-++ 
-assert (forall m : X + Y,
-     (In m (inl x2 :: p) -> exists y : Y, m = inr y)).
-{apply H8. }
-assert (exists y : Y, inl x2 = inr y).
-{apply H9. simpl. left. reflexivity. }
-destruct H10. inversion H10.
-++ 
-assert (forall m : X + Y,
-     (In m (inr y :: p) -> exists y : X, m = inl y)).
-{apply H7. }
-assert (exists x : X, inr y = inl x).
-{apply H9. simpl. left. reflexivity. }
-destruct H10. inversion H10.
-} subst p. simpl. reflexivity.
-++++++
-assert (forall m, (In m p0 ->(exists y, m = inl y)) /\
-(In m p ->(exists y, m = inl y))).
-{destruct H5. apply inl_move_implies_inl with (y:=x).
-auto. }
-destruct H2.
-+++++++
-assert (forall m, (In m x0 ->(exists y, m = inr y)) /\
-(In m p ->(exists y, m = inr y))).
-{destruct H2. apply inr_move_implies_inr with (y:=x1).
-auto. }
-assert (p = nil).
-{ destruct p. 
-+ reflexivity.
-+ destruct s.
-++ 
-assert (forall m : X + Y,
-     (In m (inl x2 :: p) -> exists y : Y, m = inr y)).
-{apply H8. }
-assert (exists y : Y, inl x2 = inr y).
-{apply H9. simpl. left. reflexivity. }
-destruct H10. inversion H10.
-++ 
-assert (forall m : X + Y,
-     (In m (inr y :: p) -> exists y : X, m = inl y)).
-{apply H7. }
-assert (exists x : X, inr y = inl x).
-{apply H9. simpl. left. reflexivity. }
-destruct H10. inversion H10.
-} subst p. simpl. reflexivity.
-+++++++
-assert (forall m, (In m p0 ->(exists y, m = inl y)) /\
-(In m p ->(exists y, m = inl y))).
-{destruct H5. apply inl_move_implies_inl with (y:=x).
-auto. }
-assert (forall m, (In m p ->(exists y, m = inr y)) /\
-(In m x0 ->(exists y, m = inr y))).
-{destruct H2. apply inr_move_implies_inr with (y:=x1).
-auto. }
-assert (p = nil).
-{ destruct p. 
-+ reflexivity.
-+ destruct s.
-++ 
-assert (forall m : X + Y,
-     (In m (inl x2 :: p) -> exists y : Y, m = inr y)).
-{apply H9. }
-assert (exists y : Y, inl x2 = inr y).
-{apply H10. simpl. left. reflexivity. }
-destruct H11. inversion H11.
-++ 
-assert (forall m : X + Y,
-     (In m (inr y :: p) -> exists y : X, m = inl y)).
-{apply H7. }
-assert (exists x : X, inr y = inl x).
-{apply H10. simpl. left. reflexivity. }
-destruct H11. inversion H11.
-} subst p. simpl. reflexivity.
-+++++ inversion H4.
-+++++ inversion H4.
-++++ inversion H1. subst p1. subst m.
-subst ep0. subst w. destruct H3. destruct H4.
-destruct H5.
-+++++ destruct H2.
-++++++ destruct H4.
-+++++++ inversion H4.
-+++++++ inversion H4. subst p2. subst m'. subst w'.
+++++ inversion H1. subst p1. destruct H2.
 assert ((forall m, (In m x0 ->(exists y, m = inr y)) /\
 (In m p ->(exists y, m = inr y)))).
-{ apply inr_move_implies_inr with (y:=x1). 
-destruct H2. auto. }
-assert (forall m, (In m p ->(exists y, m = inl y)) /\
-(In m p1 ->(exists y, m = inl y))).
-{ apply inl_move_implies_inl with (y:=x).
-destruct H5. destruct H6. auto. }
-assert (p = nil).
-{destruct p.
-+ reflexivity.
-+ destruct s.
-++ assert (exists y : Y, inl x2 = inr y).
-{apply H7. simpl. left. reflexivity. }
-destruct H9. inversion H9.
-++ assert (forall m : X + Y,
-     (In m (inr y :: p) -> exists y : X, m = inl y)).
-{apply H8. }
-assert (exists x : X, inr y = inl x).
-{ apply H9. simpl. left. reflexivity. }
-destruct H10. inversion H10.
-} subst p. simpl. reflexivity.
-+++++++
-inversion H4. subst p2. subst m'. subst w'.
+{ apply inr_move_implies_inr
+with (p1:=x0) (p3:=p) (y:=x1)
+(P0:=P) (Q0:=Q) (E0:=E) (F0:=F). split.
++ apply H0.
++ split.
+++ apply H3.
+++ apply H2.
+}
+apply cast_inr_to_inl_nil.
++++++ apply P.
++++++ apply Q.
++++++ apply H4.
++++++  apply cast_inr_to_inl_nil.
+++++++ apply P.
+++++++ apply Q.
+++++++ assert ((forall m, (In m p ->(exists y, m = inr y)) /\
+(In m x0 ->(exists y, m = inr y)))).
+{ apply inr_move_implies_inr
+with (p1:=p) (p3:=x0) (y:=x1)
+(P0:=P) (Q0:=Q) (E0:=E) (F0:=F). split.
++ apply H3.
++ split.
+++ apply H0.
+++ apply H2.
+}
+apply H4.
+++++ inversion H1. subst p1. destruct H2.
++++++
 assert ((forall m, (In m x0 ->(exists y, m = inr y)) /\
 (In m p ->(exists y, m = inr y)))).
-{ apply inr_move_implies_inr with (y:=x1). 
-destruct H2. auto. }
-assert (forall m, (In m p ->(exists y, m = inl y)) /\
-(In m p1 ->(exists y, m = inl y))).
-{ apply inl_move_implies_inl with (y:=x).
-destruct H5. destruct H6. auto. }
-assert (p = nil).
-{destruct p.
-+ reflexivity.
-+ destruct s.
-++ assert (exists y : Y, inl x2 = inr y).
-{apply H7. simpl. left. reflexivity. }
-destruct H9. inversion H9.
-++ assert (forall m : X + Y,
-     (In m (inr y :: p) -> exists y : X, m = inl y)).
-{apply H8. }
-assert (exists x : X, inr y = inl x).
-{ apply H9. simpl. left. reflexivity. }
-destruct H10. inversion H10.
-} subst p. simpl. reflexivity.
+{ apply inr_move_implies_inr
+with (p1:=x0) (p3:=p) (y:=x1)
+(P0:=P) (Q0:=Q) (E0:=E) (F0:=F). split.
++ apply H0.
++ split.
+++ apply H3.
+++ apply H2.
+}
+apply cast_inr_to_inl_nil.
+++++++ apply P.
+++++++ apply Q.
+++++++ apply H4.
++++++ inversion H1. destruct H2.
 ++++++
 assert ((forall m, (In m p ->(exists y, m = inr y)) /\
 (In m x0 ->(exists y, m = inr y)))).
-{ apply inr_move_implies_inr with (y:=x1). 
-destruct H2. auto. }
-assert (forall m, (In m p ->(exists y, m = inl y)) /\
-(In m p2 ->(exists y, m = inl y))).
-{ apply inl_move_implies_inl with (y:=x).
-destruct H5. destruct H4. 
-+ inversion H4.
-+ inversion H4. subst p2. destruct H8. auto.
-+ inversion H4. subst p2. destruct H8. auto.
+{ apply inr_move_implies_inr
+with (p1:=p) (p3:=x0) (y:=x1)
+(P0:=P) (Q0:=Q) (E0:=E) (F0:=F). split.
++ apply H3.
++ split.
+++ apply H0.
+++ apply H4.
 }
-assert (p = nil).
-{destruct p.
-+ reflexivity.
-+ destruct s.
-++ assert (forall m : X + Y,
-     (In m (inl x2 :: p) -> exists y : Y, m = inr y)).
-{ apply H6. } 
-assert (exists y : Y, inl x2 = inr y).
-{apply H8. simpl. left. reflexivity. }
-destruct H9. inversion H9.
-++ assert (forall m : X + Y,
-     (In m (inr y :: p) -> exists y : X, m = inl y)).
-{apply H7. }
-assert (exists x : X, inr y = inl x).
-{ apply H8. simpl. left. reflexivity. }
-destruct H9. inversion H9.
-} subst p. simpl. reflexivity.
-+++++ destruct H2.
-++++++ destruct H2. destruct H5.
-assert ((forall m, (In m x0 ->(exists y, m = inr y)) /\
-(In m p ->(exists y, m = inr y)))).
-{ apply inr_move_implies_inr with (y:=x1). 
- auto. }
-assert (forall m, (In m p2 ->(exists y, m = inl y)) /\
-(In m p ->(exists y, m = inl y))).
-{ apply inl_move_implies_inl with (y:=x).
-destruct H4. 
-+ inversion H4.
-+ inversion H4. subst p2. destruct H9. auto.
-+ inversion H4. subst p2. destruct H9. auto.
-}
-assert (p = nil).
-{destruct p.
-+ reflexivity.
-+ destruct s.
-++ assert (forall m : X + Y,
-     (In m (inl x2 :: p) -> exists y : Y, m = inr y)).
-{ apply H8. } 
-assert (exists y : Y, inl x2 = inr y).
-{apply H10. simpl. left. reflexivity. }
-destruct H11. inversion H11.
-++ assert (forall m : X + Y,
-     (In m (inr y :: p) -> exists y : X, m = inl y)).
-{apply H9. }
-assert (exists x : X, inr y = inl x).
-{ apply H10. simpl. left. reflexivity. }
-destruct H11. inversion H11.
-} subst p. simpl. reflexivity.
-++++++
-destruct H2. destruct H5.
-assert ((forall m, (In m p ->(exists y, m = inr y)) /\
-(In m x0 ->(exists y, m = inr y)))).
-{ apply inr_move_implies_inr with (y:=x1). 
- auto. }
-assert (forall m, (In m p2 ->(exists y, m = inl y)) /\
-(In m p ->(exists y, m = inl y))).
-{ apply inl_move_implies_inl with (y:=x).
-destruct H4. 
-+ inversion H4.
-+ inversion H4. subst p2. destruct H9. auto.
-+ inversion H4. subst p2. destruct H9. auto.
-}
-assert (p = nil).
-{destruct p.
-+ reflexivity.
-+ destruct s.
-++ assert (forall m : X + Y,
-     (In m (inl x2 :: p) -> exists y : Y, m = inr y)).
-{ apply H8. } 
-assert (exists y : Y, inl x2 = inr y).
-{apply H10. simpl. left. reflexivity. }
-destruct H11. inversion H11.
-++ assert (forall m : X + Y,
-     (In m (inr y :: p) -> exists y : X, m = inl y)).
-{apply H9. }
-assert (exists x : X, inr y = inl x).
-{ apply H10. simpl. left. reflexivity. }
-destruct H11. inversion H11.
-} subst p. simpl. reflexivity.
-++ destruct H. destruct H. destruct H.
-apply IHw. destruct H.
+apply cast_inr_to_inl_nil.
++++++++ apply P.
++++++++ apply Q.
++++++++ apply H11.
+++ apply IHw. destruct H. destruct H. destruct H. destruct H.
 +++ inversion H.
 +++ inversion H.
 +++ inversion H. subst p1. subst m. subst x1.
@@ -1698,6 +1538,130 @@ refine (ex_intro _ y _).
 refine (ex_intro _ b _). auto.
 Qed.
 
+Fact cast_to_nil_inl 
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q)
+: forall w, (exists p0 y0 b0, 
+valid_walk (event_structure_sum P Q E F)
+        (non_empty_walk (event_structure_sum P Q E F) p0
+           (inl y0, b0) w)) ->
+source_walk _ (cast_to_right_in_walk P Q E F w) = nil.
+Proof. intros. induction w.
++ simpl. destruct H. destruct H. destruct H. destruct H.
+++ inversion H.
+++ inversion H. subst p1. subst m. subst ep. subst p2.
+destruct H0. destruct H1. destruct H1.
++++ inversion H1. subst p. destruct H2.
+assert ((forall m, (In m x ->(exists y, m = inl y)) /\
+(In m p0 ->(exists y, m = inl y)))).
+{ apply inl_move_implies_inl
+with (p1:=x) (p2:=p0) (y:=x0)
+(P0:=P) (Q0:=Q) (E0:=E) (F0:=F). split.
++ apply H0.
++ split.
+++ apply H3.
+++ apply H2.
+}
+apply cast_inl_to_inr_nil.
+++++ apply P.
+++++ apply Q.
+++++ apply H4.
+++++  apply cast_inl_to_inr_nil.
++++++ apply P.
++++++ apply Q.
++++++ assert ((forall m, (In m p0 ->(exists y, m = inl y)) /\
+(In m x ->(exists y, m = inl y)))).
+{ apply inl_move_implies_inl
+with (p1:=p0) (p2:=x) (y:=x0)
+(P0:=P) (Q0:=Q) (E0:=E) (F0:=F). split.
++ apply H3.
++ split.
+++ apply H0.
+++ apply H2.
+}
+apply H4.
++++ inversion H1.
++++ inversion H1.
+++ inversion H.
++ simpl. destruct p0. destruct s.
+++ simpl. destruct H. destruct H. destruct H.
+destruct H.
++++ inversion H.
++++ inversion H.
++++ inversion H.
+subst p1. subst m. subst x2. subst p2. subst m'. subst w'.
+destruct H0. destruct H1. apply IHw.
+refine (ex_intro _ p _).
+refine (ex_intro _ x _).
+refine (ex_intro _ b _). auto.
+++ simpl. destruct H. destruct H. destruct H.
+destruct H.
++++ inversion H.
++++ inversion H.
++++ inversion H. subst p1. subst m. subst ep. subst p2.
+destruct H0. destruct H1. destruct H1.
+++++ inversion H1.
+++++ inversion H1. subst p1. destruct H2.
+assert ((forall m, (In m x ->(exists y, m = inl y)) /\
+(In m p ->(exists y, m = inl y)))).
+{ apply inl_move_implies_inl
+with (p1:=x) (p3:=p) (y0:=x0)
+(P0:=P) (Q0:=Q) (E0:=E) (F0:=F). split.
++ apply H0.
++ split.
+++ apply H3.
+++ apply H2.
+}
+apply cast_inl_to_inr_nil.
++++++ apply P.
++++++ apply Q.
++++++ apply H4.
++++++  apply cast_inl_to_inr_nil.
+++++++ apply P.
+++++++ apply Q.
+++++++ assert ((forall m, (In m p ->(exists y, m = inl y)) /\
+(In m x ->(exists y, m = inl y)))).
+{ apply inl_move_implies_inl
+with (p1:=p) (p3:=x) (y0:=x0)
+(P0:=P) (Q0:=Q) (E0:=E) (F0:=F). split.
++ apply H3.
++ split.
+++ apply H0.
+++ apply H2.
+}
+apply H4.
+++++ inversion H1. subst p1. destruct H2.
+assert ((forall m, (In m x ->(exists y, m = inl y)) /\
+(In m p ->(exists y, m = inl y)))).
+{ apply inl_move_implies_inl
+with (p1:=x) (p3:=p) (y0:=x0)
+(P0:=P) (Q0:=Q) (E0:=E) (F0:=F). split.
++ apply H0.
++ split.
+++ apply H3.
+++ apply H2.
+}
+apply cast_inl_to_inr_nil.
++++++ apply P.
++++++ apply Q.
++++++ apply H4.
++++++  apply cast_inl_to_inr_nil.
+++++++ apply P.
+++++++ apply Q.
+++++++ assert ((forall m, (In m p ->(exists y, m = inl y)) /\
+(In m x ->(exists y, m = inl y)))).
+{ apply inl_move_implies_inl
+with (p1:=p) (p3:=x) (y0:=x0)
+(P0:=P) (Q0:=Q) (E0:=E) (F0:=F). split.
++ apply H3.
++ split.
+++ apply H0.
+++ apply H2.
+}
+apply H4.
+Qed.
+
+(* RUDI HAPA*)
 Fact valid_walk_is_valid_inl 
 `(P : PartialOrder X) `(Q : PartialOrder Y)
 (E : EventStructure P) (F : EventStructure Q):
@@ -2506,6 +2470,848 @@ unfold move_from in H11. apply H11. apply H10.
 ++++ simpl in IHw. apply IHw. destruct H0. destruct H1.
 apply H1.
 ++++ simpl in IHw. apply IHw. apply H0.
+Qed.
+(* RUDI HAPA *)
+Fact valid_walk_is_valid_inr
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q):
+forall w : Walk (event_structure_sum P Q E F),
+     valid_walk (event_structure_sum P Q E F) w ->
+valid_walk _ (cast_to_right_in_walk P Q E F w).
+Proof. intros. induction w.
++ simpl. apply valid_empty_walk with (p0:=(cast_to_right X Y p)).
+++ reflexivity.
+++ destruct H.
++++ inversion H. apply sum_valid_position_valid_inr. apply H0.
++++ inversion H.
++++ inversion H.
++ destruct H.
+++ inversion H.
+++ inversion H. subst p0. subst p1. subst w. simpl. destruct m. 
++++ apply valid_empty_walk with (p0:=(cast_to_right X Y p2)).
+++++ reflexivity.
+++++ destruct H0. destruct H1. destruct H1.
++++++ inversion H1. apply sum_valid_position_valid_inr. apply H3.
++++++ inversion H1.
++++++ inversion H1.
++++ apply valid_one_move_walk
+with (m:=y) (ep0:=ep) (p1:=(cast_to_right X Y p))
+(p3:=(cast_to_right X Y p2)).
+++++ reflexivity.
+++++ split.
++++++ destruct H0. apply sum_valid_position_valid_inr. apply H0.
++++++ split.
+++++++ destruct H0. destruct H1.
++++++++ destruct H1.
+++++++++ apply valid_empty_walk with (p1:=(cast_to_right X Y p2)).
++++++++++ reflexivity.
++++++++++ inversion H1. apply sum_valid_position_valid_inr. apply H3.
+++++++++ inversion H1.
+++++++++ inversion H1.
+++++++ destruct ep.
++++++++ left. destruct H0. destruct H1. destruct H2.
+++++++++ split.
++++++++++ reflexivity.
++++++++++ unfold move_from. destruct H2.
+unfold move_from in H3.
+++++++++++ split.
++++++++++++ destruct H3. intros. 
+rewrite cast_to_right_is_boring.
+rewrite cast_to_right_is_boring in H5. apply H3. apply H5.
++++++++++++ intros. split.
+++++++++++++ intros. destruct H4.
+rewrite cast_to_right_is_boring in H4.
+rewrite cast_to_right_is_boring in H5.
+assert ((inr n : X + Y) = inr y).
+{apply H3. auto. }
+inversion H6. reflexivity.
+++++++++++++ intros. destruct H3. 
+rewrite cast_to_right_is_boring.
+rewrite cast_to_right_is_boring.
+assert ((inr n : X + Y) = inr y).
+{rewrite H4. auto. }
+apply H5. apply H6.
+++++++++ destruct H2. inversion H2.
++++++++ right. destruct H0. destruct H1. destruct H2.
+++++++++ destruct H2. inversion H2.
+++++++++ split.
++++++++++ reflexivity.
++++++++++ destruct H2. unfold move_from.
+unfold move_from in H3. split.
+++++++++++ destruct H3. intros.
+rewrite cast_to_right_is_boring.
+rewrite cast_to_right_is_boring in H5. apply H3.
+apply H5.
+++++++++++ split.
++++++++++++ destruct H3. intros.
+rewrite cast_to_right_is_boring in H5.
+rewrite cast_to_right_is_boring in H5.
+assert ((inr n : X + Y) = inr y).
+{ apply H4. auto. } inversion H6. reflexivity.
++++++++++++ destruct H3. intros.
+rewrite cast_to_right_is_boring. 
+rewrite cast_to_right_is_boring.
+apply H4. rewrite H5. auto.
+++ inversion H. subst p0. subst p1. subst w.
+simpl. destruct m.
++++ destruct m'. simpl in IHw. destruct s. 
+++++ simpl in IHw. apply IHw. destruct H0. destruct H1.
+apply H1.
+++++ simpl in IHw. apply IHw. apply H0.
++++ destruct m'. simpl in IHw. destruct s. 
+++++ simpl in IHw.
+assert (valid_walk F (cast_to_right_in_walk P Q E F w')).
+{ apply IHw. destruct H0. destruct H1. apply H1. }
+destruct w'.
++++++ simpl. destruct H0. destruct H2.
+destruct H2.
+++++++ inversion H2.
+++++++ inversion H2. subst p2. subst m. subst b. subst p3.
+destruct H4. destruct H5. destruct H6.
++++++++ destruct H3.
+++++++++ 
+assert (forall m, (In m p ->(exists y, m = inr y)) /\
+(In m p1 ->(exists y, m = inr y))).
+{ apply inr_move_implies_inr with (y0:=y). destruct H3.
+auto. }
+assert (forall m, (In m p1 ->(exists y, m = inl y)) /\
+(In m p0 ->(exists y, m = inl y))).
+{ apply inl_move_implies_inl with (y0:=x). destruct H6.
+destruct H5.
++ inversion H5. subst p2. auto.
++ inversion H5.
++ inversion H5.
+ }
+assert (p1 = nil).
+{destruct p1.
++ reflexivity.
++ destruct s.
+++ assert (forall m : X + Y,
+     (In m (inl x0 :: p1) -> exists y : Y, m = inr y)).
+{apply H7. }
+assert (exists y : Y, inl x0 = inr y).
+{apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+++ assert (forall m : X + Y,
+(In m (inr y0 :: p1) -> exists y : X, m = inl y)).
+{apply H8. }
+assert (exists y : X, inr y0 = inl y).
+{apply H9.  simpl. left. reflexivity. }
+destruct H10. inversion H10.
+} subst p1. destruct H3. unfold move_from in H9.
+assert (In (inr y : X + Y) nil).
+{apply H9. reflexivity. } contradiction H10.
+++++++++
+assert (forall m, (In m p1 ->(exists y, m = inr y)) /\
+(In m p ->(exists y, m = inr y))).
+{ apply inr_move_implies_inr with (y0:=y). destruct H3.
+auto. }
+assert (forall m, (In m p1 ->(exists y, m = inl y)) /\
+(In m p0 ->(exists y, m = inl y))).
+{ apply inl_move_implies_inl with (y0:=x). destruct H6.
+destruct H5.
++ inversion H5. subst p2. auto.
++ inversion H5.
++ inversion H5.
+ }
+assert (p1 = nil).
+{destruct p1.
++ reflexivity.
++ destruct s.
+++ assert (forall m : X + Y,
+     (In m (inl x0 :: p1) -> exists y : Y, m = inr y)).
+{apply H7. }
+assert (exists y : Y, inl x0 = inr y).
+{apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+++ assert (forall m : X + Y,
+(In m (inr y0 :: p1) -> exists y : X, m = inl y)).
+{apply H8. }
+assert (exists y : X, inr y0 = inl y).
+{apply H9.  simpl. left. reflexivity. }
+destruct H10. inversion H10.
+} subst p1. apply valid_one_move_walk with
+(p1:=(cast_to_right X Y p)) (m:=y) (ep1:=ep)
+(p2:=cast_to_right X Y p0).
++++++++++ reflexivity.
++++++++++ split. 
+++++++++++ apply sum_valid_position_valid_inr. auto.
+++++++++++ split.
++++++++++++ apply valid_empty_walk with 
+(p1:=cast_to_right X Y p0).
+++++++++++++ reflexivity.
+++++++++++++ apply sum_valid_position_valid_inr.
+destruct H5.
++++++++++++++ inversion H5. subst p1. auto.
++++++++++++++ inversion H5.
++++++++++++++ inversion H5.
++++++++++++ right. split.
+++++++++++++ apply H3.
+++++++++++++
+assert (cast_to_right X Y p0 = nil).
+{ apply cast_inl_to_inr_nil. 
++ apply P.
++ apply Q.
++ apply H8.
+} rewrite H9. unfold move_from. split.
++++++++++++++ intros. contradiction H10.
++++++++++++++ intros. unfold iff. split.
+++++++++++++++ intros. destruct H10.
+apply cast_to_right_is_boring in H11. destruct H3.
+unfold move_from in H12.
+assert (inr n = (inr y : X + Y) -> n = y).
+{intros.  inversion H13. reflexivity. }
+apply H13. apply H12. split.
++++++++++++++++ simpl. auto.
++++++++++++++++ apply H11.
+++++++++++++++ intros. split.
++++++++++++++++ simpl. auto.
++++++++++++++++ apply cast_to_right_is_boring.
+destruct H3. apply H11. rewrite H10. reflexivity.
++++++++ destruct H3.
+++++++++ 
+assert (forall m, (In m p ->(exists y, m = inr y)) /\
+(In m p1 ->(exists y, m = inr y))).
+{ apply inr_move_implies_inr with (y0:=y). destruct H3.
+auto. }
+assert (forall m, (In m p0 ->(exists y, m = inl y)) /\
+(In m p1 ->(exists y, m = inl y))).
+{ apply inl_move_implies_inl with (y0:=x). destruct H6.
+destruct H5.
++ inversion H5. subst p2. auto.
++ inversion H5.
++ inversion H5.
+ }
+assert (p1 = nil).
+{destruct p1.
++ reflexivity.
++ destruct s.
+++ assert (forall m : X + Y,
+     (In m (inl x0 :: p1) -> exists y : Y, m = inr y)).
+{apply H7. }
+assert (exists y : Y, inl x0 = inr y).
+{apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+++ assert (forall m : X + Y,
+(In m (inr y0 :: p1) -> exists y : X, m = inl y)).
+{apply H8. }
+assert (exists y : X, inr y0 = inl y).
+{apply H9.  simpl. left. reflexivity. }
+destruct H10. inversion H10.
+} subst p1. destruct H3. unfold move_from in H9.
+assert (In (inr y : X + Y) nil).
+{apply H9. reflexivity. } contradiction H10.
+++++++++
+assert (forall m, (In m p1 ->(exists y, m = inr y)) /\
+(In m p ->(exists y, m = inr y))).
+{ apply inr_move_implies_inr with (y0:=y). destruct H3.
+auto. }
+assert (forall m, (In m p0 ->(exists y, m = inl y)) /\
+(In m p1 ->(exists y, m = inl y))).
+{ apply inl_move_implies_inl with (y0:=x). destruct H6.
+destruct H5.
++ inversion H5. subst p2. auto.
++ inversion H5.
++ inversion H5.
+ }
+assert (p1 = nil).
+{destruct p1.
++ reflexivity.
++ destruct s.
+++ assert (forall m : X + Y,
+     (In m (inl x0 :: p1) -> exists y : Y, m = inr y)).
+{apply H7. }
+assert (exists y : Y, inl x0 = inr y).
+{apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+++ assert (forall m : X + Y,
+(In m (inr y0 :: p1) -> exists y : X, m = inl y)).
+{apply H8. }
+assert (exists y : X, inr y0 = inl y).
+{apply H9.  simpl. left. reflexivity. }
+destruct H10. inversion H10.
+} subst p1. apply valid_one_move_walk with
+(p1:=(cast_to_right X Y p)) (m:=y) (ep1:=ep)
+(p2:=cast_to_right X Y p0).
++++++++++ reflexivity.
++++++++++ split. 
+++++++++++ apply sum_valid_position_valid_inr. auto.
+++++++++++ split.
++++++++++++ apply valid_empty_walk with 
+(p1:=cast_to_right X Y p0).
+++++++++++++ reflexivity.
+++++++++++++ apply sum_valid_position_valid_inr.
+destruct H5.
++++++++++++++ inversion H5. subst p1. auto.
++++++++++++++ inversion H5.
++++++++++++++ inversion H5.
++++++++++++ right. split.
+++++++++++++ apply H3.
+++++++++++++
+assert (cast_to_right X Y p0 = nil).
+{ apply cast_inl_to_inr_nil. 
++ apply P.
++ apply Q.
++ apply H8.
+} rewrite H9. unfold move_from. split.
++++++++++++++ intros. contradiction H10.
++++++++++++++ intros. unfold iff. split.
+++++++++++++++ intros. destruct H10.
+apply cast_to_right_is_boring in H11. destruct H3.
+unfold move_from in H12.
+assert (inr n = (inr y : X + Y) -> n = y).
+{intros.  inversion H13. reflexivity. }
+apply H13. apply H12. split.
++++++++++++++++ simpl. auto.
++++++++++++++++ apply H11.
+++++++++++++++ intros. split.
++++++++++++++++ simpl. auto.
++++++++++++++++ apply cast_to_right_is_boring.
+destruct H3. apply H11. rewrite H10. reflexivity.
+++++++ inversion H2.
++++++ simpl. destruct p1. simpl in H1. destruct s.
+++++++ simpl in IHw. destruct H0. destruct H2.
+destruct H2.
++++++++ inversion H2.
++++++++ inversion H2.
++++++++ inversion H2.
+subst p3. subst m. subst ep0. subst p2. subst m'. subst w'0.
+destruct H4. destruct H5.
+destruct H3.
+++++++++ destruct H6.
++++++++++
+assert ((forall m, (In m p1 ->(exists y, m = inl y)) /\
+(In m p0 ->(exists y, m = inl y)))).
+{ apply inl_move_implies_inl with (y0:=x). 
+destruct H5.
++ inversion H5.
++ inversion H5. subst p2. destruct H7. destruct H6. auto.
++ inversion H5. subst p2. destruct H7. destruct H6. auto. }
+assert (forall m, (In m p ->(exists y, m = inr y)) /\
+(In m p1 ->(exists y, m = inr y))).
+{ apply inr_move_implies_inr with (y0:=y). 
+destruct H3. auto. }
+assert (p1 = nil).
+{destruct p1.
++ reflexivity.
++ destruct s.
+++ assert (forall m : X + Y,
+     (In m (inl x1 :: p1) -> exists y : Y, m = inr y)).
+{apply H8. }
+assert (exists y : Y, inl x1 = inr y).
+{apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+++ assert (forall m : X + Y,
+     (In m (inr y0 :: p1) -> exists y : X, m = inl y)).
+{ apply H7. }
+assert (exists x : X, inr y0 = inl x).
+{ apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+} subst p1. destruct H3. unfold move_from in H9.
+assert (~ In (inr y : X + Y) p /\ In (inr y : X + Y) nil).
+{apply H9. reflexivity. }
+destruct H10. contradiction H11.
++++++++++
+assert ((forall m, (In m p0 ->(exists y, m = inl y)) /\
+(In m p1 ->(exists y, m = inl y)))).
+{ apply inl_move_implies_inl with (y0:=x). 
+destruct H5.
++ inversion H5.
++ inversion H5. subst p2. destruct H7. destruct H6. auto.
++ inversion H5. subst p2. destruct H7. destruct H6. auto. }
+assert (forall m, (In m p ->(exists y, m = inr y)) /\
+(In m p1 ->(exists y, m = inr y))).
+{ apply inr_move_implies_inr with (y0:=y). 
+destruct H3. auto. }
+assert (p1 = nil).
+{destruct p1.
++ reflexivity.
++ destruct s.
+++ assert (forall m : X + Y,
+     (In m (inl x1 :: p1) -> exists y : Y, m = inr y)).
+{apply H8. }
+assert (exists y : Y, inl x1 = inr y).
+{apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+++ assert (forall m : X + Y,
+     (In m (inr y0 :: p1) -> exists y : X, m = inl y)).
+{ apply H7. }
+assert (exists x : X, inr y0 = inl x).
+{ apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+} subst p1. destruct H3. unfold move_from in H9.
+assert (~ In (inr y : X + Y) p /\ In (inr y : X + Y) nil).
+{apply H9. reflexivity. }
+destruct H10. contradiction H11.
+++++++++ destruct H6.
++++++++++ assert ((forall m, (In m p1 ->(exists y, m = inl y)) /\
+(In m p0 ->(exists y, m = inl y)))).
+{ apply inl_move_implies_inl with (y0:=x). 
+destruct H5.
++ inversion H5.
++ inversion H5. subst p2. destruct H7. destruct H6. auto.
++ inversion H5. subst p2. destruct H7. destruct H6. auto. }
+assert (forall m, (In m p1 ->(exists y, m = inr y)) /\
+(In m p ->(exists y, m = inr y))).
+{ apply inr_move_implies_inr with (y0:=y). 
+destruct H3. auto. }
+assert (p1 = nil).
+{destruct p1.
++ reflexivity.
++ destruct s.
+++ assert (forall m : X + Y,
+     (In m (inl x1 :: p1) -> exists y : Y, m = inr y)).
+{apply H8. }
+assert (exists y : Y, inl x1 = inr y).
+{apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+++ assert (forall m : X + Y,
+     (In m (inr y0 :: p1) -> exists y : X, m = inl y)).
+{ apply H7. }
+assert (exists x : X, inr y0 = inl x).
+{ apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10. 
+} subst p1.
+assert (source_walk _ (cast_to_right_in_walk P Q E F w') = nil).
+{ apply cast_to_nil_inl. 
+refine (ex_intro _ p0 _).
+refine (ex_intro _ x0 _).
+refine (ex_intro _ b0 _).
+apply H5.
+}
+destruct (cast_to_right_in_walk P Q E F w') eqn:IND.
+++++++++++ simpl in H9. subst p1.
+apply valid_one_move_walk with 
+(p1:=(cast_to_right X Y p)) (m:=y) (ep0:=ep) (p2:=nil).
++++++++++++ reflexivity.
++++++++++++ split.
+++++++++++++ apply sum_valid_position_valid_inr. auto.
+++++++++++++ split.
++++++++++++++ apply valid_empty_walk with (p1:=nil).
+++++++++++++++ reflexivity.
+++++++++++++++ unfold valid_position.
+intros. split.
++++++++++++++++ intros. destruct H9. contradiction H10.
++++++++++++++++ intros. destruct H9. contradiction H9.
++++++++++++++ right. split.
+++++++++++++++ destruct H3. auto.
+++++++++++++++ destruct H3. unfold move_from.
+split.
++++++++++++++++ intros. contradiction H10.
++++++++++++++++ unfold iff. intros. split.
+++++++++++++++++ intros. destruct H10.
+apply cast_to_right_is_boring in H11.
+unfold move_from in H9.
+assert (inr n = (inr y : X + Y) -> n = y).
+{ intros. inversion H12. reflexivity. }
+apply H12. apply H9. split.
++++++++++++++++++ simpl. auto.
++++++++++++++++++ apply H11.
+++++++++++++++++ intros. split.
++++++++++++++++++ simpl. auto.
++++++++++++++++++
+assert (inr n = (inr y : X + Y)).
+{ rewrite H10. reflexivity. } apply cast_to_right_is_boring.
+apply H9. apply H11.
+++++++++++ simpl in H9. subst p1.
+apply valid_non_empty_walk with
+(p1:=cast_to_right X Y p) (m:=y) (ep0:=ep) (p3:=nil)
+(w'0:=w) (m':=p2).
++++++++++++ reflexivity.
++++++++++++ split.
+++++++++++++ apply sum_valid_position_valid_inr. auto.
+++++++++++++ split.
++++++++++++++ auto.
++++++++++++++ right. split.
+++++++++++++++ apply H3.
+++++++++++++++ unfold move_from. split.
++++++++++++++++ intros. contradiction H9.
++++++++++++++++ intros. unfold iff. split.
+++++++++++++++++ intros. destruct H9.
+apply cast_to_right_is_boring in H10.
+destruct H3.
+unfold move_from in H11.
+assert (inr n = (inr y : X + Y) -> n = y).
+{ intros. inversion H12. reflexivity. }
+apply H12. apply H11. split.
++++++++++++++++++ simpl. auto.
++++++++++++++++++ apply H10.
+++++++++++++++++ intros. split.
++++++++++++++++++ simpl. auto.
++++++++++++++++++
+assert (inr n = (inr y : X + Y)).
+{ rewrite H9. reflexivity. } apply cast_to_right_is_boring.
+destruct H3.
+unfold move_from in H11. apply H11. apply H10.
++++++++++
+assert ((forall m, (In m p0 ->(exists y, m = inl y)) /\
+(In m p1 ->(exists y, m = inl y)))).
+{ apply inl_move_implies_inl with (y0:=x). 
+destruct H5.
++ inversion H5.
++ inversion H5. subst p2. destruct H7. destruct H6. auto.
++ inversion H5. subst p2. destruct H7. destruct H6. auto. }
+assert (forall m, (In m p1 ->(exists y, m = inr y)) /\
+(In m p ->(exists y, m = inr y))).
+{ apply inr_move_implies_inr with (y0:=y). 
+destruct H3. auto. }
+assert (p1 = nil).
+{destruct p1.
++ reflexivity.
++ destruct s.
+++ assert (forall m : X + Y,
+     (In m (inl x1 :: p1) -> exists y : Y, m = inr y)).
+{apply H8. }
+assert (exists y : Y, inl x1 = inr y).
+{apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+++ assert (forall m : X + Y,
+     (In m (inr y0 :: p1) -> exists y : X, m = inl y)).
+{ apply H7. }
+assert (exists x : X, inr y0 = inl x).
+{ apply H9. simpl. left. reflexivity. }
+destruct H10. inversion H10.
+} subst p1.
+assert (source_walk _ (cast_to_right_in_walk P Q E F w') = nil).
+{ apply cast_to_nil_inl. 
+refine (ex_intro _ p0 _).
+refine (ex_intro _ x0 _).
+refine (ex_intro _ b0 _).
+apply H5.
+}
+destruct (cast_to_right_in_walk P Q E F w') eqn:IND.
+++++++++++ simpl in H9. subst p1.
+apply valid_one_move_walk with 
+(p1:=(cast_to_right X Y p)) (m:=y) (ep0:=ep) (p2:=nil).
++++++++++++ reflexivity.
++++++++++++ split.
+++++++++++++ apply sum_valid_position_valid_inr. auto.
+++++++++++++ split.
++++++++++++++ apply valid_empty_walk with (p1:=nil).
+++++++++++++++ reflexivity.
+++++++++++++++ unfold valid_position.
+intros. split.
++++++++++++++++ intros. destruct H9. contradiction H10.
++++++++++++++++ intros. destruct H9. contradiction H9.
++++++++++++++ right. split.
+++++++++++++++ destruct H3. auto.
+++++++++++++++ destruct H3. unfold move_from.
+split.
++++++++++++++++ intros. contradiction H10.
++++++++++++++++ unfold iff. intros. split.
+++++++++++++++++ intros. destruct H10.
+apply cast_to_right_is_boring in H11.
+unfold move_from in H9.
+assert (inr n = (inr y : X + Y) -> n = y).
+{ intros. inversion H12. reflexivity. }
+apply H12. apply H9. split.
++++++++++++++++++ simpl. auto.
++++++++++++++++++ apply H11.
+++++++++++++++++ intros. split.
++++++++++++++++++ simpl. auto.
++++++++++++++++++
+assert (inr n = (inr y : X + Y)).
+{ rewrite H10. reflexivity. } apply cast_to_right_is_boring.
+apply H9. apply H11.
+++++++++++ simpl in H9. subst p1.
+apply valid_non_empty_walk with
+(p1:=cast_to_right X Y p) (m:=y) (ep0:=ep) (p3:=nil)
+(w'0:=w) (m':=p2).
++++++++++++ reflexivity.
++++++++++++ split.
+++++++++++++ apply sum_valid_position_valid_inr. auto.
+++++++++++++ split.
++++++++++++++ auto.
++++++++++++++ right. split.
+++++++++++++++ apply H3.
+++++++++++++++ unfold move_from. split.
++++++++++++++++ intros. contradiction H9.
++++++++++++++++ intros. unfold iff. split.
+++++++++++++++++ intros. destruct H9.
+apply cast_to_right_is_boring in H10.
+destruct H3.
+unfold move_from in H11.
+assert (inr n = (inr y: X + Y) -> n = y).
+{ intros. inversion H12. reflexivity. }
+apply H12. apply H11. split.
++++++++++++++++++ simpl. auto.
++++++++++++++++++ apply H10.
+++++++++++++++++ intros. split.
++++++++++++++++++ simpl. auto.
++++++++++++++++++
+assert (inr n = (inr y : X + Y)).
+{ rewrite H9. reflexivity. } apply cast_to_right_is_boring.
+destruct H3.
+unfold move_from in H11. apply H11. apply H10.
+++++++
+apply valid_non_empty_walk
+with (p1:=(cast_to_right X Y p)) (m:=y) (ep0:=ep) 
+(p3:=(cast_to_right X Y p0))
+(m':=(y0,b0)) (w'0:=(cast_to_right_in_walk P Q E F w')).
++++++++ reflexivity.
++++++++ split.
+++++++++ destruct H0. apply sum_valid_position_valid_inr.
+ apply H0.
+++++++++ split.
++++++++++ destruct H0. destruct H2. apply H1.
++++++++++ destruct H0. destruct H2. destruct H3. left.
+destruct H3. split.
+++++++++++ apply H3.
+++++++++++
+assert (p2 = nil).
+{ destruct p2. 
++ reflexivity. 
++ destruct H2.
+++ inversion H2.
+++ inversion H2.
+++ inversion H2.
+subst p1. subst m. subst b. subst p3. subst m'. subst w'0.
+destruct s. destruct H5. destruct H6.
++++ destruct H4. unfold move_from in H8.
+assert (In (inr y) (inl x0 :: p2)).
+{ apply H8. reflexivity. }
+assert (~ (In (inl x0) (inl x0 :: p2) /\ In (inr y) (inl x0 :: p2))).
+{apply sum_valid_position_is_pure
+with (P0:=P) (Q0:=Q) (E0:=E) (F0:=F). apply H5.
+}
+contradiction H10. split.
++++++ simpl. left. reflexivity.
++++++ apply H9.
++++ destruct H5. destruct H6. destruct H7.
+++++ destruct H7. unfold move_from in H8. destruct H8.
+assert (In (inr y1) p0).
+{apply H8. simpl. left. reflexivity. }
+assert ( ~ In (inl x) (inr y1 :: p2) /\ In (inl x) p0).
+{apply H9. reflexivity. }
+assert (~ (In (inl x) p0 /\ In (inr y1) p0)).
+{apply sum_valid_position_is_pure
+with (P0:=P) (Q0:=Q) (E0:=E) (F0:=F). destruct H6.
++ inversion H6.
++ inversion H6. subst p1. apply H12.
++ inversion H6. subst p1. apply H12.
+} contradiction H12. destruct H11. split.
++++++ apply H13.
++++++ apply H10. 
+++++ destruct H7. unfold move_from in H8.
+assert (In (inl x) (inr y1 :: p2)).
+{apply H8. reflexivity. }
+assert (~(In (inl x) (inr y1 :: p2) /\ In (inr y1) (inr y1 :: p2))).
+{apply sum_valid_position_is_pure
+with (P0:=P) (Q0:=Q) (E0:=E) (F0:=F). apply H5.
+}
+contradiction H10. split.
++++++ apply H9.
++++++ simpl. left. reflexivity.
+}
+subst p2. unfold move_from in H4. destruct H4.
+assert (~ In (inr y : X + Y) p /\ In (inr y : X + Y) nil).
+{ apply H5.  reflexivity. }
+destruct H6. simpl in H7. contradiction H7.
+++++++++++
+assert (p2 = nil).
+{ destruct p2. 
++ reflexivity. 
++ destruct H2.
+++ inversion H2.
+++ inversion H2.
+++ inversion H2.
+subst p1. subst m. subst b. subst p3. subst m'. subst w'0.
+destruct s. destruct H4. destruct H5. destruct H3.
++++ unfold move_from in H7.
+assert ( In (inr y) p).
+{ apply H7.  reflexivity. }
+assert (In (inl x0) p).
+{ destruct H7. apply H7. simpl. left. reflexivity. }
+assert (~ (In (inl x0) p /\ In (inr y) p)).
+{ apply sum_valid_position_is_pure. apply H0. }
+contradiction H10. split.
+++++ apply H9.
+++++ apply H8.
++++ destruct H4. destruct H5. destruct H6.
+++++ destruct H6. unfold move_from in H7.
+assert (In (inl x) p0).
+{apply H7. reflexivity. }
+assert (In (inr y1) p0).
+{destruct H7. apply H7. simpl. left. reflexivity. }
+assert (~(In (inl x) p0 /\ In (inr y1) p0)).
+{apply sum_valid_position_is_pure. 
+ destruct H5.
++ inversion H5.
++ inversion H5. subst p1. destruct H10. auto.
++ inversion H5. subst p1. destruct H10. auto.
+} contradiction H10. destruct H7. auto.
+++++ destruct H6. unfold move_from in H7.
+assert (In (inl x) (inr y1 :: p2)).
+{ apply H7.  reflexivity. }
+assert (~ (In (inl x) (inr y1 :: p2) /\ In (inr y1) (inr y1 :: p2))).
+{ apply sum_valid_position_is_pure
+with (P0:=P) (Q0:=Q) (E0:=E) (F0:=F). auto. } contradiction H9. split.
++++++  apply H8.
++++++ simpl. left. reflexivity.
+} subst p2. right.
+destruct H3. split.
++++++++++++ apply H3.
++++++++++++
+assert (forall m, In m p0 -> m = inl x).
+{intros. destruct H2. 
++ inversion H2. 
++ inversion H2. 
++ inversion H2. subst p1. subst m0. subst b. subst p2.
+subst m'. subst w'0.
+ destruct H6. destruct H7. destruct H8.
+++ destruct H8. unfold move_from in H9.
+apply H9.  split.
++++ simpl. auto.
++++ apply H5.
+++ destruct H8. unfold move_from in H9.
+assert (In (inl x: X + Y) nil).
+{ apply H9.  reflexivity. } contradiction H10.
+}
+assert (forall m, In m p -> m = inr y).
+{ intros. unfold move_from in H4. apply H4. split.
++ simpl. auto.
++ apply H6.
+}
+assert (forall p0, (forall m : X + Y, In m p0 -> m = inl x) ->
+cast_to_right X Y p0 = nil).
+{ intros. induction p1. 
++ simpl. reflexivity.
++ destruct a.
+++ simpl. apply IHp1. intros. apply H7. simpl. right. apply H8.
+++ assert (inr y1 = inl x).
+{ apply H7.  simpl. left. reflexivity. }
+inversion H8.
+ }
+assert ( cast_to_right X Y p0 = nil).
+{apply H7.  apply H5. } rewrite H8.
+assert (forall p2, move_from (event_structure_sum P Q E F)
+        (inr y) nil p2 ->
+(forall m, In m (cast_to_right X Y p2) -> m = y) ).
+{intros. induction p2.
++ simpl in H8. contradiction H10.
++ simpl in H8. destruct a.
+++ apply IHp2. destruct p2.
++++ simpl in H10. contradiction H10.
++++ unfold move_from. split.
+++++ intros. contradiction H11.
+++++ intros. unfold iff. split.
++++++ intros. unfold move_from in H9.
+apply H9. split.
+++++++ simpl. auto.
+++++++ simpl. simpl in H11. right. apply H11.
++++++ intros. unfold move_from in H9.
+subst n.
+assert (s = inr y).
+{apply H9. split.
++ simpl. auto.
++ simpl. right. left. reflexivity.
+} subst s. simpl. auto.
++++ destruct p2.
+++++ unfold move_from in H9. simpl in H9.
+assert (inl x0 = (inr y : X + Y)).
+{apply H9. split.
++ simpl. auto.
++ simpl. left. reflexivity.
+} inversion H11.
+++++ unfold move_from in H9.
+assert (s = inr y).
+{apply H9. split.
++ simpl. auto.
++ simpl. right. left. reflexivity.
+} subst s. simpl in H10. simpl. apply H10.
+++ destruct p2. unfold move_from in H9. simpl in H9.
+simpl in H10.
+assert (inr y1 = (inr y : X + Y)).
+{apply H9. split.
++ simpl. auto.
++ simpl. left. reflexivity.
+ } inversion H11. subst y1. destruct H10. rewrite H10.
+reflexivity.
++++ contradiction H10.
++++ apply IHp2.
+++++ unfold move_from. unfold move_from in H9. split.
++++++ intros. contradiction H11.
++++++ unfold iff. intros. split.
+++++++ intros. apply H9. split.
++++++++ simpl. auto.
++++++++ destruct H11. simpl in H12. simpl. right. apply H12.
+++++++ intros. split.
++++++++ simpl. auto.
++++++++ subst n.
+assert (s = inr y).
+{apply H9. split.
++ simpl. auto.
++ simpl. right. left. reflexivity. } subst s.
+simpl. left. reflexivity.
+++++ unfold move_from in H9.
+assert (inr y1 = (inr y : X + Y)).
+{apply H9. split.
++ simpl. auto.
++ simpl. left.  reflexivity. } inversion H11. subst y1.
+assert (s = (inr y : X + Y)).
+{apply H9. split.
++ simpl. auto.
++ simpl. right. left.  reflexivity. } inversion H11. subst s.
+simpl in H10. simpl. destruct H10.
++++++ left. apply H10.
++++++ apply H10.
+}
+assert (forall m : Y, In m (cast_to_right X Y p) -> m = y).
+{ apply H9. apply H4. }
+unfold move_from. split.
+++++++++++++ intros. contradiction H11.
+++++++++++++ intros. unfold iff. split.
++++++++++++++ intros. apply H10. apply H11.
++++++++++++++ intros. split.
+++++++++++++++ simpl. auto.
+++++++++++++++ unfold move_from in H4.
+assert (In (inr y) p).
+{apply H4.  reflexivity. }
+apply cast_to_right_is_boring. subst n. apply H12.
+++++ apply valid_non_empty_walk
+with (p1:=(cast_to_right X Y p)) (m:=y)
+(ep0:=ep) (p3:=(cast_to_right X Y p2)) (m':=(y0, b))
+(w'0:=(cast_to_right_in_walk P Q E F w')).
++++++ reflexivity.
++++++ split.
+++++++ destruct H0. apply sum_valid_position_valid_inr. apply H0.
+++++++ split.
++++++++ destruct H0. destruct H1. simpl in IHw.
+apply IHw. apply H1.
++++++++ destruct H0. destruct H1. destruct H2.
+++++++++ left. split.
++++++++++ destruct H2. apply H2.
++++++++++ destruct H2. unfold move_from. unfold
+move_from in H3. split.
+++++++++++ destruct H3.
+intros. apply cast_to_right_is_boring in H5.
+ apply cast_to_right_is_boring. apply H3. apply H5.
+++++++++++ split.
++++++++++++ destruct H3. intros.
+ rewrite cast_to_right_is_boring in H5. 
+ rewrite cast_to_right_is_boring in H5.
+assert ((inr n : X + Y) = inr y).
+{ apply H4. auto. } inversion H6. reflexivity.
++++++++++++ intros.
+ rewrite cast_to_right_is_boring.
+ rewrite cast_to_right_is_boring.
+apply H3. rewrite H4. reflexivity.
+++++++++ destruct H2. right. split.
++++++++++ apply H2.
++++++++++ unfold move_from. unfold move_from in H3. split.
+++++++++++ destruct H3. intros.
+apply cast_to_right_is_boring in H5. 
+apply cast_to_right_is_boring. apply H3. apply H5.
+++++++++++ split.
++++++++++++ destruct H3. intros.
+rewrite cast_to_right_is_boring in H5.
+rewrite cast_to_right_is_boring in H5.
+assert ((inr n : X + Y) = inr y).
+{ apply H4. auto. } inversion H6. reflexivity.
++++++++++++ intros.
+ rewrite cast_to_right_is_boring.
+ rewrite cast_to_right_is_boring. apply H3. rewrite H4.
+reflexivity.
 Qed.
 
 Instance asynchronous_arena_sum
