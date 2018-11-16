@@ -1020,6 +1020,37 @@ Proof.
 - auto.
 Defined.
 
+Instance product_group `(X : Group G) `(Y : Group H) : 
+Group (G * H) := {
+mult m n := match m, n with
+(g, h), (g', h') => (mult g g', mult h h')
+end;
+identity := (identity, identity);
+inverse m := match m with
+(g, h) => (inverse g, inverse h)
+end
+}.
+Proof.
+- intros. destruct x. destruct y. destruct z.
+rewrite associative. rewrite associative. reflexivity.
+- intros. destruct x.
+assert (mult identity g = g /\ mult g identity = g).
+{ apply identity_exists. }
+assert (mult identity h = h /\ mult h identity = h).
+{ apply identity_exists. }
+destruct H0. destruct H1.
+rewrite H0. rewrite H1. rewrite H2. rewrite H3. auto.
+- intros. destruct x. 
+assert (mult g (inverse g) = identity 
+/\ mult (inverse g) g = identity).
+{ apply inverses_exist. }
+assert (mult h (inverse h) = identity 
+/\ mult (inverse h) h = identity).
+{ apply inverses_exist. }
+destruct H0. destruct H1.
+rewrite H0. rewrite H1. rewrite H2. rewrite H3. auto.
+Defined.
+
 Instance zero_asynchronous_game : 
 AsynchronousGame zero_event_structure
 zero_asynchronous_arena trivial_group trivial_group := {
@@ -4131,3 +4162,49 @@ destruct H8. inversion H8.
 ++++ reflexivity.
 Defined. 
 
+Instance sum_positive_game
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q)
+(A : AsynchronousArena E) (B : AsynchronousArena F)
+(positive1 : finite_payoff (inl (nil : Position E)) = (-1)%Z)
+(positive2 : finite_payoff (inl (nil : Position F)) = (-1)%Z)
+`(X : Group G)
+`(Y : Group H)
+`(X' : Group G')
+`(Y' : Group H')
+(Game : AsynchronousGame E A X Y)
+(Game' : AsynchronousGame F B X' Y')
+: AsynchronousGame (event_structure_sum P Q E F)
+(asynchronous_arena_sum P Q E F A B positive1 positive2)
+ (product_group X X') (product_group Y Y') :=
+{ action g m h :=
+match g, m, h with
+| (g, g'), inl m, (h, h') => inl (action g m h)
+| (g, g'), inr m, (h, h') => inr (action g' m h')
+end
+}.
+Proof.
+- intros. destruct m.
++ simpl. rewrite action_identity. reflexivity.
++ simpl. rewrite action_identity. reflexivity.
+- intros. destruct g. destruct g'.
+destruct h. destruct h'. simpl. destruct m.
++ rewrite action_compatible. reflexivity.
++ rewrite action_compatible. reflexivity.
+- intros. destruct g. destruct h. simpl. destruct m.
++ destruct n.
+++ apply coherence_1. simpl in H0. auto.
+++ simpl in H0. contradiction H0.
++ destruct n.
+++ simpl in H0. contradiction H0.
+++ apply coherence_1. simpl in H0. auto.
+- intros. destruct g. destruct h. destruct m.
++ simpl. apply coherence_2.
++ simpl. apply coherence_2.
+- intros. destruct g. destruct m.
++ simpl. simpl in H0. apply H0. apply reflexive.
++ simpl. simpl in H0. apply H0. apply reflexive.
+- intros. destruct h. destruct m.
++ simpl. simpl in H0. apply H0. apply reflexive.
++ simpl. simpl in H0. apply H0. apply reflexive.
+Defined.
