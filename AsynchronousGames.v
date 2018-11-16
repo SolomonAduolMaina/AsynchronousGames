@@ -97,6 +97,13 @@ match w with
 | non_empty_walk _ p' _ w => (p' = p) \/ (position_in_walk E p w)
 end.
 
+Fact target_in_walk `(E: EventStructure M)
+: forall p w, target_walk E w = p -> position_in_walk E p w.
+Proof. intros. induction w.
++ simpl. simpl in H. auto.
++ simpl in H. simpl. right. apply IHw. apply H.
+Qed.
+
 Fixpoint move_in_walk `(E: EventStructure M) p (w : Walk E) :=
 match w with
 | empty_walk _ p' => False
@@ -636,51 +643,6 @@ Proof. unfold iff. split.
 +++ simpl. simpl in H. destruct H.
 ++++ left. inversion H. reflexivity.
 ++++ right. apply IHl. apply H.
-Qed.
-
-Fact cast_to_left_monotonic (A B : Type) (l : list (A + B)):
-length (cast_to_left A B l) < length l \/ 
-length (cast_to_left A B l) = length l.
-Proof.
-intros.  induction l.
-+ simpl. lia.
-+ simpl. destruct a.
-++ simpl. lia.
-++ lia.
-Qed.
-
-Fact cast_to_left_iso (A B : Type) (l : list (A + B)):
-(length (cast_to_left A B l) = length l ->
-forall x, In x l -> (exists y, x = inl y))
-/\
-(length (cast_to_left A B l) < length l ->
-exists x, In (inr x) l).
-Proof. induction l.
-+ split.
-++ simpl. intros. contradiction H0.
-++ simpl. intros. lia.
-+ destruct IHl. split.
-++ intros. destruct a.
-+++ simpl in H1. 
-assert (length (cast_to_left A B l) = length l).
-{ lia. }
-destruct H2. 
-++++ refine (ex_intro _ a _). auto.
-++++ apply H. apply H3. apply H2.
-+++ simpl in H1.
-assert (length (cast_to_left A B l) < length l \/ 
-length (cast_to_left A B l) = length l).
-{ apply cast_to_left_monotonic. }
-lia.
-++ intros. destruct a.
-+++ simpl in H1.
-assert (length (cast_to_left A B l) < length l).
-{ lia. } 
-simpl. 
-assert (exists x : B, In (inr x) l).
-{ apply H0. apply H2. }
-destruct H3. refine (ex_intro _ x _). auto.
-+++ refine (ex_intro _ b _). simpl. left. auto.
 Qed.
 
 Fixpoint contains_initial `(E : EventStructure M) (w : Walk E) :=
@@ -1661,7 +1623,228 @@ with (p1:=p) (p3:=x) (y0:=x0)
 apply H4.
 Qed.
 
-(* RUDI HAPA*)
+Fact cast_to_left_in_walk_monotonic 
+`(P : PartialOrder X)
+`(Q : PartialOrder Y)
+(E : EventStructure P)
+(F : EventStructure Q)
+: forall (w : Walk (event_structure_sum P Q E F)),
+length_walk E (cast_to_left_in_walk P Q E F w) <
+length_walk (event_structure_sum P Q E F) w
+\/
+length_walk E (cast_to_left_in_walk P Q E F w) =
+length_walk (event_structure_sum P Q E F) w
+.
+Proof. intros. induction w.
++ simpl. right. reflexivity.
++ simpl. destruct p0. destruct s.
+++ simpl. destruct IHw.
++++ left. lia.
++++ right. lia.
+++ destruct IHw. 
++++ left. lia.
++++ left. lia.
+Qed.
+
+Fact sum_equals_inl_implies_inl
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q)
+: forall w,
+valid_walk (event_structure_sum P Q E F) w /\
+length_walk (event_structure_sum P Q E F) w =
+  length_walk E (cast_to_left_in_walk P Q E F w)
+-> ((exists p, w = empty_walk (event_structure_sum P Q E F) p)
+\/
+forall m p, (position_in_walk _ p w /\ In m p) ->
+(exists x, m = inl x)).
+Proof. intros. induction w.
++ left. refine (ex_intro _ p _). reflexivity.
++ right. destruct H. simpl in H0. destruct p0.
+destruct s.
+++ simpl in H0.
+assert
+(length_walk E (cast_to_left_in_walk P Q E F w) =
+length_walk (event_structure_sum P Q E F) w).
+{lia. }
+destruct H.
++++ inversion H.
++++ inversion H. subst p1. subst m. subst b. subst w.
+assert ((exists p : Position (event_structure_sum P Q E F),
+         empty_walk (event_structure_sum P Q E F) p2 =
+         empty_walk (event_structure_sum P Q E F) p) \/
+      (forall (m : X + Y) (p : Position (event_structure_sum P Q E F)),
+       position_in_walk (event_structure_sum P Q E F) p
+         (empty_walk (event_structure_sum P Q E F) p2) /\ 
+       In m p -> exists x : X, m = inl x)).
+{apply IHw. destruct H2. destruct H3. auto. }
+destruct H3. destruct H3. inversion H3. subst x0. simpl.
+intros. destruct H4. destruct H4.
+++++ subst p0. destruct H2. destruct H4. destruct H6.
++++++ destruct H6. unfold move_from in H7. 
+assert ((forall m, (In m p ->(exists y, m = inl y)) /\
+(In m p2 ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4. subst p2. auto.
++ inversion H4.
++ inversion H4. }
+assert (forall m : X + Y,
+     (In m p -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
++++++ destruct H6. unfold move_from in H7. 
+assert ((forall m, (In m p2 ->(exists y, m = inl y)) /\
+(In m p ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4. subst p2. auto.
++ inversion H4.
++ inversion H4. }
+assert (forall m : X + Y,
+     (In m p -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
+++++ subst p2. destruct H2. destruct H4. destruct H6.
+destruct H6.
++++++
+assert ((forall m, (In m p ->(exists y, m = inl y)) /\
+(In m p0 ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4. subst p0. auto.
++ inversion H4.
++ inversion H4. }
+assert (forall m : X + Y,
+     (In m p0 -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
++++++ assert ((forall m, (In m p0 ->(exists y, m = inl y)) /\
+(In m p ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4. subst p0. destruct H6. auto.
++ inversion H4.
++ inversion H4. }
+assert (forall m : X + Y,
+     (In m p0 -> exists y : X, m = inl y)).
+{apply H7. }
+apply H8. apply H5.
+++++ simpl. intros. destruct H4. destruct H4.
++++++ subst p0. destruct H2. destruct H4. destruct H6.
+++++++ destruct H6.
+assert ((forall m, (In m p ->(exists y, m = inl y)) /\
+(In m p2 ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4. subst p0. auto.
++ inversion H4.
++ inversion H4. }
+assert (forall m : X + Y,
+     (In m p -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
+++++++ destruct H6.
+assert ((forall m, (In m p2 ->(exists y, m = inl y)) /\
+(In m p ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4. subst p0. auto.
++ inversion H4.
++ inversion H4. }
+assert (forall m : X + Y,
+     (In m p -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
++++++ subst p2. destruct H2. destruct H4. destruct H6.
+++++++ destruct H6.
+assert ((forall m, (In m p ->(exists y, m = inl y)) /\
+(In m p0 ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4. subst p0. auto.
++ inversion H4.
++ inversion H4. }
+assert (forall m : X + Y,
+     (In m p0 -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
+++++++ destruct H6.
+assert ((forall m, (In m p0 ->(exists y, m = inl y)) /\
+(In m p ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4. subst p0. auto.
++ inversion H4.
++ inversion H4. }
+assert (forall m : X + Y,
+     (In m p0 -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
++++ inversion H. subst p1. subst m. subst ep. subst w.
+assert ((exists p : Position (event_structure_sum P Q E F),
+         non_empty_walk (event_structure_sum P Q E F) p2 m' w' =
+         empty_walk (event_structure_sum P Q E F) p) \/
+      (forall (m : X + Y) (p : Position (event_structure_sum P Q E F)),
+       position_in_walk (event_structure_sum P Q E F) p
+         (non_empty_walk (event_structure_sum P Q E F) p2 m' w') /\ 
+       In m p -> exists x : X, m = inl x)).
+{apply IHw. destruct H2. destruct H3. auto. } destruct H3.
+++++ destruct H3. inversion H3.
+++++ intros. simpl in H4. destruct H4. destruct H4.
++++++ subst p0. destruct H2. destruct H4. destruct H6.
+++++++ destruct H6. 
+assert ((forall m, (In m p ->(exists y, m = inl y)) /\
+(In m p2 ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4.
++ inversion H4. subst p2. destruct H8. auto.
++ inversion H4. subst p2. destruct H8. auto. }
+assert (forall m : X + Y,
+     (In m p -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
+++++++ destruct H6. 
+assert ((forall m, (In m p2 ->(exists y, m = inl y)) /\
+(In m p ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4.
++ inversion H4. subst p2. destruct H8. auto.
++ inversion H4. subst p2. destruct H8. auto. }
+assert (forall m : X + Y,
+     (In m p -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
++++++ destruct H4.
+++++++ subst p2. destruct H2. destruct H4.
+destruct H6.
++++++++ destruct H6. 
+assert ((forall m, (In m p ->(exists y, m = inl y)) /\
+(In m p0 ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4.
++ inversion H4. subst p1. destruct H8. auto.
++ inversion H4. subst p1. destruct H8. auto. }
+assert (forall m : X + Y,
+     (In m p0 -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
++++++++ destruct H6. 
+assert ((forall m, (In m p0 ->(exists y, m = inl y)) /\
+(In m p ->(exists y, m = inl y)))).
+{apply inl_move_implies_inl with (y:=x). destruct H4.
++ inversion H4.
++ inversion H4. subst p1. destruct H8. auto.
++ inversion H4. subst p1. destruct H8. auto. }
+assert (forall m : X + Y,
+     (In m p0 -> exists y : X, m = inl y)).
+{apply H8. }
+apply H9. apply H5.
+++++++ apply H3 with (p:=p0). split.
++++++++ simpl. right. auto.
++++++++ auto.
+++
+assert
+(length_walk E (cast_to_left_in_walk P Q E F w) <
+length_walk (event_structure_sum P Q E F) w
+\/
+length_walk E (cast_to_left_in_walk P Q E F w) =
+length_walk (event_structure_sum P Q E F) w).
+{ apply cast_to_left_in_walk_monotonic. }
+lia.
+Qed.
+
 Fact valid_walk_is_valid_inl 
 `(P : PartialOrder X) `(Q : PartialOrder Y)
 (E : EventStructure P) (F : EventStructure Q):
@@ -3314,6 +3497,100 @@ assert ((inr n : X + Y) = inr y).
 reflexivity.
 Qed.
 
+Fact target_is_cast_inl
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q)
+: forall w p,
+target_walk (event_structure_sum P Q E F) w = p
+->
+target_walk E (cast_to_left_in_walk P Q E F w) 
+= (cast_to_left X Y p).
+Proof. intros. induction w.
++ simpl in H. subst p0. simpl. reflexivity.
++ simpl. destruct p1. destruct s.
+++ simpl. apply IHw. simpl in H. apply H.
+++ apply IHw. simpl in H. apply H.
+Qed.
+
+Fact target_is_cast_inr
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q)
+: forall w p,
+target_walk (event_structure_sum P Q E F) w = p
+->
+target_walk F (cast_to_right_in_walk P Q E F w) 
+= (cast_to_right X Y p).
+Proof. intros. induction w.
++ simpl in H. subst p0. simpl. reflexivity.
++ simpl. destruct p1. destruct s.
+++ apply IHw. simpl in H. apply H.
+++ simpl. apply IHw. simpl in H. apply H.
+Qed.
+
+Fact nil_in_cast_inl
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q)
+: forall w, valid_walk _ w ->
+position_in_walk (event_structure_sum P Q E F) nil w
+->
+position_in_walk E nil (cast_to_left_in_walk P Q E F w).
+Proof. intros. induction w.
++ simpl in H0. simpl. subst p. simpl. reflexivity.
++ simpl. destruct p0. destruct s.
+++ simpl. simpl in H0. destruct H0.
++++ left. subst p. simpl. reflexivity.
++++ right. apply IHw. destruct H. 
+++++ inversion H.
+++++ inversion H. subst p1. subst m. subst ep. subst w.
+apply H1.
+++++ inversion H. subst p1. subst m. subst ep. subst w.
+apply H1.
+++++ apply H0.
+++
+assert (source_walk _ (cast_to_left_in_walk P Q E F w) = nil).
+{apply cast_to_nil_inr. 
+refine (ex_intro _ p _).
+refine (ex_intro _ y _).
+refine (ex_intro _ b _).
+auto.
+}
+destruct (cast_to_left_in_walk P Q E F w).
++++ simpl in H1. subst p0. simpl. reflexivity.
++++ simpl in H1. subst p0. simpl. left. reflexivity.
+Qed.
+
+Fact nil_in_cast_inr
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q)
+: forall w, valid_walk _ w ->
+position_in_walk (event_structure_sum P Q E F) nil w
+->
+position_in_walk F nil (cast_to_right_in_walk P Q E F w).
+Proof. intros. induction w.
++ simpl in H0. simpl. subst p. simpl. reflexivity.
++ simpl. destruct p0. destruct s.
+++
+assert (source_walk _ (cast_to_right_in_walk P Q E F w) = nil).
+{apply cast_to_nil_inl. 
+refine (ex_intro _ p _).
+refine (ex_intro _ x _).
+refine (ex_intro _ b _).
+auto.
+}
+destruct (cast_to_right_in_walk P Q E F w).
++++ simpl in H1. subst p0. simpl. reflexivity.
++++ simpl in H1. subst p0. simpl. left. reflexivity.
+++ simpl. simpl in H0. destruct H0.
++++ left. subst p. simpl. reflexivity.
++++ right. apply IHw. destruct H. 
+++++ inversion H.
+++++ inversion H. subst p1. subst m. subst ep. subst w.
+apply H1.
+++++ inversion H. subst p1. subst m. subst ep. subst w.
+apply H1.
+++++ apply H0.
+Qed.
+
 Instance asynchronous_arena_sum
 `(P : PartialOrder X) `(Q : PartialOrder Y)
 (E : EventStructure P) (F : EventStructure Q)
@@ -3566,7 +3843,34 @@ intros. destruct H. destruct H0. destruct H1.
 
 destruct (length_walk (event_structure_sum P Q E F) w =?
   length_walk E (cast_to_left_in_walk P Q E F w)) eqn:H'.
-
-
-
++ apply beq_nat_true in H'.
+rewrite H' in H0.
+assert (position_in_walk E nil (cast_to_left_in_walk P Q E F w)).
+{apply nil_in_cast_inl. apply H. apply H2. }
+assert (target_walk E (cast_to_left_in_walk P Q E F w) 
+= (cast_to_left X Y p)).
+{apply target_is_cast_inl. apply H1. }
+assert (valid_walk E (cast_to_left_in_walk P Q E F w)).
+{apply valid_walk_is_valid_inl. apply H. }
+assert (finite_payoff (inr (cast_to_left_in_walk P Q E F w)) 
+= finite_payoff (inl (cast_to_left X Y p))).
+{apply noninitial_payoff. auto. }
+rewrite H6. destruct p.
+++ simpl. apply positive1.
+++ destruct s.
++++ reflexivity.
++++ 
+assert ((exists p, w = empty_walk (event_structure_sum P Q E F) p)
+\/
+forall m p, (position_in_walk _ p w /\ In m p) ->
+(exists x, m = inl x)).
+{apply sum_equals_inl_implies_inl. auto. }
+destruct H7.
+++++ destruct H7. subst w. simpl in H0. lia.
+++++
+assert (exists x : X, inr y = inl x).
+{apply H7 with (p:= inr y :: p). split.
+ apply target_in_walk. auto. simpl. left. reflexivity. }
+destruct H8. inversion H8.
++ admit.
 
