@@ -122,8 +122,9 @@ Definition second_move `(E: EventStructure M) (m : M) :=
 /\
 (exists (n : M), In n (ideal m) /\ n <> m).
 
-(*TODO: We need to redefine this *)
-Definition InfinitePosition `(E : EventStructure M) := (M -> bool).
+Inductive InfinitePosition `(E : EventStructure M) : Type := 
+| stream : M -> (unit -> InfinitePosition E)
+-> InfinitePosition E.
 
 Class AsynchronousArena `(E : EventStructure M) := {
 polarity : M -> bool;
@@ -682,6 +683,17 @@ non_empty_walk E (cast_to_left P Singleton p) (m, b) (remove_sum M E w)
 | non_empty_walk _ p (inr m ,b) w => remove_sum M E w
 end.
 
+Fixpoint lower_infinite_position
+`(M : PartialOrder P)
+(E : EventStructure M)
+(p : InfinitePosition (lift_event_structure M E)) :
+InfinitePosition E
+:= match p with
+| stream _ (inr m) f => lower_infinite_position M E (f tt)
+| stream _ (inl m) f => 
+stream E m (fun _ => lower_infinite_position M E (f tt))
+end.
+
 Instance lift_asynchronous_arena 
 `(M : PartialOrder P)
 (E : EventStructure M)
@@ -707,8 +719,8 @@ finite_payoff (inr(remove_sum M E w)) else
 | _ => g (target_walk (lift_event_structure M E) w)
 end)
 end;
-infinite_payoff f :=
-let g m := f (inl m) in infinite_payoff g;
+infinite_payoff p :=
+infinite_payoff (lower_infinite_position _ _ p);
 polarity m :=
 match m with
 | inl(p) => polarity p
@@ -3843,6 +3855,31 @@ apply H1.
 ++++ apply H0.
 Qed.
 
+Fixpoint cast_infinite_position_to_inl
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q)
+(p : InfinitePosition (event_structure_sum P Q E F)) :
+InfinitePosition E :=
+match p with
+| stream _ (inr m) f => 
+cast_infinite_position_to_inl _ _ _ _ (f tt)
+| stream _ (inl m) f => 
+stream E m (fun _ => 
+cast_infinite_position_to_inl _ _ _ _ (f tt))
+end. 
+
+Fixpoint cast_infinite_position_to_inr
+`(P : PartialOrder X) `(Q : PartialOrder Y)
+(E : EventStructure P) (F : EventStructure Q)
+(p : InfinitePosition (event_structure_sum P Q E F)) :
+InfinitePosition F :=
+match p with
+| stream _ (inl _) f => 
+cast_infinite_position_to_inr _ _ _ _ (f tt)
+| stream _ (inr m) f => stream _ m 
+(fun _ => cast_infinite_position_to_inr _ _ _ _ (f tt))
+end. 
+
 Instance asynchronous_arena_sum
 `(P : PartialOrder X) `(Q : PartialOrder Y)
 (E : EventStructure P) (F : EventStructure Q)
@@ -3876,13 +3913,12 @@ finite_payoff (inr (cast_to_right_in_walk P Q E F w)) else
  finite_payoff (inl (cast_to_right X Y pos))
 end)
 end;
-infinite_payoff f :=
-let g m := f (inl m) in
-let h m := f (inr m) in
-match infinite_payoff g, infinite_payoff h with
-| plus_infinity, plus_infinity => plus_infinity
-| minus_infinity, minus_infinity => minus_infinity
-| _, _ => plus_infinity
+infinite_payoff p :=
+match p with
+| stream _ (inl _) _ => 
+infinite_payoff (cast_infinite_position_to_inl _ _ _ _ p)
+| stream _ (inr _) _ => 
+infinite_payoff (cast_infinite_position_to_inr _ _ _ _ p)
 end
 }.
 Proof.
