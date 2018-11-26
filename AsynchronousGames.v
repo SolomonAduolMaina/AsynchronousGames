@@ -3,6 +3,7 @@ Require Import List.
 Require Import Coq.Program.Wf.
 Require Import ZArith.
 Require Import Init.Nat.
+Require Import Logic.Eqdep.
 
 Generalizable All Variables.
 
@@ -4245,319 +4246,110 @@ destruct h. destruct h'. simpl. destruct m.
 + simpl. simpl in H0. apply H0. apply reflexive.
 Defined.
 
-Instance event_structure_tensor_helper
-`(P : PartialOrder A) `(Q : PartialOrder B)
-(E : EventStructure P) (F : EventStructure Q) :
-EventStructure (partial_order_sum P Q) :=
-{ incompatible m n := 
-match m,n with
-| inl m, inl n => incompatible m n
-| inr m, inr n => incompatible m n
-| _, _ => False
-end;
-ideal m := match m with
-| inl m => add_inl A B (ideal m)
-| inr m => add_inr A B (ideal m)
-end
-}.
+(*
+Inductive leq_sum (I : Type) (f : I -> Type) 
+(posets : forall i, PartialOrder (f i))
+: sigT f -> sigT f -> Prop :=
+| leq_sum_proof : forall i (p q : f i), leq p q -> 
+leq_sum _ _ _(existT _ i p) (existT _ i q).
+
+Instance partial_order_indexed_sum (I : Type) (f : I -> Type) 
+(posets : forall i, PartialOrder (f i))
+: PartialOrder (sigT f) 
+:= {leq x y := leq_sum I f posets x y}.
 Proof.
-- intros. destruct x.
-+ destruct y.
-++ apply symmetric. apply H.
-++ apply H.
-+ destruct y.
-++ apply H.
-++ apply symmetric. apply H.
-- intros. destruct x.
-+ apply irreflexive.
-+ apply irreflexive.
-- intros. destruct x.
-+ destruct y.
-++ simpl. rewrite <- add_inl_does_nothing. apply ideal_finite.
-++ simpl. unfold iff. split.
-+++ intros. contradiction H.
-+++ intros. apply inr_not_in_add_inl in H. contradiction H.
-+ destruct y.
-++ simpl. unfold iff. split.
-+++ intros. contradiction H.
-+++ intros. apply inl_not_in_add_inr in H. contradiction H.
-++ simpl. rewrite <- add_inr_does_nothing. apply ideal_finite.
-- intros. destruct x.
-+ destruct y.
-++ destruct z.
-+++ simpl in H. apply incompatible_closed with (y:=a0). auto.
-+++ simpl in H. destruct H. contradiction H0.
-++ destruct H. contradiction H.
-+ destruct y.
-++ destruct H. contradiction H.
-++ destruct z.
-+++ simpl in H. destruct H. contradiction H0.
-+++ simpl in H. apply incompatible_closed with (y:=b0). auto.
+- intros. destruct x. apply leq_sum_proof. apply reflexive.
+- intros. destruct H. inversion H. inversion H0.
+subst x. subst y. inversion H5. subst i0.
+apply inj_pairT2 in H6. subst q0. apply inj_pairT2 in H5.
+subst p0.
+assert ( p = q ).
+{apply anti_symmetric. auto. }
+subst p. reflexivity.
+- intros. destruct H. inversion H. inversion H0.
+subst x. subst y. subst z. inversion H5. subst i0.
+apply inj_pairT2 in H6. subst p0. 
+assert ( leq p q0 ).
+{apply transitive with (y:=q). auto. }
+apply leq_sum_proof. auto.
 Defined.
+*)
+Inductive leq_tensor
+`(f : Index -> Type) 
+(posets : forall (i : Index), PartialOrder (f i))
+`(f' : Index' -> Type) 
+(posets' : forall (i : Index'), PartialOrder (f' i))
+: (sigT (fun x => let (x, y) := (x : Index * Index') in 
+sum (f x) (f' y))) -> 
+(sigT (fun x => let (x, y) := (x : Index * Index') in 
+sum (f x) (f' y)))  -> Prop :=
+| leq_tensor_left : forall i i' (p q: (f i)) x y,
+leq p q -> 
+x = (existT _ (i,i') (inl p)) ->
+y = (existT _ (i,i') (inl q)) ->
+leq_tensor f posets f' posets' x y
+| leq_tensor_right : forall i i' (p q: (f' i')) x y,
+leq p q ->
+x = (existT _ (i,i') (inr p)) ->
+y = (existT _ (i,i') (inr q)) ->
+leq_tensor f posets f' posets' x y.
 
-Definition event_structure_tensor 
-`(P : PartialOrder A) `(Q : PartialOrder B)
-(E : EventStructure P) (F : EventStructure Q) := 
-lift_event_structure (partial_order_sum P Q) 
-(event_structure_tensor_helper P Q E F).
-
-Fixpoint cast_to_left_in_walk_tensor_helper
-`(P : PartialOrder X)
-`(Q : PartialOrder Y)
-(E : EventStructure P)
-(F : EventStructure Q)
-(w : Walk (event_structure_tensor_helper P Q E F)) : Walk E :=
- match w with
-| empty_walk _ p => empty_walk E (cast_to_left X Y p)
-| non_empty_walk _ p (inl m, b) w
-=> non_empty_walk _ (cast_to_left X Y p) (m, b) 
-(cast_to_left_in_walk_tensor_helper P Q E F w)
-| non_empty_walk _ p (inr m, b) w
-=> cast_to_left_in_walk_tensor_helper P Q E F w
-end. 
-
-Definition cast_to_left_in_walk_tensor
-`(P : PartialOrder X)
-`(Q : PartialOrder Y)
-(E : EventStructure P)
-(F : EventStructure Q)
-(w : Walk (event_structure_tensor P Q E F)) : Walk E :=
-cast_to_left_in_walk_tensor_helper P Q E F (remove_sum _ _ w).
-
-Fixpoint cast_to_right_in_walk_tensor_helper
-`(P : PartialOrder X)
-`(Q : PartialOrder Y)
-(E : EventStructure P)
-(F : EventStructure Q)
-(w : Walk (event_structure_tensor_helper P Q E F)) : Walk F :=
- match w with
-| empty_walk _ p => empty_walk F (cast_to_right X Y p)
-| non_empty_walk _ p (inr m, b) w
-=> non_empty_walk _ (cast_to_right X Y p) (m, b) 
-(cast_to_right_in_walk_tensor_helper P Q E F w)
-| non_empty_walk _ p (inl m, b) w
-=> cast_to_right_in_walk_tensor_helper P Q E F w
-end. 
-
-Definition cast_to_right_in_walk_tensor
-`(P : PartialOrder X)
-`(Q : PartialOrder Y)
-(E : EventStructure P)
-(F : EventStructure Q)
-(w : Walk (event_structure_tensor P Q E F)) : Walk F :=
-cast_to_right_in_walk_tensor_helper P Q E F (remove_sum _ _ w).
-
-Fixpoint cast_infinite_position_to_inl_tensor
-`(P : PartialOrder X) `(Q : PartialOrder Y)
-(E : EventStructure P) (F : EventStructure Q)
-(p : InfinitePosition (event_structure_tensor P Q E F)) :
-InfinitePosition E :=
-match p with
-| stream _ (inr m) f => 
-cast_infinite_position_to_inl_tensor _ _ _ _ (f tt)
-| stream _ (inl (inr _)) f =>
-cast_infinite_position_to_inl_tensor _ _ _ _ (f tt)
-| stream _ (inl (inl m)) f => 
-stream E m (fun _ => 
-cast_infinite_position_to_inl_tensor _ _ _ _ (f tt))
-end. 
-
-Fixpoint cast_infinite_position_to_inr_tensor
-`(P : PartialOrder X) `(Q : PartialOrder Y)
-(E : EventStructure P) (F : EventStructure Q)
-(p : InfinitePosition (event_structure_tensor P Q E F)) :
-InfinitePosition F :=
-match p with
-| stream _ (inr m) f => 
-cast_infinite_position_to_inr_tensor _ _ _ _ (f tt)
-| stream _ (inl (inl _)) f =>
-cast_infinite_position_to_inr_tensor _ _ _ _ (f tt)
-| stream _ (inl (inr m)) f => 
-stream F m (fun _ => 
-cast_infinite_position_to_inr_tensor _ _ _ _ (f tt))
-end. 
-
-Fact singleton_is_unique_initial
-`(P : PartialOrder X) `(Q : PartialOrder Y)
-(E : EventStructure P) (F : EventStructure Q):
- forall n, initial_move (event_structure_tensor P Q E F) n 
-<-> n = inr(new).
-Proof. intros. unfold iff. split.
-+ intros. unfold initial_move in H.
-assert (In (inr(new)) (ideal n)).
-{ simpl. destruct n.
-+ left. reflexivity.
-+ destruct s. left. reflexivity. }
-assert (n = inr(new)).
-{ apply H. apply H0. }
-apply H1.
-+ intros. subst n. unfold initial_move. intros. simpl. unfold iff. split.
-++ intros. destruct H. apply H. contradiction H.
-++ intros. left. apply H.
-Qed.
-
-Fact second_move_is_initial
-`(P : PartialOrder X) `(Q : PartialOrder Y)
-(E : EventStructure P) (F : EventStructure Q):
- forall n, second_move (event_structure_tensor P Q E F) n 
-<-> (exists x, n = inl (inl x) /\ initial_move E x) \/ 
-(exists y, n = inl (inr y) /\ initial_move F y).
-Proof. intros. unfold iff. split.
-+ intros. unfold second_move in H. destruct H.
-destruct H0. destruct H0. 
-assert ((forall n0 : X + Y + Singleton,
-    In n0 (ideal n) ->
-    n0 = n \/ initial_move (event_structure_tensor P Q E F) n0)
- <->
-(forall n0 : X + Y + Singleton,
-    In n0 (ideal n) ->
-    n0 = n \/ n0 = inr new)).
-{ unfold iff. split.
-+ intros. apply H2 in H3. destruct H3.
-++ left. apply H3.
-++ right. rewrite <- singleton_is_unique_initial with (n1:=n0).
-apply H3.
-+ intros. apply H2 in H3. destruct H3.
-++ left. apply H3.
-++ right. rewrite singleton_is_unique_initial with (n1:=n0). apply H3. }
-rewrite H2 in H. destruct n.
-+++ destruct s.
-++++ left. refine (ex_intro _ x0 _). split.
-+++++ reflexivity.
-+++++ unfold initial_move. intros. unfold iff. split.
-++++++ intros. 
-simpl in H.
-assert (In (inl (inl n)) 
-(add_inl (X + Y) Singleton (add_inl X Y (ideal x0)))).
-{ apply add_inl_does_nothing. apply add_inl_does_nothing. apply H3. }
-assert (((inl (inl n)) : X + Y + Singleton) = inl (inl x0) 
-\/ ((inl (inl n)) : X + Y + Singleton) = inr new).
-{apply H. right. apply H4. }
-destruct H5. 
-++++++++ inversion H5. reflexivity.
-++++++++ inversion H5.
-++++++ intros. apply ideal_finite. rewrite H3. apply reflexive.
-++++ right. refine (ex_intro _ y _). split.
-+++++ reflexivity.
-+++++ unfold initial_move. intros. unfold iff. split.
-++++++ intros. 
-simpl in H.
-assert (In (inl (inr n)) 
-(add_inl (X + Y) Singleton (add_inr X Y (ideal y)))).
-{ apply add_inl_does_nothing. apply add_inr_does_nothing. apply H3. }
-assert (((inl (inr n)) : X + Y + Singleton) = inl (inr y) 
-\/ ((inl (inr n)) : X + Y + Singleton) = inr new).
-{apply H. right. apply H4. }
-destruct H5. 
-++++++++ inversion H5. reflexivity.
-++++++++ inversion H5.
-++++++ intros. apply ideal_finite. rewrite H3. apply reflexive.
-+++ destruct s. simpl in H0. destruct H0.
-++++ subst x. contradiction H1. reflexivity.
-++++ contradiction H0.
-+ intros. destruct H.
-++ destruct H. destruct H. subst n. unfold second_move.
-unfold initial_move in H0. split.
-+++ intros. simpl in H. destruct H.
-++++ subst n. right.
-rewrite singleton_is_unique_initial. reflexivity.
-++++ destruct n.
-+++++ destruct s.
-++++++ apply add_inl_does_nothing in H.
-apply add_inl_does_nothing in H. left.
-assert (x = x0).
-{apply H0. apply H. } rewrite H1. reflexivity.
-++++++ apply add_inl_does_nothing in H.
-apply inr_not_in_add_inl in H. contradiction H.
-+++++ apply inr_not_in_add_inl in H. contradiction H.
-+++ refine (ex_intro _ (inr new) _). split.
-++++ simpl. left. reflexivity.
-++++ unfold not. intros. inversion H.
-++ destruct H. destruct H. subst n. unfold second_move.
-unfold initial_move in H0. split.
-+++ intros. simpl in H. destruct H.
-++++ subst n. right. rewrite singleton_is_unique_initial. 
-reflexivity.
-++++ destruct n.
-+++++ destruct s.
-++++++ apply add_inl_does_nothing in H.
-apply inl_not_in_add_inr in H. contradiction H.
-++++++ apply add_inl_does_nothing in H. 
-apply add_inr_does_nothing in H. left.
-assert (x = y).
-{apply H0. apply H. }
-subst x. reflexivity.
-+++++ apply inr_not_in_add_inl in H. contradiction H.
-+++ refine (ex_intro _ (inr new) _). split.
-++++ simpl. left. reflexivity.
-++++ unfold not. intros. inversion H.
-Qed.
-
-Instance asynchronous_arena_tensor
-`(P : PartialOrder X) `(Q : PartialOrder Y)
-(E : EventStructure P) (F : EventStructure Q)
-(A : AsynchronousArena E) (B : AsynchronousArena F)
-(positive1 : finite_payoff (inl (nil : Position E)) = (-1)%Z)
-(positive2 : finite_payoff (inl (nil : Position F)) = (-1)%Z)
-: AsynchronousArena (event_structure_tensor P Q E F) :=
-{ polarity m := match m with
-| inl (inl m) => negb (polarity m)
-| inl (inr m) => negb (polarity m)
-| inr _ => true
-end;
-finite_payoff m := match m with
-| inl nil => (-1)%Z
-| inl pos => 
-let p := finite_payoff (inl (cast_to_left _ _ (cast_to_left _ _ pos))) in
-let q := finite_payoff (inl (cast_to_right _ _ (cast_to_left _ _ pos))) in
-if Z.ltb p 0 then 
-(if Z.ltb q 0 then Z.add p q else p)
-else
-(if Z.ltb q 0 then q else Z.add p q)
-| inr (w) =>
-let p := finite_payoff (inr (cast_to_left_in_walk_tensor P Q E F w)) in
-let q := finite_payoff (inr (cast_to_right_in_walk_tensor P Q E F w)) in
-if Z.ltb p 0 then 
-(if Z.ltb q 0 then Z.add p q else p)
-else
-(if Z.ltb q 0 then q else Z.add p q)
-end;
-infinite_payoff pos :=
-let p := infinite_payoff (cast_infinite_position_to_inl_tensor _ _ _ _ pos) in
-let q := infinite_payoff (cast_infinite_position_to_inr_tensor _ _ _ _ pos) in
-match p, q with
-| plus_infinity, plus_infinity => plus_infinity
-| _, _ => minus_infinity
-end
-}.
+Instance partial_order_tensor
+`(f : Index -> Type) 
+(posets : forall (i : Index), PartialOrder (f i))
+`(f' : Index' -> Type) 
+(posets' : forall (i : Index'), PartialOrder (f' i))
+: PartialOrder (sigT 
+(fun x => let (x, y) := (x : Index * Index') in 
+sum (f x) (f' y))) 
+:= {leq x y := leq_tensor f posets f' posets' x y}.
 Proof.
-
-- intros. destruct H. destruct H0.
-
-apply singleton_is_unique_initial in H. subst m. 
-apply singleton_is_unique_initial in H0. subst n. contradiction H1. reflexivity.
-- simpl. left. reflexivity.
-- intros. apply singleton_is_unique_initial in H.
-subst m. split.
-+ unfold iff. split.
-++ intros. reflexivity.
-++ intros. reflexivity.
-+ unfold iff. split.
-++ intros. inversion H.
-++ intros. lia. 
-- intros. apply second_move_is_initial in H.
-destruct H.
-+ destruct H. destruct H. subst m.
-assert (polarity x = true).
-{apply polarity_first. auto. auto. } rewrite H.
-simpl. intros. split.
-++ intros. inversion H1.
-++ intros. reflexivity.
-+ destruct H. destruct H. subst m.
-assert (polarity x = true).
-{apply polarity_first. auto. auto. } rewrite H.
-simpl. intros. split.
-++ intros. inversion H1.
-++ intros. reflexivity.
-
-
+- intros. destruct x. destruct x. destruct y.
++ apply leq_tensor_left with (i1:=i) (i':=i0) (p:= f0)
+(q:= f0). 
+++ apply reflexive.
+++ reflexivity.
+++ reflexivity.
++ apply leq_tensor_right with (i1:=i) (i':=i0) (p:= f0)
+(q:= f0). 
+++ apply reflexive.
+++ reflexivity.
+++ reflexivity.
+- intros. destruct H. inversion H. 
++ inversion H0. 
+++ subst. inversion H7. subst. apply inj_pairT2 in H7. inversion H7.
+subst. inversion H8. subst. apply inj_pairT2 in H8. inversion H8.
+subst. 
+assert (p0 = q0).
+{apply anti_symmetric. auto. }
+subst. reflexivity.
+++ subst. injection H7. intros. subst. apply inj_pairT2 in H7.
+inversion H7.
++ subst. inversion H0.
+++ subst. injection H4. intros. subst. apply inj_pairT2 in H4.
+inversion H4.
+++ subst. injection H4. intros. subst. apply inj_pairT2 in H4.
+inversion H4. subst. apply inj_pairT2 in H3. inversion H3. subst.
+assert (p0 = q0).
+{apply anti_symmetric. auto. }
+subst. reflexivity.
+- intros. destruct H. inversion H.
++ subst. inversion H0.
+++ subst. injection H3. intros. subst. apply inj_pairT2 in H3.
+inversion H3. subst q.
+assert (leq p q0).
+{ apply transitive with (y:=p0). auto. } subst.
+apply leq_tensor_left with (i:=i0) (i':=i'0) (p1:=p) (q:=q0). auto.
+reflexivity. reflexivity.
+++ subst. injection H3. intros. subst. apply inj_pairT2 in H3.
+inversion H3.
++ subst. inversion H0.
+++ subst. injection H3. intros. subst. apply inj_pairT2 in H3.
+inversion H3.
+++ subst. injection H3. intros. subst. apply inj_pairT2 in H3.
+inversion H3. subst.
+assert (leq p q0).
+{apply transitive with (y:=p0). auto. }
+apply leq_tensor_right with (i:=i0) (i':=i'0) (p1:=p) (q:=q0). auto.
+reflexivity. reflexivity.
+Defined.
