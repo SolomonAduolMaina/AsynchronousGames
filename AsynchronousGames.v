@@ -18,7 +18,7 @@ eqb_move : Move -> Move -> bool;
 eqb_move_is_eq : forall m m',
 (eqb_move m m' = true -> m = m')
 /\
-(eqb_move m m' = false -> not (m = m'))
+(eqb_move m m' = false -> not (m = m'));
 
 valid_move : (Trace Move) -> Player -> Move -> Prop;
 independent : Move -> Move -> Prop;
