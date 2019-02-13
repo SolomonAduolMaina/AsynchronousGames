@@ -497,7 +497,11 @@ Definition asynchronous_game_tensor (G H: AsynchronousGame)
              X := product_group (X G) (X H);
              Y := product_group (Y G) (Y H);
              action g m h := match m with
-                                | existT _ _ (inl tt) => m
+                                | existT _ (i,j) (inl tt) => 
+                                  (match action G (fst g) (existT _ i (inl tt)) (fst h),
+                                         action H (snd g) (existT _ j (inl tt)) (snd h) with
+                                    | existT _ i _, existT _ j _ => existT _ (i,j) (inl tt)
+                                  end)
                                 | existT _ (i,j) (inr (inl m)) => 
                                   (match action G (fst g) (existT _ i (inr m)) (fst h) with
                                     | existT _ i (inl tt) => existT _ (i,j) (inl tt)
@@ -512,7 +516,7 @@ Definition asynchronous_game_tensor (G H: AsynchronousGame)
         |}).
 Proof.
 - intros. destruct m. destruct x. destruct s.
-+ destruct u. auto.
++ destruct u. rewrite action_id. rewrite action_id. simpl. auto.
 + destruct n.
 ++ simpl in *. simpl. 
 remember ((let (i1, s) :=
@@ -566,116 +570,173 @@ apply H0 with (a:=s).
                i0 (inr n)) (snd (id (product_group (Y G) (Y H))))) eqn:eqn1.
 ++++ simpl in *. rewrite action_id in eqn1. inversion eqn1. subst. apply inj_pairT2 in H3.
 subst. auto.
--  intros. destruct m. destruct g. destruct g'. destruct h. destruct h'. destruct x. simpl.
+- intros. destruct m. destruct g. destruct g'. destruct h. destruct h'. destruct x. simpl.
 destruct s.
-+ destruct u. auto.
-+ destruct n.
-++ remember ((let (i1, s) :=
++ destruct u. simpl. 
+remember ((let (i1, _) :=
    action G (mult (X G) g g1)
      (existT (fun i1 : I (P (E (A G))) => (unit + N (P (E (A G))) i1)%type) i
-        (inr n)) (mult (Y G) g3 g5) in
- match s with
- | inl tt =>
-     existT
-       (fun i2 : I (P (E (A G))) * I (P (E (A H))) =>
-        (unit + (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type)
-       (i1, i0) (inl tt)
- | inr m =>
-     existT
-       (fun i2 : I (P (E (A G))) * I (P (E (A H))) =>
-        (unit + (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type)
-       (i1, i0) (inr (inl m))
- end)).
-assert (forall A (a b c : A), a = b -> b = c -> a = c).
+        (inl tt)) (mult (Y G) g3 g5) in
+ let (j, _) :=
+   action H (mult (X H) g0 g2)
+     (existT (fun i2 : I (P (E (A H))) => (unit + N (P (E (A H))) i2)%type)
+        i0 (inl tt)) (mult (Y H) g4 g6) in
+ existT
+   (fun i2 : I (P (E (A G))) * I (P (E (A H))) =>
+    (unit + (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type)
+   (i1, j) (inl tt))).
+assert (forall A (a b c : A), a = b -> a = c -> b = c).
 {intros. subst. auto. }
-apply H0 with (b:=s). auto.
-remember ((let (x0, s0) :=
-   let (i1, s0) :=
+apply H0 with (a:=s). auto. rewrite action_compatible in Heqs.
+rewrite action_compatible in Heqs.
+remember 
+((let (x, s0) :=
+   let (i1, _) :=
      action G g1
-       (existT (fun i1 : I (P (E (A G))) => (unit + N (P (E (A G))) i1)%type) i
-          (inr n)) g3 in
-   match s0 with
-   | inl tt =>
-       existT
-         (fun i2 : I (P (E (A G))) * I (P (E (A H))) =>
-          (unit + (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type)
-         (i1, i0) (inl tt)
-   | inr m =>
-       existT
-         (fun i2 : I (P (E (A G))) * I (P (E (A H))) =>
-          (unit + (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type)
-         (i1, i0) (inr (inl m))
-   end in
+       (existT
+          (fun i1 : I (P (E (A G))) =>
+           (unit + N (P (E (A G))) i1)%type) i 
+          (inl tt)) g3 in
+   let (j, _) :=
+     action H g2
+       (existT
+          (fun i2 : I (P (E (A H))) =>
+           (unit + N (P (E (A H))) i2)%type) i0 
+          (inl tt)) g4 in
+   existT
+     (fun i2 : I (P (E (A G))) * I (P (E (A H))) =>
+      (unit + (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type)
+     (i1, j) (inl tt) in
  (let
-    (i1, j) as x1
+    (i1, j) as x0
      return
-       (unit + (N (P (E (A G))) (fst x1) + N (P (E (A H))) (snd x1)) ->
-        M (partial_order_tensor (P (E (A G))) (P (E (A H))))) := x0 in
+       (unit + (N (P (E (A G))) (fst x0) + N (P (E (A H))) (snd x0)) ->
+        M (partial_order_tensor (P (E (A G))) (P (E (A H))))) := x in
   fun s1 : unit + (N (P (E (A G))) i1 + N (P (E (A H))) j) =>
   match s1 with
   | inl tt =>
-      let (i2, s2) :=
-        action G g1
-          (existT (fun i2 : I (P (E (A G))) => (unit + N (P (E (A G))) i2)%type)
-             i (inr n)) g3 in
-      match s2 with
-      | inl tt =>
-          existT
-            (fun i3 : I (P (E (A G))) * I (P (E (A H))) =>
-             (unit + (N (P (E (A G))) (fst i3) + N (P (E (A H))) (snd i3)))%type)
-            (i2, i0) (inl tt)
-      | inr m =>
-          existT
-            (fun i3 : I (P (E (A G))) * I (P (E (A H))) =>
-             (unit + (N (P (E (A G))) (fst i3) + N (P (E (A H))) (snd i3)))%type)
-            (i2, i0) (inr (inl m))
-      end
+      let (i2, _) :=
+        action G g
+          (existT
+             (fun i2 : I (P (E (A G))) =>
+              (unit + N (P (E (A G))) i2)%type) i1 
+             (inl tt)) g5 in
+      let (j0, _) :=
+        action H g0
+          (existT
+             (fun i3 : I (P (E (A H))) =>
+              (unit + N (P (E (A H))) i3)%type) j 
+             (inl tt)) g6 in
+      existT
+        (fun i3 : I (P (E (A G))) * I (P (E (A H))) =>
+         (unit +
+          (N (P (E (A G))) (fst i3) + N (P (E (A H))) (snd i3)))%type)
+        (i2, j0) (inl tt)
   | inr (inl m) =>
       let (i2, s2) :=
         action G g
-          (existT (fun i2 : I (P (E (A G))) => (unit + N (P (E (A G))) i2)%type)
-             i1 (inr m)) g5 in
+          (existT
+             (fun i2 : I (P (E (A G))) =>
+              (unit + N (P (E (A G))) i2)%type) i1 
+             (inr m)) g5 in
       match s2 with
       | inl tt =>
           existT
             (fun i3 : I (P (E (A G))) * I (P (E (A H))) =>
-             (unit + (N (P (E (A G))) (fst i3) + N (P (E (A H))) (snd i3)))%type)
+             (unit +
+              (N (P (E (A G))) (fst i3) + N (P (E (A H))) (snd i3)))%type)
             (i2, j) (inl tt)
       | inr m0 =>
           existT
             (fun i3 : I (P (E (A G))) * I (P (E (A H))) =>
-             (unit + (N (P (E (A G))) (fst i3) + N (P (E (A H))) (snd i3)))%type)
+             (unit +
+              (N (P (E (A G))) (fst i3) + N (P (E (A H))) (snd i3)))%type)
             (i2, j) (inr (inl m0))
       end
   | inr (inr m) =>
       let (j0, s2) :=
         action H g0
-          (existT (fun i2 : I (P (E (A H))) => (unit + N (P (E (A H))) i2)%type)
-             j (inr m)) g6 in
+          (existT
+             (fun i2 : I (P (E (A H))) =>
+              (unit + N (P (E (A H))) i2)%type) j 
+             (inr m)) g6 in
       match s2 with
       | inl tt =>
           existT
             (fun i2 : I (P (E (A G))) * I (P (E (A H))) =>
-             (unit + (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type)
+             (unit +
+              (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type)
             (i1, j0) (inl tt)
       | inr m0 =>
           existT
             (fun i2 : I (P (E (A G))) * I (P (E (A H))) =>
-             (unit + (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type)
+             (unit +
+              (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type)
             (i1, j0) (inr (inr m0))
       end
-  end) s0)). symmetry.
-apply H0 with (b:=m). auto.
-+++ destruct (action G (mult (X G) g g1)
-            (existT
-               (fun i1 : I (P (E (A G))) => (unit + N (P (E (A G))) i1)%type) i
-               (inr n)) (mult (Y G) g3 g5)) eqn:eqn1.
-++++ destruct s0.
-+++++ destruct u. 
-destruct ( action G g1
-              (existT (fun i1 : I (P (E (A G))) => (unit + N (P (E (A G))) i1)%type) i
-                 (inr n)) g3) eqn:eqn2.
-++++++ destruct s0.
-+++++++ destruct u. simpl in *. subst. rewrite action_compatible in eqn1.
-
-
+  end) s0)). symmetry. apply H0 with (a:=m). auto.
+destruct ((action G g1
+               (existT (fun i1 : I (P (E (A G))) => (unit + N (P (E (A G))) i1)%type)
+                  i (inl tt)) g3)) eqn:eqn1.
+++ destruct (action G g
+            (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type)
+               x s0) g5) eqn:eqn2.
++++ destruct ((action H g2
+               (existT
+                  (fun i2 : I (P (E (A H))) => (unit + N (P (E (A H))) i2)%type)
+                  i0 (inl tt)) g4)) eqn:eqn3.
+++++ destruct (action H g0
+            (existT (fun i : I (P (E (A H))) => (unit + N (P (E (A H))) i)%type)
+               x1 s2) g6) eqn:eqn4.
++++++ subst. 
+destruct (action G g (existT (fun i1 : I (P (E (A G))) =>
+ (unit + N (P (E (A G))) i1)%type) x (inl tt)) g5) eqn:eqn5.
+++++++
+destruct (action H g0
+     (existT
+        (fun i1 : I (P (E (A H))) => (unit + N (P (E (A H))) i1)%type) x1
+        (inl tt)) g6) eqn:eqn6.
++++++++
+assert (leq _ (action G g
+         (existT (fun i1 : I (P (E (A G))) => (unit + N (P (E (A G))) i1)%type) x
+            (inl tt)) g5) (action G g
+         (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x s0)
+         g5)).
+{apply coherence_1. apply unit_is_least. auto. }
+rewrite eqn2 in H1. rewrite eqn5 in H1. apply leq_same_component in H1.  subst.
+assert (leq _ (action H g0
+         (existT (fun i1 : I (P (E (A H))) => (unit + N (P (E (A H))) i1)%type) x1
+            (inl tt)) g6) (action H g0
+         (existT (fun i : I (P (E (A H))) => (unit + N (P (E (A H))) i)%type) x1 s2)
+         g6)).
+{apply coherence_1. apply unit_is_least. auto. }
+rewrite eqn6 in H1. rewrite eqn4 in H1. apply leq_same_component in H1. subst. auto.
++ destruct n.
+++ remember ((let (i1, s) :=
+   action G (mult (X G) g g1)
+     (existT (fun i1 : I (P (E (A G))) => (unit + N (P (E (A G))) i1)%type) i (inr n))
+     (mult (Y G) g3 g5) in
+ match s with
+ | inl tt =>
+     existT
+       (fun i2 : I (P (E (A G))) * I (P (E (A H))) =>
+        (unit + (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type) 
+       (i1, i0) (inl tt)
+ | inr m =>
+     existT
+       (fun i2 : I (P (E (A G))) * I (P (E (A H))) =>
+        (unit + (N (P (E (A G))) (fst i2) + N (P (E (A H))) (snd i2)))%type) 
+       (i1, i0) (inr (inl m))
+ end)). assert (forall A (a b c : A),
+a = b -> a = c -> b = c).
+{intros. subst. auto. }
+apply H0 with (a:=s). auto. rewrite action_compatible in Heqs.
+destruct ((action G g1
+               (existT (fun i1 : I (P (E (A G))) => (unit + N (P (E (A G))) i1)%type)
+                  i (inr n)) g3)) eqn:eqn1.
+destruct (action G g
+            (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x s0)
+            g5 ) eqn:eqn2.
+destruct s.
++++ destruct s1.
+++++ destruct u. inversion Heqs. subst. apply inj_pairT2 in H3. subst.
