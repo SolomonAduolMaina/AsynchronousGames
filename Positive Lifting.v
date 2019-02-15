@@ -332,4 +332,17 @@ assert ((let (x0, s0) := n1 in
 {apply H0. } subst. simpl in H2. apply H2 in H1. 
 apply inj_pairT2 in H1. inversion H1. rewrite <- H4. auto. }
 rewrite <- H1. auto.
+- intros. destruct i. refine (ex_intro _ tt _). auto.
+- intros. destruct i. destruct m. destruct s.
++ destruct u. refine (ex_intro _ tt _).
+refine (ex_intro _
+((action G g
+          (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x (inl tt))
+          h)) _). auto.
++ refine (ex_intro _ tt _).
+refine (ex_intro _
+(action G g
+          (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x (inr n))
+          h) _). auto.
 Defined.
+

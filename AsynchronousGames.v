@@ -140,7 +140,13 @@ Record AsynchronousGame  :=
     coherence_4 : forall m h,
     (polarity A m = true /\ (forall n, 
     leq (P (E A)) m n -> n = action (id X) n h)) -> 
-    m = action (id X) m h
+    m = action (id X) m h;
+
+    action_preserves_initial : forall i g h,
+    exists i', action g (existT _ i (inl tt)) h = existT _ i' (inl tt);
+
+    action_preserves_non_initial : forall i g h m,
+    exists i' m', action g (existT _ i (inr m)) h = existT _ i' (inr m');
 }.
 
 Fact inverse_is_unique (G: Group) : forall x y z,
