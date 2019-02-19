@@ -1409,9 +1409,9 @@ Definition asynchronous_game_tensor_left (G H: AsynchronousGame)
 (neg : (finite_payoff_position (A G)) nil = (1)%Z)
 (pos : (finite_payoff_position (A H)) nil = (-1)%Z) : AsynchronousGame :=
 asynchronous_game_tensor_positive
-(asynchronous_game_lifting G neg 0)
+(asynchronous_game_lifting G neg (1)%Z)
 H
-(positive_lifting_is_positive G neg 0)
+(positive_lifting_is_positive G neg (1)%Z)
 pos.
 
 Definition asynchronous_game_tensor_right (G H: AsynchronousGame) 
@@ -1419,18 +1419,18 @@ Definition asynchronous_game_tensor_right (G H: AsynchronousGame)
 (neg : (finite_payoff_position (A H)) nil = (1)%Z) : AsynchronousGame :=
 asynchronous_game_tensor_positive
 G
-(asynchronous_game_lifting H neg 0)
+(asynchronous_game_lifting H neg (1)%Z)
 pos
-(positive_lifting_is_positive H neg 0).
+(positive_lifting_is_positive H neg (1)%Z).
 
 Definition asynchronous_game_tensor_negative (G H: AsynchronousGame) 
 (neg1 : (finite_payoff_position (A G)) nil = (1)%Z)
 (neg2 : (finite_payoff_position (A H)) nil = (1)%Z) : AsynchronousGame :=
 asynchronous_game_tensor_positive
-(asynchronous_game_lifting G neg1 0)
-(asynchronous_game_lifting H neg2 0)
-(positive_lifting_is_positive G neg1 0)
-(positive_lifting_is_positive H neg2 0).
+(asynchronous_game_lifting G neg1 (1)%Z)
+(asynchronous_game_lifting H neg2 (1)%Z)
+(positive_lifting_is_positive G neg1 (1)%Z)
+(positive_lifting_is_positive H neg2 (1)%Z).
 
 Definition asynchronous_game_tensor (G H: AsynchronousGame) :
 AsynchronousGame :=
