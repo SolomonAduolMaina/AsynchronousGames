@@ -6,6 +6,7 @@ Require Import Logic.Eqdep.
 Require Import Logic.Eqdep_dec.
 Require Import Arith.PeanoNat.
 Require Import Bool.Bool.
+Require Import Group.
 Require Import AsynchronousGames.
 Require Import Lifting.
 
@@ -271,20 +272,22 @@ match l with
 | (existT _ (inl i) m) :: xs => cast_sum_to_right E F xs
 end.
 
-Fixpoint cast_sum_inf_to_left E F (l : InfinitePosition (event_structure_sum E F))
+CoFixpoint cast_sum_inf_to_left E F (l : InfinitePosition (event_structure_sum E F))
 : InfinitePosition E :=
 match l with
-| stream _ (existT _ (inl i) m) f =>
-stream _ (existT _ i m) (fun _ => cast_sum_inf_to_left E F (f tt))
-| stream _ (existT _ _ _) f => cast_sum_inf_to_left E F (f tt)
+| Cons _ (existT _ (inl i) m) f =>
+Cons _ (existT _ i m) (cast_sum_inf_to_left E F f)
+| Cons _ (existT _ _ _) f => Eps _ (cast_sum_inf_to_left E F f)
+| Eps _ s => Eps _ (cast_sum_inf_to_left E F s)
 end.
 
-Fixpoint cast_sum_inf_to_right E F (l : InfinitePosition (event_structure_sum E F))
+CoFixpoint cast_sum_inf_to_right E F (l : InfinitePosition (event_structure_sum E F))
 : InfinitePosition F :=
 match l with
-| stream _ (existT _ (inr i) m) f =>
-stream _ (existT _ i m) (fun _ => cast_sum_inf_to_right E F (f tt))
-| stream _ (existT _ _ _) f => cast_sum_inf_to_right E F (f tt)
+| Cons _ (existT _ (inr i) m) f =>
+Cons _ (existT _ i m) (cast_sum_inf_to_right E F f)
+| Cons _ (existT _ _ _) f => Eps _ (cast_sum_inf_to_right E F f)
+| Eps _ s => Eps _ (cast_sum_inf_to_right E F s)
 end.
 
 Fact initial_in_sum_is_initial :

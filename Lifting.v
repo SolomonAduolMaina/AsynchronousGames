@@ -6,6 +6,7 @@ Require Import Logic.Eqdep.
 Require Import Logic.Eqdep_dec.
 Require Import Arith.PeanoNat.
 Require Import Bool.Bool.
+Require Import Group.
 Require Import AsynchronousGames.
 
 Definition partial_order_lifting (P : PartialOrder) : PartialOrder.
@@ -102,12 +103,13 @@ match l with
 | (existT _ tt (inr m)) :: xs => m :: cast_lifting E xs
 end.
 
-Fixpoint cast_lifting_inf E (l : InfinitePosition (event_structure_lifting E))
+CoFixpoint cast_lifting_inf E (l : InfinitePosition (event_structure_lifting E))
 : InfinitePosition E :=
 match l with
-| stream _ (existT _ tt (inl tt)) f => cast_lifting_inf E (f tt)
-| stream _ (existT _ tt (inr m)) f =>
-stream _ m (fun _ => cast_lifting_inf E (f tt))
+| Cons _ (existT _ tt (inl tt)) f => Eps _ (cast_lifting_inf E f)
+| Cons _ (existT _ tt (inr m)) f =>
+Cons _ m (cast_lifting_inf E f)
+| Eps _ s => Eps _ (cast_lifting_inf E s)
 end.
 
 Fact second_in_lifting_is_initial:
@@ -164,12 +166,13 @@ match p with
 | existT _ tt (inr m) :: xs => m :: (cast_to_original E xs)
 end.
 
-Fixpoint cast_inf_to_original E (p : InfinitePosition (event_structure_lifting E)) :
+CoFixpoint cast_inf_to_original E (p : InfinitePosition (event_structure_lifting E)) :
 InfinitePosition E :=
 match p with
-| stream _ (existT _ tt (inl tt)) f => cast_inf_to_original E (f tt)
-| stream _ (existT _ tt (inr m)) f =>
-stream _ m (fun _ => cast_inf_to_original E (f tt))
+| Cons _ (existT _ tt (inl tt)) f => Eps _ (cast_inf_to_original E f)
+| Cons _ (existT _ tt (inr m)) f =>
+Cons _ m (cast_inf_to_original E f)
+| Eps _ s => Eps _ (cast_inf_to_original E s)
 end.
 
 Definition asynchronous_arena_lifting (A : AsynchronousArena) 
@@ -256,7 +259,7 @@ assert ((existT
  = (action G g
         (existT
            (fun i : I (P (E (A G))) =>
-            (unit + N (P (E (A G))) i)%type) x s) 
+            (unit + N (P (E (A G))) i)%type) x s)
         (id (Y G)))).
 {apply coherence_3. split.
 + auto.

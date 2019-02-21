@@ -6,6 +6,7 @@ Require Import Logic.Eqdep.
 Require Import Logic.Eqdep_dec.
 Require Import Arith.PeanoNat.
 Require Import Bool.Bool.
+Require Import Group.
 Require Import AsynchronousGames.
 Require Import Lifting.
 
@@ -287,26 +288,28 @@ match l with
 => cast_tensor_to_right E F xs
 end.
 
-Fixpoint cast_tensor_inf_to_left E F (l : InfinitePosition (event_structure_tensor E F))
+CoFixpoint cast_tensor_inf_to_left E F (l : InfinitePosition (event_structure_tensor E F))
 : InfinitePosition E :=
 match l with
-| stream _ (existT _ (i, j) (inl tt)) f =>
-stream _ (existT _ i (inl tt)) (fun _ => cast_tensor_inf_to_left E F (f tt))
-| stream _ (existT _ (i, j) (inr (inl m))) f =>
-stream _ (existT _ i (inr m)) (fun _ => cast_tensor_inf_to_left E F (f tt))
-| stream _ (existT _ (i, j) (inr (inr _))) f =>
-cast_tensor_inf_to_left E F (f tt)
+| Cons _ (existT _ (i, j) (inl tt)) f =>
+Cons _ (existT _ i (inl tt)) (cast_tensor_inf_to_left E F f)
+| Cons _ (existT _ (i, j) (inr (inl m))) f =>
+Cons _ (existT _ i (inr m)) (cast_tensor_inf_to_left E F f)
+| Cons _ (existT _ (i, j) (inr (inr _))) f =>
+Eps _ (cast_tensor_inf_to_left E F f)
+| Eps _ s => Eps _ (cast_tensor_inf_to_left E F s)
 end.
 
-Fixpoint cast_tensor_inf_to_right E F (l : InfinitePosition (event_structure_tensor E F))
+CoFixpoint cast_tensor_inf_to_right E F (l : InfinitePosition (event_structure_tensor E F))
 : InfinitePosition F :=
 match l with
-| stream _ (existT _ (i, j) (inl tt)) f =>
-stream _ (existT _ j (inl tt)) (fun _ => cast_tensor_inf_to_right E F (f tt))
-| stream _ (existT _ (i, j) (inr (inr m))) f =>
-stream _ (existT _ j (inr m)) (fun _ => cast_tensor_inf_to_right E F (f tt))
-| stream _ (existT _ (i, j) (inr (inl _))) f =>
-cast_tensor_inf_to_right E F (f tt)
+| Cons _ (existT _ (i, j) (inl tt)) f =>
+Cons _ (existT _ j (inl tt)) (cast_tensor_inf_to_right E F f)
+| Cons _ (existT _ (i, j) (inr (inr m))) f =>
+Cons _ (existT _ j (inr m)) (cast_tensor_inf_to_right E F f)
+| Cons _ (existT _ (i, j) (inr (inl _))) f =>
+Eps _ (cast_tensor_inf_to_right E F f)
+| Eps _ s => Eps _ (cast_tensor_inf_to_right E F s)
 end.
 
 Definition tensor (p q : Z) :=
@@ -320,20 +323,6 @@ match p, q with
 | plus_infinity, plus_infinity => plus_infinity
 | _, _ => minus_infinity
 end.
-
-Fact initial_is_unit :
-forall E m, initial_move E m <->
-(exists i, m = existT _ i (inl tt)).
-Proof. unfold iff. split.
-+ intros. unfold initial_move in H. destruct m. 
-refine (ex_intro _ x _). symmetry. apply H.
-apply unit_is_least. auto.
-+ intros. unfold initial_move. intros. destruct H. subst.
-apply anti_symmetric. split.
-++ auto.
-++ destruct n. apply leq_same_component in H0. subst. 
-apply unit_is_least. auto.
-Qed.
 
 Fact second_in_tensor_is_second :
 forall E F m, second_move (P (event_structure_tensor E F)) m <->

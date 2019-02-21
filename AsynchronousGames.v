@@ -47,9 +47,12 @@ Inductive Infinity : Type :=
 | plus_infinity : Infinity
 | minus_infinity : Infinity.
 
-Inductive InfinitePosition (E : EventStructure) : Type := 
-| stream : (M (P E)) -> (unit -> InfinitePosition E)
--> InfinitePosition E .
+CoInductive Stream A : Type :=
+| Cons : A -> Stream A -> Stream A
+| Eps : Stream A -> Stream A.
+
+Definition InfinitePosition (E : EventStructure) : Type := 
+Stream (M (P E)).
 
 Definition initial_move (P : PartialOrder) (m : M P) :=
 forall n, leq P n m -> n = m.

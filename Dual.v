@@ -6,6 +6,7 @@ Require Import Logic.Eqdep.
 Require Import Logic.Eqdep_dec.
 Require Import Arith.PeanoNat.
 Require Import Bool.Bool.
+Require Import Group.
 Require Import AsynchronousGames.
 
 Fixpoint neg_inf i :=
