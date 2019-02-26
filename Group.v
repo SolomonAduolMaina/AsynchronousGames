@@ -222,4 +222,28 @@ refine ({|
        |}).
 Proof.
 - intros. destruct x. destruct y. destruct z. destruct g0. destruct x.
-destruct g2. destruct x. destruct g4. destruct x. simpl.
+destruct g2. destruct x. destruct g4. destruct x. simpl. f_equal.
++ apply functional_extensionality. intros. rewrite associative. auto.
++ apply subset_eq_compat. auto.
+- intros. destruct x. destruct g0. destruct x. simpl. split.
++ f_equal.
+++ apply functional_extensionality. intros. apply id_exists.
+++ apply subset_eq_compat. auto.
++ f_equal.
+++ apply functional_extensionality. intros. apply id_exists.
+++ apply subset_eq_compat. auto.
+- intros. destruct x. destruct g0. destruct x. simpl. split.
++ f_equal.
+++ apply functional_extensionality. intros. unfold bijective in b.
+simpl in b. assert (n0 (n x) = x). {apply b. } rewrite H.
+apply inverses_exist.
+++ apply subset_eq_compat. unfold bijective in b. simpl in b. f_equal.
++++ apply functional_extensionality. intros. apply b.
++++ apply functional_extensionality. intros. apply b.
++ f_equal.
+++ apply functional_extensionality. intros. unfold bijective in b.
+simpl in b. apply inverses_exist.
+++ apply subset_eq_compat. unfold bijective in b. simpl in b. f_equal.
++++ apply functional_extensionality. intros. apply b.
++++ apply functional_extensionality. intros. apply b.
+Defined.
