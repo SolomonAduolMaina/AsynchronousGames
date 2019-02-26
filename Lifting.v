@@ -103,15 +103,6 @@ match l with
 | (existT _ tt (inr m)) :: xs => m :: cast_lifting E xs
 end.
 
-CoFixpoint cast_lifting_inf E (l : InfinitePosition (event_structure_lifting E))
-: InfinitePosition E :=
-match l with
-| Cons _ (existT _ tt (inl tt)) f => Eps _ (cast_lifting_inf E f)
-| Cons _ (existT _ tt (inr m)) f =>
-Cons _ m (cast_lifting_inf E f)
-| Eps _ s => Eps _ (cast_lifting_inf E s)
-end.
-
 Fact second_in_lifting_is_initial:
 forall E m, second_move (P (event_structure_lifting E)) m <->
 (exists i, m = existT _ tt (inr (existT _ i (inl tt)))).
@@ -166,15 +157,6 @@ match p with
 | existT _ tt (inr m) :: xs => m :: (cast_to_original E xs)
 end.
 
-CoFixpoint cast_inf_to_original E (p : InfinitePosition (event_structure_lifting E)) :
-InfinitePosition E :=
-match p with
-| Cons _ (existT _ tt (inl tt)) f => Eps _ (cast_inf_to_original E f)
-| Cons _ (existT _ tt (inr m)) f =>
-Cons _ m (cast_inf_to_original E f)
-| Eps _ s => Eps _ (cast_inf_to_original E s)
-end.
-
 Definition asynchronous_arena_lifting (A : AsynchronousArena) 
 (negative : (finite_payoff_position A) nil = (1)%Z)
 (p : Z)
@@ -203,7 +185,13 @@ Definition asynchronous_arena_lifting (A : AsynchronousArena)
                 | _ => finite_payoff_position A 
                        (cast_to_original _ ((fst (snd w)) ++ (snd (snd w))))
                end;
-            infinite_payoff l := infinite_payoff A (cast_inf_to_original _ l);
+            infinite_payoff f inf := match f 0 with
+                                      | existT _ tt (inl tt) => (exists g, 
+                                        (forall n, n > 0 -> exists m, 
+                                        (f n = existT _ tt (inr m) /\ g (n-1) = m /\ 
+                                         infinite_payoff A g inf)))
+                                      | _ => False
+                                     end;
          |}).
 Proof.
 - left. auto.

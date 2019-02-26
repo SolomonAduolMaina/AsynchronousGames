@@ -22,7 +22,7 @@ Definition asynchronous_arena_dual (A: AsynchronousArena)
             polarity m := negb (polarity A m);
             finite_payoff_position l := Z.sub 0 (finite_payoff_position A l);
             finite_payoff_walk w := Z.sub 0 (finite_payoff_walk A w);
-            infinite_payoff l := neg_inf (infinite_payoff A l);
+            infinite_payoff f inf := ~ (infinite_payoff A f inf);
          |}).
 Proof.
 - intros. simpl. 

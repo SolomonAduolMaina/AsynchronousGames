@@ -47,13 +47,6 @@ Inductive Infinity : Type :=
 | plus_infinity : Infinity
 | minus_infinity : Infinity.
 
-CoInductive Stream A : Type :=
-| Cons : A -> Stream A -> Stream A
-| Eps : Stream A -> Stream A.
-
-Definition InfinitePosition (E : EventStructure) : Type := 
-Stream (M (P E)).
-
 Definition initial_move (P : PartialOrder) (m : M P) :=
 forall n, leq P n m -> n = m.
 
@@ -80,7 +73,7 @@ Record AsynchronousArena := {
     polarity : (M (P E)) -> bool;
     finite_payoff_position : Position E -> Z;
     finite_payoff_walk : Walk E -> Z;
-    infinite_payoff : InfinitePosition E  -> Infinity;
+    infinite_payoff : (nat -> (M (P (E)))) -> Infinity -> Prop;
 
     initial_payoff : sumbool
     (finite_payoff_position nil = (-1)%Z)
@@ -140,8 +133,6 @@ Record AsynchronousGame  :=
     exists i' m', action g (existT _ i (inr m)) h = existT _ i' (inr m');
 }.
 
-
-
 Definition valid_position (E : EventStructure) (p : Position E) :=
 forall m n, (In n p -> leq (P E) m n -> In m p)
 /\
@@ -161,6 +152,21 @@ Definition valid_walk (E: EventStructure) (w : Walk E) :=
 valid_path E (fst w) /\ valid_path E (snd w) /\
 (forall x,  In x (fst (fst w)) <-> In x (fst (snd w))).
 
+Definition strictly_increasing f := forall m n, m < n -> f m < f n.
+
+Definition strictly_increasing_list l :=
+forall m n, m < n < length l ->
+(exists k k', nth_error l m = Some k /\ nth_error l n = Some k' /\ k < k').
+
+Fixpoint index_of n l : option nat :=
+match l with
+| nil => None
+| x :: xs => if Nat.eqb n x then Some 0 else
+  (match (index_of n xs) with
+    | None => None
+    | Some k => Some (S k)
+  end)
+end.
 
 Ltac flatten_all :=
   repeat (let e := fresh "e" in

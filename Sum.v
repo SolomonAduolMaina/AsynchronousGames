@@ -272,24 +272,6 @@ match l with
 | (existT _ (inl i) m) :: xs => cast_sum_to_right E F xs
 end.
 
-CoFixpoint cast_sum_inf_to_left E F (l : InfinitePosition (event_structure_sum E F))
-: InfinitePosition E :=
-match l with
-| Cons _ (existT _ (inl i) m) f =>
-Cons _ (existT _ i m) (cast_sum_inf_to_left E F f)
-| Cons _ (existT _ _ _) f => Eps _ (cast_sum_inf_to_left E F f)
-| Eps _ s => Eps _ (cast_sum_inf_to_left E F s)
-end.
-
-CoFixpoint cast_sum_inf_to_right E F (l : InfinitePosition (event_structure_sum E F))
-: InfinitePosition F :=
-match l with
-| Cons _ (existT _ (inr i) m) f =>
-Cons _ (existT _ i m) (cast_sum_inf_to_right E F f)
-| Cons _ (existT _ _ _) f => Eps _ (cast_sum_inf_to_right E F f)
-| Eps _ s => Eps _ (cast_sum_inf_to_right E F s)
-end.
-
 Fact initial_in_sum_is_initial :
 forall E F m, initial_move (P (event_structure_sum E F)) m <->
 ((exists i n, m = existT _ (inl i) n /\ initial_move (P E) (existT _ i n))
@@ -386,11 +368,25 @@ inversion H5. subst. apply inj_pairT2 in H5. subst. refine (ex_intro _ (inr x) _
 auto.
 Defined.
 
-Definition inf_plus i j :=
-match i,j with
-| plus_infinity, plus_infinity => plus_infinity
-| _, _ => minus_infinity
-end.
+Definition inl_move_is_projection (A B : AsynchronousArena) 
+(m : M (P (event_structure_sum (E A) (E B)))) 
+(m' : M (P (E A))) : Prop :=
+exists i k, m = existT _ (inl i) k /\ m' = existT _ i k.
+
+Definition inr_move_is_projection (A B : AsynchronousArena) 
+(m : M (P (event_structure_sum (E A) (E B)))) 
+(m' : M (P (E B))) : Prop :=
+exists i k, m = existT _ (inr i) k /\ m' = existT _ i k.
+
+Definition infinite_payoff_right_finite (A B : AsynchronousArena) 
+(f : nat -> M (P (event_structure_sum (E A) (E B))) ) 
+(inf : Infinity) :=
+(exists g, (forall n, inl_move_is_projection A B (f n) (g n)) /\ 
+(infinite_payoff A g inf))
+\/
+(exists g, (forall n, inr_move_is_projection A B (f n) (g n)) /\ 
+(infinite_payoff B g inf)).
+
 
 Definition asynchronous_arena_sum (A B : AsynchronousArena) 
 (positive1 : (finite_payoff_position A) nil = (-1)%Z)
@@ -420,10 +416,7 @@ Definition asynchronous_arena_sum (A B : AsynchronousArena)
               let sp := cast_sum_to_right _ _ (fst (snd w)) in
               let sm := cast_sum_to_right _ _ (snd (snd w)) in
               finite_payoff_walk B ((fp, fm), (sp, sm));
-             infinite_payoff l :=
-              let left := infinite_payoff A (cast_sum_inf_to_left _ _ l) in
-              let right := infinite_payoff B (cast_sum_inf_to_right _ _ l) in
-              inf_plus left right;
+             infinite_payoff f inf := infinite_payoff_right_finite A B f inf
          |}).
 Proof.
 - left. auto.
