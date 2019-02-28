@@ -303,20 +303,47 @@ Definition asynchronous_game_exponential_positive (G: AsynchronousGame)
              A := asynchronous_arena_exponential (A G) pos1;
              X := indexed_product_group (X G) nat;
              Y := wreath_product (Y G);
-             action g move h := 
-                match move,h with
-                  | existT _ (i,n) m, (f, exist _ (pi,_) _) =>
-                    (match action G (g n) (existT _ i m) (f n) with
-                      | existT _ i m => existT _ (i, pi n) m
-                     end)
-                end;
+             actl g m := match m with
+                            | existT _ (i,n) m =>
+                              (match actl G (g n) (existT _ i m) with
+                                | existT _ i m => existT _ (i, n) m
+                               end)
+                         end;
+             actr m h :=  match m,h with
+                          | existT _ (i,n) m, (f, exist _ (pi,_) _) =>
+                            (match actr G (existT _ i m) (f n) with
+                              | existT _ i m => existT _ (i, pi n) m
+                             end)
+                        end;
         |}).
 Proof.
-- intros. destruct m. destruct x. flatten_all. subst. simpl in *. inversion e. subst. rewrite action_id in e2. inversion e2.
+- assert (left_action _ _ (actl G)).
+{apply actl_is_action. } unfold left_action in H. destruct H.
+split.
++ intros. destruct x. destruct x. flatten_all. subst.
+rewrite H in e. inversion e. subst. apply inj_pairT2 in e. subst. auto.
++ intros. destruct x. destruct x. flatten_all. subst. simpl in e3.
+inversion e. subst. apply inj_pairT2 in e. subst. 
+rewrite <- H0 in e3. rewrite e0 in e3. rewrite e2 in e3. inversion e3. subst.
+apply inj_pairT2 in e3. subst. auto.
+- assert (right_action _ _ (actr G)).
+{apply actr_is_action. } unfold right_action in H. destruct H.
+split.
++ intros. destruct x. destruct x. flatten_all. subst. simpl in e. inversion e. subst.
+rewrite H in e2. inversion e2. subst. apply inj_pairT2 in e2. subst. auto.
++ intros. destruct x. destruct x. flatten_all. subst. simpl in e3.
+inversion e. subst. apply inj_pairT2 in e. subst. simpl in e9. inversion e9. subst.
+rewrite <- H0 in e12. rewrite e3 in e12. rewrite e8 in e12. inversion e12. subst. auto.
+- intros. destruct m. destruct x. flatten_all. subst.
+inversion e6. subst. apply inj_pairT2 in e6. subst. inversion e. subst. apply inj_pairT2 in e. subst.
+rewrite <- e0 in e5. rewrite action_compatible in e5. rewrite e7 in e5.
+
+
+ destruct m. destruct x. flatten_all. subst. simpl in *. inversion e. subst. rewrite action_id in e2. inversion e2.
 subst. apply inj_pairT2 in e2. subst. auto.
 - intros. destruct m. destruct x. flatten_all. subst. simpl in *. inversion e. subst.
 rewrite action_compatible in e2. inversion e3. subst. apply inj_pairT2 in e3. subst.
-admit.
+rewrite e7 in e2. admit.
 - intros. destruct m. destruct n. destruct x. destruct x0. destruct h. destruct g1. destruct x.
 flatten_all. simpl in H. inversion H. subst. inversion H2. subst. apply inj_pairT2 in H2.
 subst. inversion H1. subst. apply inj_pairT2 in H1. subst. simpl. 

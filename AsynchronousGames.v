@@ -106,31 +106,34 @@ Record AsynchronousGame  :=
     X : Group;
     Y : Group;
 
-    action : (G X) -> M (P (E A)) -> (G Y) -> M (P (E A));
+    actl : (G X) -> M (P (E A)) -> M (P (E A));
+    actr : M (P (E A)) -> (G Y) -> M (P (E A));
 
-    action_id : forall m, action (id X) m (id Y) = m;
-    action_compatible : forall m g g' h h',
-    action (mult X g g') m (mult Y h h') = 
-    action g (action g' m h) h';
+    actl_is_action : left_action X (M (P (E A))) actl;
+    actr_is_action : right_action Y (M (P (E A))) actr;
+
+    action_compatible : forall m g h,
+    actr (actl g m) h = actl g (actr m h);
 
     coherence_1 : forall m n g h,
-    leq (P (E A)) m n -> leq (P (E A)) (action g m h) (action g n h);
+    leq (P (E A)) m n -> 
+    leq (P (E A)) (actl g (actr m h)) (actl g (actr n h));
     coherence_2 : forall m g h,
-    polarity A (action g m h) = polarity A m;
+    polarity A (actl g (actr m h)) = polarity A m;
     coherence_3 : forall m g,
     (polarity A m = false /\ (forall n, 
-    leq (P (E A)) m n -> n = action g n (id Y))) -> 
-    m = action g m (id Y);
+    leq (P (E A)) m n -> n = actl g (actr n (id Y)) )) -> 
+    m = actl g (actr m (id Y));
     coherence_4 : forall m h,
     (polarity A m = true /\ (forall n, 
-    leq (P (E A)) m n -> n = action (id X) n h)) -> 
-    m = action (id X) m h;
+    leq (P (E A)) m n -> n = actl (id X) (actr n h))) -> 
+    m = actl (id X) (actr m h);
 
     action_preserves_initial : forall i g h,
-    exists i', action g (existT _ i (inl tt)) h = existT _ i' (inl tt);
+    exists i', actl g (actr (existT _ i (inl tt)) h) = existT _ i' (inl tt);
 
     action_preserves_non_initial : forall i g h m,
-    exists i' m', action g (existT _ i (inr m)) h = existT _ i' (inr m');
+    exists i' m', actl g (actr (existT _ i (inr m)) h) = existT _ i' (inr m');
 }.
 
 Definition valid_position (E : EventStructure) (p : Position E) :=

@@ -216,16 +216,34 @@ Definition asynchronous_game_lifting (G : AsynchronousGame)
              A := asynchronous_arena_lifting (A G) negative p;
              X := X G;
              Y := Y G;
-             action g m h := match m with
-                                | existT _ tt (inl tt) => m
-                                | existT _ tt (inr m) => 
-                                  existT _ tt (inr (action G g m h))
-                             end;
+             actl g m := match m with
+                           | existT _ tt (inl tt) => m
+                           | existT _ tt (inr m) => existT _ tt (inr (actl G g m))
+                         end;
+             actr m h := match m with
+                           | existT _ tt (inl tt) => m
+                           | existT _ tt (inr m) => existT _ tt (inr (actr G m h))
+                         end;
         |}).
 Proof.
-- intros. destruct m. destruct x. destruct s.
-+ destruct u. auto.
-+ rewrite action_id. auto.
+- intros. unfold left_action. 
+assert (left_action _ _ (actl G)).
+{apply actl_is_action. } unfold left_action in H. destruct H. split. 
++ intros. destruct x. destruct x. destruct s.
+++ destruct u. auto.
+++ rewrite H. auto.
++ intros. destruct x. destruct x. destruct s.
+++ destruct u. auto.
+++ rewrite H0. auto.
+- intros. unfold right_action. 
+assert (right_action _ _ (actr G)).
+{apply actr_is_action. } unfold right_action in H. destruct H. split. 
++ intros. destruct x. destruct x. destruct s.
+++ destruct u. auto.
+++ rewrite H. auto.
++ intros. destruct x. destruct x. destruct s.
+++ destruct u. auto.
+++ rewrite H0. auto.
 - intros. destruct m. destruct x. destruct s.
 + destruct u. auto.
 + rewrite action_compatible. auto.
@@ -240,20 +258,16 @@ Proof.
 - intros. destruct m. destruct x. destruct s.
 + destruct u. auto.
 + simpl. simpl in H. destruct H. destruct n.
-++ 
-assert ((existT
-         (fun i : I (P (E (A G))) =>
-          (unit + N (P (E (A G))) i)%type) x s)
- = (action G g
-        (existT
-           (fun i : I (P (E (A G))) =>
-            (unit + N (P (E (A G))) i)%type) x s)
-        (id (Y G)))).
+++
+assert ((existT (fun i : I (P (E (A G))) => 
+(unit + N (P (E (A G))) i)%type) x s)
+ = (actl G g (actr G (existT (fun i : I (P (E (A G))) => 
+(unit + N (P (E (A G))) i)%type) x s) (id (Y G))))).
 {apply coherence_3. split.
 + auto.
 + intros. remember ((existT _ tt (inr n)) : 
 M (partial_order_lifting (P (E (A G))))) as n1.
-assert ((let (x0, s0) := n1 in
+assert (let (x0, s0) := n1 in
       match x0 with
       | tt =>
           match s0 with
@@ -261,41 +275,25 @@ assert ((let (x0, s0) := n1 in
           | inr n0 =>
               leq (P (E (A G)))
                 (existT
-                   (fun i : I (P (E (A G))) =>
-                    (unit + N (P (E (A G))) i)%type) x s) n0
+                   (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type)
+                   x s) n0
           end
-      end) ->
-     n1 =
-     (let (x, s) := n1 in
-      match x with
-      | tt =>
-          fun s0 : unit + M (P (E (A G))) =>
-          match s0 with
-          | inl tt => n1
-          | inr m =>
-              existT
-                (fun _ : unit =>
-                 (unit + M (P (E (A G))))%type) tt
-                (inr (action G g m (id (Y G))))
-          end
-      end s)).
-{apply H0. } subst. simpl in *. apply H2 in H1.
-apply inj_pairT2 in H1. inversion H1. rewrite <- H4. auto.
-} rewrite <- H1. auto.
+      end).
+{subst. auto. }
+apply H0 in H2. subst. apply inj_pairT2 in H2. inversion H2.
+rewrite <- H4. rewrite <- H4. auto. } rewrite <- H1. auto.
 - intros. destruct m. destruct x. destruct s.
 + destruct u. auto.
-+ simpl in H. destruct n.
-++ simpl in H. destruct H. 
-assert (existT (fun i : I (P (E (A G))) => 
-(unit + N (P (E (A G))) i)%type) x s
-= action G (id (X G))
-        (existT (fun i : I (P (E (A G))) => 
-(unit + N (P (E (A G))) i)%type) x s) h).
++ simpl. simpl in H. destruct H. destruct n.
+++ assert (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x s =
+actl G (id (X G)) 
+(actr G (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x s) h)).
 {apply coherence_4. split.
 + auto.
 + intros. remember ((existT _ tt (inr n)) : 
 M (partial_order_lifting (P (E (A G))))) as n1.
-assert ((let (x0, s0) := n1 in
+assert 
+((let (x0, s0) := n1 in
       match x0 with
       | tt =>
           match s0 with
@@ -306,35 +304,20 @@ assert ((let (x0, s0) := n1 in
                    (fun i : I (P (E (A G))) =>
                     (unit + N (P (E (A G))) i)%type) x s) n0
           end
-      end) ->
-     n1 =
-     (let (x, s) := n1 in
-      match x with
-      | tt =>
-          fun s0 : unit + M (P (E (A G))) =>
-          match s0 with
-          | inl tt => n1
-          | inr m =>
-              existT
-                (fun _ : unit => (unit + M (P (E (A G))))%type) tt
-                (inr (action G (id (X G)) m h))
-          end
-      end s)).
-{apply H0. } subst. simpl in H2. apply H2 in H1. 
-apply inj_pairT2 in H1. inversion H1. rewrite <- H4. auto. }
-rewrite <- H1. auto.
+      end)).
+{subst. auto. }
+apply H0 in H2. subst. apply inj_pairT2 in H2. inversion H2.
+rewrite <- H4. auto. } rewrite <- H1. auto.
 - intros. destruct i. refine (ex_intro _ tt _). auto.
 - intros. destruct i. destruct m. destruct s.
 + destruct u. refine (ex_intro _ tt _).
 refine (ex_intro _
-((action G g
-          (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x (inl tt))
-          h)) _). auto.
+(actl G g (actr G (existT (fun i : I (P (E (A G))) => 
+(unit + N (P (E (A G))) i)%type) x (inl tt)) h)) _). auto.
 + refine (ex_intro _ tt _).
 refine (ex_intro _
-(action G g
-          (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x (inr n))
-          h) _). auto.
+(actl G g (actr G (existT (fun i : I (P (E (A G))) => 
+(unit + N (P (E (A G))) i)%type) x (inr n)) h)) _). auto.
 Defined.
 
 Fact positive_lifting_is_positive :

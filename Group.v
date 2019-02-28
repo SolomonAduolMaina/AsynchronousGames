@@ -198,6 +198,26 @@ assert ((fun x : A => a (a0 x) ) = (fun x : A => x) ).
 rewrite H. auto.
 Defined.
 
+Definition left_action (H : Group) (X : Type) (act : (G H) -> X -> X) :=
+(forall x, act (id H) x = x) /\
+(forall g h x, act g (act h x) = act (mult H g h) x).
+
+Definition right_action (H : Group) (X : Type) (act : X -> (G H) -> X) :=
+(forall x, act x (id H) = x) /\
+(forall g h x, act (act x g) h = act x (mult H g h)).
+
+Fact permutation_group_acts_on_index : forall A H,
+left_action (permutation_group A)
+(G (indexed_product_group H A))
+(fun p f => match p with
+| exist _ (pi, _) b => (fun x => f (pi x))
+end).
+Proof. intros. unfold left_action. split.
+- intros. simpl. auto.
+- intros. destruct g. destruct h. destruct x0. destruct x1.
+apply functional_extensionality. intros. simpl.  auto.
+Qed.
+
 Definition wreath_product (X : Group) : Group.
 refine ({|
         G := (G (indexed_product_group X nat)) * (G (permutation_group nat));
@@ -207,7 +227,7 @@ refine ({|
                     let (gs', bij') := n in
                     let (f', p') := bij' in 
                     let (pi', _) := f' in
-                    let new_gs := (fun i => mult _ (gs' (pi i)) (gs i) ) in
+                    let new_gs := (fun i => mult _  (gs i) (gs' (pi i)) ) in
                     let new_bij := exist _
                     ((fun x => (fst f') ((fst f) x)), 
                     (fun x => (snd f) ((snd f') x)))
