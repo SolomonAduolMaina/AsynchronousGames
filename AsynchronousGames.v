@@ -50,20 +50,6 @@ Inductive Infinity : Type :=
 Definition initial_move (P : PartialOrder) (m : M P) :=
 forall n, leq P n m -> n = m.
 
-Fact initial_is_unit :
-forall E m, initial_move E m <->
-(exists i, m = existT _ i (inl tt)).
-Proof. unfold iff. split.
-+ intros. unfold initial_move in H. destruct m. 
-refine (ex_intro _ x _). symmetry. apply H.
-apply unit_is_least. auto.
-+ intros. unfold initial_move. intros. destruct H. subst.
-apply anti_symmetric. split.
-++ auto.
-++ destruct n. apply leq_same_component in H0. subst. 
-apply unit_is_least. auto.
-Qed.
-
 Definition second_move (P : PartialOrder) (m : M P) :=
 (~ initial_move P m) /\ 
 (forall n, (leq P n m /\ (n <> m)) -> initial_move P n).
@@ -106,34 +92,37 @@ Record AsynchronousGame  :=
     X : Group;
     Y : Group;
 
-    actl : (G X) -> M (P (E A)) -> M (P (E A));
-    actr : M (P (E A)) -> (G Y) -> M (P (E A));
+    action : (G X) -> M (P (E A)) -> (G Y) -> M (P (E A));
 
-    actl_is_action : left_action X (M (P (E A))) actl;
-    actr_is_action : right_action Y (M (P (E A))) actr;
+    actl := (fun g m => action g m (id Y));
+    restriction_to_left_is_action : left_action X (M (P (E A))) actl;
 
-    action_compatible : forall m g h,
-    actr (actl g m) h = actl g (actr m h);
+    actr := (fun m h => action (id X) m h);
+    restriction_to_right_is_action : right_action Y (M (P (E A))) actr;
 
     coherence_1 : forall m n g h,
     leq (P (E A)) m n -> 
-    leq (P (E A)) (actl g (actr m h)) (actl g (actr n h));
+    leq (P (E A)) (action g m h) (action g n h);
+
     coherence_2 : forall m g h,
-    polarity A (actl g (actr m h)) = polarity A m;
-    coherence_3 : forall m g,
-    (polarity A m = false /\ (forall n, 
-    leq (P (E A)) m n -> n = actl g (actr n (id Y)) )) -> 
-    m = actl g (actr m (id Y));
-    coherence_4 : forall m h,
-    (polarity A m = true /\ (forall n, 
-    leq (P (E A)) m n -> n = actl (id X) (actr n h))) -> 
-    m = actl (id X) (actr m h);
+    polarity A (action g m h) = polarity A m;
+
+    (*coherence_3 : forall m g,
+    (polarity A m = false /\ 
+    (forall n, (leq (P (E A)) n m /\ m <> n) -> n = actl g n)) -> 
+    m = actl g m;
+    *)
+
+    (*coherence_4 : forall m h,
+    (polarity A m = true /\ 
+    (forall n, (leq (P (E A)) n m /\ m <> n) -> n = actr n h)) -> 
+    m = actr m h;*)
 
     action_preserves_initial : forall i g h,
-    exists i', actl g (actr (existT _ i (inl tt)) h) = existT _ i' (inl tt);
+    exists i', action g (existT _ i (inl tt)) h = existT _ i' (inl tt);
 
     action_preserves_non_initial : forall i g h m,
-    exists i' m', actl g (actr (existT _ i (inr m)) h) = existT _ i' (inr m');
+    exists i' m', action g (existT _ i (inr m)) h = existT _ i' (inr m');
 }.
 
 Definition valid_position (E : EventStructure) (p : Position E) :=
@@ -170,6 +159,36 @@ match l with
     | Some k => Some (S k)
   end)
 end.
+
+Fact action_does_not_send_inr_to_inl : forall G i i' g h s,
+~ (action G g (existT _ i (inr s)) h = existT _ i' (inl tt)).
+Proof. intros. unfold not. intros.
+assert (exists k k1,
+ action G g
+      (existT
+         (fun i : I (P (E (A G))) =>
+          (unit + N (P (E (A G))) i)%type) i 
+         (inr s)) h = 
+existT
+      (fun i : I (P (E (A G))) =>
+       (unit + N (P (E (A G))) i)%type) k (inr k1)).
+{apply action_preserves_non_initial. }
+destruct H0. destruct H0. rewrite H in H0. inversion H0.
+Qed.
+
+Fact initial_is_unit :
+forall E m, initial_move E m <->
+(exists i, m = existT _ i (inl tt)).
+Proof. unfold iff. split.
++ intros. unfold initial_move in H. destruct m. 
+refine (ex_intro _ x _). symmetry. apply H.
+apply unit_is_least. auto.
++ intros. unfold initial_move. intros. destruct H. subst.
+apply anti_symmetric. split.
+++ auto.
+++ destruct n. apply leq_same_component in H0. subst. 
+apply unit_is_least. auto.
+Qed.
 
 Ltac flatten_all :=
   repeat (let e := fresh "e" in

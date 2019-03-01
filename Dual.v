@@ -74,17 +74,26 @@ Definition asynchronous_game_dual (G: AsynchronousGame)
             action g m h := action G h m g;
          |}).
 Proof. 
-- simpl. apply action_id.
-- simpl. intros. apply action_compatible.
-- simpl. intros. apply coherence_1. auto.
-- simpl. intros. 
-assert (forall a b, negb a = negb b <-> a = b).
-{intros. destruct a; destruct b; intuition. }
-intros. apply H. apply coherence_2.
-- simpl. intros. rewrite negb_false_iff in H.
-apply coherence_4. auto.
-- simpl. intros. rewrite negb_true_iff in H.
-apply coherence_3. auto.
-- simpl. intros. apply action_preserves_initial.
-- simpl. intros. apply action_preserves_non_initial.
+- unfold left_action. split.
++ intros. simpl.
+assert (left_action _ _ (actl G)).
+{apply restriction_to_left_is_action. }
+unfold left_action in *. destruct H. unfold actl in H. apply H.
++ intros. simpl.
+assert (right_action _ _ (actr G)).
+{apply restriction_to_right_is_action. }
+unfold right_action in H. destruct H. unfold actr in *. apply H0.
+- unfold right_action. split.
++ intros. simpl.
+assert (left_action _ _ (actl G)).
+{apply restriction_to_left_is_action. }
+unfold left_action in *. destruct H. unfold actl in H. apply H.
++ intros. simpl.
+assert (left_action _ _ (actl G)).
+{apply restriction_to_left_is_action. }
+unfold left_action in H. destruct H. unfold actl in *. apply H0.
+- intros. simpl in H. simpl. apply coherence_1. auto.
+- intros. simpl. rewrite coherence_2. auto.
+- intros. apply action_preserves_initial.
+- intros. apply action_preserves_non_initial.
 Defined.

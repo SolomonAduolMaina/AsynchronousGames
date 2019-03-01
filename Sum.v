@@ -470,222 +470,90 @@ Definition asynchronous_game_sum_positive (G H: AsynchronousGame)
                               end;
         |}).
 Proof.
-- intros. flatten_all.
-+ subst. simpl in e1. rewrite action_id in e1. inversion e1. subst. apply inj_pairT2 in e1.
-subst. auto.
-+ subst. simpl in e1. rewrite action_id in e1. inversion e1. subst. apply inj_pairT2 in e1.
-subst. auto.
-- intros. destruct g. destruct h. destruct h'. destruct g'. 
-flatten_all; subst; simpl fst in *; simpl snd in *; inversion e2; subst;
-rewrite action_compatible in e1; apply inj_pairT2 in e2; subst; rewrite e3 in e1;
-rewrite e1 in e5; inversion e5; subst; apply inj_pairT2 in e5; subst; auto.
-- intros. destruct g. destruct h. simpl fst in *. flatten_all; simpl fst in *.
-simpl snd in *; subst; assert (H1:=H0); apply leq_same_component in H0; inversion H0; subst.
-+ assert (leq _
-(action G g (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i0 s) g1)
-(action G g (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i0 s1) g1)).
-{apply coherence_1. inversion H1.
-+ subst. inversion H4. subst. apply inj_pairT2 in H3. subst. apply inj_pairT2 in H4. subst. auto. 
-+ subst. inversion H4. } rewrite e4 in H2. rewrite e1 in H2. simpl. assert (H3:=H2). 
-apply leq_same_component in H3. subst. apply leq_sum_left with (i:=x2) (m:=s0) (m':=s2). auto. auto. auto.
-+ subst. inversion H0.
-++ subst. inversion H3.
-++ subst. inversion H2.
-+ subst. inversion H0.
-++ subst. inversion H2.
-++ subst. inversion H3.
-+ subst. simpl fst in *. simpl snd in *.
+- split.
++ intros. flatten_all. subst.
+++
+assert (left_action _ _ (actl G)).
+{apply restriction_to_left_is_action. }
+destruct H0. unfold actl in *. unfold left_action. simpl in e1. rewrite H0 in e1. inversion e1. subst. apply inj_pairT2 in e1. subst. auto.
+++
+assert (left_action _ _ (actl H)).
+{apply restriction_to_left_is_action. }
+destruct H0. unfold actl in *. unfold left_action. simpl in e1. 
+rewrite H0 in e1. inversion e1. subst. apply inj_pairT2 in e1. subst. auto.
++ intros. destruct x. destruct x.
+++ flatten_all.
++++ subst. simpl fst in *.
+assert (left_action _ _ (actl G)).
+{apply restriction_to_left_is_action. }
+destruct H0. unfold actl in *. unfold left_action.
+rewrite <- H1 in e3. inversion e. subst. apply inj_pairT2 in e. subst. rewrite e0 in e3.
+rewrite e2 in e3. inversion e3. subst. apply inj_pairT2 in e3. subst. auto.
++++ inversion e.
+++ flatten_all.
++++ inversion e.
++++ subst. simpl snd in *.
+assert (left_action _ _ (actl H)).
+{apply restriction_to_left_is_action. }
+destruct H0. unfold actl in *. unfold left_action.
+rewrite <- H1 in e3. inversion e. subst. apply inj_pairT2 in e. subst. rewrite e0 in e3.
+rewrite e2 in e3. inversion e3. subst. apply inj_pairT2 in e3. subst. auto.
+- split.
++ intros. flatten_all. subst.
+++
+assert (right_action _ _ (actr G)).
+{apply restriction_to_right_is_action. }
+destruct H0. unfold actr in *. unfold right_action. simpl in e1. rewrite H0 in e1. inversion e1. subst. apply inj_pairT2 in e1. subst. auto.
+++
+assert (right_action _ _ (actr H)).
+{apply restriction_to_right_is_action. }
+destruct H0. unfold actr in *. unfold right_action. simpl in e1. 
+rewrite H0 in e1. inversion e1. subst. apply inj_pairT2 in e1. subst. auto.
++ intros. destruct x. destruct x.
+++ flatten_all.
++++ subst. simpl fst in *.
+assert (right_action _ _ (actr G)).
+{apply restriction_to_right_is_action. }
+destruct H0. unfold actr in *. unfold right_action.
+rewrite <- H1 in e3. inversion e. subst. apply inj_pairT2 in e. subst. rewrite e0 in e3.
+rewrite e2 in e3. inversion e3. subst. apply inj_pairT2 in e3. subst. auto.
++++ inversion e.
+++ flatten_all.
++++ inversion e.
++++ subst. simpl snd in *.
+assert (right_action _ _ (actr H)).
+{apply restriction_to_right_is_action. }
+destruct H0. unfold actr in *. unfold right_action.
+rewrite <- H1 in e3. inversion e. subst. apply inj_pairT2 in e. subst. rewrite e0 in e3.
+rewrite e2 in e3. inversion e3. subst. apply inj_pairT2 in e3. subst. auto.
+- intros. destruct m. destruct n. inversion H0.
++ subst. inversion H3. subst. apply inj_pairT2 in H3. apply inj_pairT2 in H6. subst. inversion H2.
+subst. apply inj_pairT2 in H2. subst. flatten_all.
 assert (leq _
-(action H g0
-       (existT (fun i : I (P (E (A H))) => (unit + N (P (E (A H))) i)%type) i s)
-       g2)
-(action H g0
-       (existT (fun i : I (P (E (A H))) => (unit + N (P (E (A H))) i)%type) i0 s1)
-       g2)).
-{apply coherence_1. inversion H0.
-+ subst. inversion H3.
-+ subst. inversion H2. inversion H2. subst. apply inj_pairT2 in H2. subst. inversion H3. inversion H3.
-subst. apply inj_pairT2 in H3. subst. auto. }
-rewrite e4 in H1. rewrite e1 in H1. assert (H2:=H1). apply leq_same_component in H1. subst.
-simpl. apply leq_sum_right with (i:=x2) (m:=s0) (m':=s2). auto. auto. auto.
-- intros. destruct g. destruct h. flatten_all; simpl fst in *; simpl snd in *; subst.
-+ simpl. rewrite <- e1. apply coherence_2.
-+ simpl. rewrite <- e1. apply coherence_2.
-- intros. destruct g. flatten_all; simpl fst in *; simpl snd in *; subst; destruct H0.
-+ remember ((existT
-          (fun i : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-           (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i)%type)
-          (inl i) s)).
-assert (s1 =
-     (let (x, m) := s1 in
-      match
-        x as x0
-        return
-          (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) x0 ->
-           M (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))))
-      with
-      | inl i =>
-          fun
-            m0 : unit +
-                 N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) (inl i) =>
-          let (i0, m1) :=
-            action G (fst (g, g0))
-              (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type)
-                 i m0) (fst (id (product_group (Y G) (Y H)))) in
-          existT
-            (fun i1 : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-             (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i1)%type)
-            (inl i0) m1
-      | inr i =>
-          fun
-            m0 : unit +
-                 N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) (inr i) =>
-          let (i0, m1) :=
-            action H (snd (g, g0))
-              (existT (fun i0 : I (P (E (A H))) => (unit + N (P (E (A H))) i0)%type)
-                 i m0) (snd (id (product_group (Y G) (Y H)))) in
-          existT
-            (fun i1 : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-             (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i1)%type)
-            (inr i0) m1
-      end m)).
-{apply H1. apply reflexive. } subst. 
-destruct (action G (fst (g, g0))
-          (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i s)
-          (fst (id (product_group (Y G) (Y H))))) eqn:eqn1. simpl fst in *. rewrite e1 in eqn1.
-inversion H2. inversion H2. subst. apply inj_pairT2 in H2. subst. inversion eqn1. subst.
-apply inj_pairT2 in eqn1. subst. auto.
-+ remember ((existT
-          (fun i : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-           (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i)%type)
-          (inr i) s)).
-assert (s1 =
-     (let (x, m) := s1 in
-      match
-        x as x0
-        return
-          (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) x0 ->
-           M (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))))
-      with
-      | inl i =>
-          fun
-            m0 : unit +
-                 N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) (inl i) =>
-          let (i0, m1) :=
-            action G (fst (g, g0))
-              (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i
-                 m0) (fst (id (product_group (Y G) (Y H)))) in
-          existT
-            (fun i1 : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-             (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i1)%type)
-            (inl i0) m1
-      | inr i =>
-          fun
-            m0 : unit +
-                 N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) (inr i) =>
-          let (i0, m1) :=
-            action H (snd (g, g0))
-              (existT (fun i0 : I (P (E (A H))) => (unit + N (P (E (A H))) i0)%type) i
-                 m0) (snd (id (product_group (Y G) (Y H)))) in
-          existT
-            (fun i1 : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-             (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i1)%type)
-            (inr i0) m1
-      end m)).
-{apply H1. apply reflexive. } subst.
-destruct (action H (snd (g, g0))
-          (existT (fun i0 : I (P (E (A H))) => (unit + N (P (E (A H))) i0)%type) i s)
-          (snd (id (product_group (Y G) (Y H))))) eqn:eqn1.
-simpl snd in *. rewrite e1 in eqn1. inversion eqn1. subst. apply inj_pairT2 in eqn1.
-subst. inversion H2. inversion H2. subst. apply inj_pairT2 in H2. auto.
-- intros. destruct h. flatten_all; simpl fst in *; subst; destruct H0.
-+ remember ((existT
-          (fun i : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-           (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i)%type)
-          (inl i) s)).
-assert (s1 =
-     (let (x, m) := s1 in
-      match
-        x as x0
-        return
-          (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) x0 ->
-           M (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))))
-      with
-      | inl i =>
-          fun
-            m0 : unit +
-                 N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) (inl i) =>
-          let (i0, m1) :=
-            action G (fst (id (product_group (X G) (X H))))
-              (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i
-                 m0) (fst (g, g0)) in
-          existT
-            (fun i1 : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-             (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i1)%type)
-            (inl i0) m1
-      | inr i =>
-          fun
-            m0 : unit +
-                 N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) (inr i) =>
-          let (i0, m1) :=
-            action H (snd (id (product_group (X G) (X H))))
-              (existT (fun i0 : I (P (E (A H))) => (unit + N (P (E (A H))) i0)%type) i
-                 m0) (snd (g, g0)) in
-          existT
-            (fun i1 : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-             (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i1)%type)
-            (inr i0) m1
-      end m)).
-{apply H1. apply reflexive. } subst. destruct
-(action G (fst (id (product_group (X G) (X H))))
-          (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i s)
-          (fst (g, g0))) eqn:eqn1.
-simpl fst in *. rewrite e1 in eqn1. inversion eqn1. subst. apply inj_pairT2 in eqn1.
-apply inj_pairT2 in H5. subst. inversion H2. inversion H2. subst. apply inj_pairT2 in H2. auto.
-+ simpl snd in *. remember
-((existT
-          (fun i : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-           (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i)%type)
-          (inr i) s)).
-assert (s1 =
-     (let (x, m) := s1 in
-      match
-        x as x0
-        return
-          (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) x0 ->
-           M (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))))
-      with
-      | inl i =>
-          fun
-            m0 : unit +
-                 N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) (inl i) =>
-          let (i0, m1) :=
-            action G (fst (id (product_group (X G) (X H))))
-              (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i
-                 m0) (fst (g, g0)) in
-          existT
-            (fun i1 : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-             (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i1)%type)
-            (inl i0) m1
-      | inr i =>
-          fun
-            m0 : unit +
-                 N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) (inr i) =>
-          let (i0, m1) :=
-            action H (snd (id (product_group (X G) (X H))))
-              (existT (fun i0 : I (P (E (A H))) => (unit + N (P (E (A H))) i0)%type) i
-                 m0) (snd (g, g0)) in
-          existT
-            (fun i1 : I (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) =>
-             (unit + N (P (E (asynchronous_arena_sum (A G) (A H) pos1 pos2))) i1)%type)
-            (inr i0) m1
-      end m)).
-{apply H1. apply reflexive. } subst.
-destruct (action H (snd (id (product_group (X G) (X H))))
-          (existT (fun i0 : I (P (E (A H))) => (unit + N (P (E (A H))) i0)%type) i s)
-          (snd (g, g0))) eqn:eqn1. simpl snd in *. inversion H2. inversion H2. subst.
-apply inj_pairT2 in H2. subst. rewrite e1 in eqn1. inversion eqn1. subst. apply inj_pairT2 in eqn1.
-auto.
+(action G (fst g)
+       (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i m) 
+       (fst h))
+(action G (fst g)
+       (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i m') 
+       (fst h))).
+{apply coherence_1. auto. }
+rewrite e0 in H2. rewrite e in H2. assert (H3:=H2). apply leq_same_component in H3. subst.
+simpl. apply leq_sum_left with (i:=x0) (m:=s) (m':=s0). auto. auto. auto.
++ subst. inversion H3. subst. apply inj_pairT2 in H3. apply inj_pairT2 in H6. subst. inversion H2.
+subst. apply inj_pairT2 in H2. subst. flatten_all.
+assert (leq _
+(action H (snd g)
+      (existT (fun i : I (P (E (A H))) => (unit + N (P (E (A H))) i)%type)
+         i m) (snd h))
+(action H (snd g)
+      (existT (fun i : I (P (E (A H))) => (unit + N (P (E (A H))) i)%type)
+         i m') (snd h))).
+{apply coherence_1. auto. }
+rewrite e0 in H2. rewrite e in H2. assert (H3:=H2). apply leq_same_component in H3. subst.
+simpl. apply leq_sum_right with (i:=x0) (m:=s) (m':=s0). auto. auto. auto.
+- intros. destruct m. destruct x.
++ flatten_all. simpl. rewrite <- e. apply coherence_2.
++ flatten_all. simpl. rewrite <- e. apply coherence_2.
 - intros. destruct g. destruct h. destruct i; simpl fst; simpl snd.
 + destruct (action G g
        (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i
