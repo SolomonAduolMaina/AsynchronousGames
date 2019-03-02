@@ -65,7 +65,7 @@ assert ((- finite_payoff_walk A w)%Z = 0%Z <->
 {lia. } apply H0. apply initial_null. auto.
 Defined.
 
-Definition asynchronous_game_dual (G: AsynchronousGame) 
+Definition dual (G: AsynchronousGame) 
 : AsynchronousGame.
   refine({| 
             A := asynchronous_arena_dual (A G) ;

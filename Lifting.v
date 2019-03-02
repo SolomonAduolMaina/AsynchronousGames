@@ -208,7 +208,7 @@ apply polarity_first in H0. rewrite negative in H0. intuition.
 destruct p0; destruct p1; auto.
 Defined.
 
-Definition asynchronous_game_lifting (G : AsynchronousGame) 
+Definition lifting (G : AsynchronousGame) 
 (negative : (finite_payoff_position (A G)) nil = (1)%Z)
 (p : Z)
 : AsynchronousGame.
@@ -264,5 +264,5 @@ forall (G : AsynchronousGame)
 (neg : (finite_payoff_position (A G)) nil = (1)%Z)
 (p : Z),
 finite_payoff_position 
-(A (asynchronous_game_lifting G neg p)) nil = (-1)%Z.
+(A (lifting G neg p)) nil = (-1)%Z.
 Proof. intros. auto. Qed.

@@ -179,7 +179,7 @@ match l with
 end)
 end.
 
-Definition tensor (p q : Z) :=
+Definition tensor_nat (p q : Z) :=
 if Z.ltb p 0 then 
 (if Z.ltb q 0 then Z.add p q else p)
 else
@@ -188,7 +188,7 @@ else
 Fixpoint exponential_walk_payoff A (l1 l2 l3 l4 : list (list (M (P (E A))))) : Z :=
 match l1, l2, l3, l4 with
 | x1 :: xs1, x2 :: xs2, x3 :: xs3, x4 :: xs4 =>
-tensor (finite_payoff_walk A ((x1, x2), (x3, x4))) (exponential_walk_payoff A xs1 xs2 xs3 xs4)
+tensor_nat (finite_payoff_walk A ((x1, x2), (x3, x4))) (exponential_walk_payoff A xs1 xs2 xs3 xs4)
 | _, _, _, _ => 0%Z
 end.
 
@@ -267,7 +267,7 @@ Definition asynchronous_arena_exponential (A : AsynchronousArena)
                 | _ => let (l, f) := project_exponential _ l in
                        let l := map f l in 
                        let l := map (finite_payoff_position A) l in
-                       fold_right tensor 0%Z l
+                       fold_right tensor_nat 0%Z l
               end;
             finite_payoff_walk w :=
               let (l_fp, f_fp) := project_exponential _ (fst (fst w)) in
@@ -303,163 +303,112 @@ Definition asynchronous_game_exponential_positive (G: AsynchronousGame)
              A := asynchronous_arena_exponential (A G) pos1;
              X := indexed_product_group (X G) nat;
              Y := wreath_product (Y G);
-             actl g m := match m with
-                            | existT _ (i,n) m =>
-                              (match actl G (g n) (existT _ i m) with
-                                | existT _ i m => existT _ (i, n) m
-                               end)
-                         end;
-             actr m h :=  match m,h with
-                          | existT _ (i,n) m, (f, exist _ (pi,_) _) =>
-                            (match actr G (existT _ i m) (f n) with
-                              | existT _ i m => existT _ (i, pi n) m
-                             end)
-                        end;
+             action g move h := 
+                match move,h with
+                  | existT _ (i,n) m, (f, exist _ (pi,_) _) =>
+                    (match action G (g n) (existT _ i m) (f n) with
+                      | existT _ i m => existT _ (i, pi n) m
+                     end)
+                end;
         |}).
 Proof.
-- assert (left_action _ _ (actl G)).
-{apply actl_is_action. } unfold left_action in H. destruct H.
-split.
-+ intros. destruct x. destruct x. flatten_all. subst.
-rewrite H in e. inversion e. subst. apply inj_pairT2 in e. subst. auto.
-+ intros. destruct x. destruct x. flatten_all. subst. simpl in e3.
-inversion e. subst. apply inj_pairT2 in e. subst. 
-rewrite <- H0 in e3. rewrite e0 in e3. rewrite e2 in e3. inversion e3. subst.
-apply inj_pairT2 in e3. subst. auto.
-- assert (right_action _ _ (actr G)).
-{apply actr_is_action. } unfold right_action in H. destruct H.
-split.
-+ intros. destruct x. destruct x. flatten_all. subst. simpl in e. inversion e. subst.
-rewrite H in e2. inversion e2. subst. apply inj_pairT2 in e2. subst. auto.
-+ intros. destruct x. destruct x. flatten_all. subst. simpl in e3.
-inversion e. subst. apply inj_pairT2 in e. subst. simpl in e9. inversion e9. subst.
-rewrite <- H0 in e12. rewrite e3 in e12. rewrite e8 in e12. inversion e12. subst. auto.
-- intros. destruct m. destruct x. flatten_all. subst.
-inversion e6. subst. apply inj_pairT2 in e6. subst. inversion e. subst. apply inj_pairT2 in e. subst.
-rewrite <- e0 in e5. rewrite action_compatible in e5. rewrite e7 in e5.
-
-
- destruct m. destruct x. flatten_all. subst. simpl in *. inversion e. subst. rewrite action_id in e2. inversion e2.
-subst. apply inj_pairT2 in e2. subst. auto.
-- intros. destruct m. destruct x. flatten_all. subst. simpl in *. inversion e. subst.
-rewrite action_compatible in e2. inversion e3. subst. apply inj_pairT2 in e3. subst.
-rewrite e7 in e2. admit.
-- intros. destruct m. destruct n. destruct x. destruct x0. destruct h. destruct g1. destruct x.
-flatten_all. simpl in H. inversion H. subst. inversion H2. subst. apply inj_pairT2 in H2.
-subst. inversion H1. subst. apply inj_pairT2 in H1. subst. simpl. 
-assert (leq _
-(action G (g n3)
-      (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i1 m)
-      (g0 n3))
-(action G (g n3)
-       (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i1 m')
-       (g0 n3))).
-{apply coherence_1. auto. } rewrite e in H1. rewrite e0 in H1. assert (H2:=H1).
-apply leq_same_component in H2. subst. apply leq_exponential_unique with
-(i:=x0) (n:=n1 n3) (m:=s1) (m':=s2). auto. auto. auto.
-- intros. destruct m. destruct x. destruct h. destruct g1. destruct x. flatten_all.
-simpl. rewrite <- e. apply coherence_2.
-- intros. destruct m. destruct x. destruct H. flatten_all. subst. inversion e. subst.
-simpl in H.
-assert (action G (g n)
-       (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i s)
-       (id (Y G)) = 
-(existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i s)).
-{symmetry. apply coherence_3. split.
-+ auto.
-+ intros. destruct n0. assert (H2:=H1). apply leq_same_component in H2. subst.
-assert (leq (P (E (asynchronous_arena_exponential (A G) pos1)))
-       (existT
-          (fun i : I (P (E (asynchronous_arena_exponential (A G) pos1))) =>
-           (unit + N (P (E (asynchronous_arena_exponential (A G) pos1))) i)%type) 
-          (x, n) s) (existT
-          (fun i : I (P (E (asynchronous_arena_exponential (A G) pos1))) =>
-           (unit + N (P (E (asynchronous_arena_exponential (A G) pos1))) i)%type) 
-          (x, n) s1)).
-{simpl. apply leq_exponential_unique with (i:=x) (n:=n) (m:=s) (m':=s1). auto. auto. auto. }
-apply H0 in H2. destruct (action G (g n)
-          (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x s1)
-          (id (Y G))). inversion H2. subst. apply inj_pairT2 in H2. subst. auto.
-} rewrite e2 in H1. inversion H1. subst. apply inj_pairT2 in H1. auto.
-- intros. destruct m. destruct x. destruct h. destruct g0. destruct x. destruct H.  
-simpl in *.
-assert (action G (id (X G))
-       (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i s)
-       (g n) = 
-       (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i s)).
-{symmetry. apply coherence_4. split.
-+ auto.
-+ intros. destruct n2. assert (H2:=H1). apply leq_same_component in H2. subst.
-assert (leq (P (E (asynchronous_arena_exponential (A G) pos1)))
-       (existT
-          (fun i : I (P (E (asynchronous_arena_exponential (A G) pos1))) =>
-           (unit + N (P (E (asynchronous_arena_exponential (A G) pos1))) i)%type) 
-          (x, n) s) (existT
-          (fun i : I (P (E (asynchronous_arena_exponential (A G) pos1))) =>
-           (unit + N (P (E (asynchronous_arena_exponential (A G) pos1))) i)%type) 
-          (x, n) s0)).
-{simpl. apply leq_exponential_unique with (i:=x) (n:=n) (m:=s) (m':=s0). auto. auto. auto. }
-apply H0 in H2. destruct (action G (id (X G))
-          (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type)
-             x s0) (g n)). inversion H2. subst. rewrite <- H5 in H2. apply inj_pairT2 in H2. subst. auto.
-} flatten_all. inversion H1. subst. apply inj_pairT2 in H1. subst.
-assert (leq_exponential (P (E (A G)))
-       (existT
-          (fun i : I (P (E (A G))) * nat =>
-           (unit + N (P (E (A G))) (fst i))%type) 
-          (i, n) s) (existT
-          (fun i : I (P (E (A G))) * nat =>
-           (unit + N (P (E (A G))) (fst i))%type) 
-          (i, n) s) ).
-{apply leq_exponential_unique with (i:=i) (n:=n) (m:=s) (m':=s). apply reflexive. auto. auto. }
-apply H0 in H1. destruct (action G (id (X G))
-          (existT
-             (fun i : I (P (E (A G))) =>
-              (unit + N (P (E (A G))) i)%type) i s) 
-          (g n)). inversion H1. subst. rewrite <- H5. rewrite <- H5. auto.
-- intros. destruct h. destruct g1. destruct x. destruct i.
-destruct (action G (g n1) (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i (inl tt))
-       (g0 n1)) eqn:eqn1.
-refine (ex_intro _ (x, n n1) _). flatten_all.
-assert 
-( existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x s =  
-existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x0 s0).
-{rewrite <- eqn1. rewrite <- e. auto. }
-inversion H. subst. apply inj_pairT2 in H. subst.
-assert (exists k,
-action G (g n1)
-      (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i (inl tt))
-      (g0 n1) =
-      (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) k (inl tt))).
-{apply action_preserves_initial. }
-destruct H. rewrite eqn1 in H. inversion H. subst. apply inj_pairT2 in H. subst. auto.
-- intros. destruct h. destruct g1. destruct x. destruct i.
-destruct (action G (g n1)
+- unfold left_action. split.
++ intros. destruct x. destruct x. simpl.
+assert (left_action _ _ (actl G)).
+{apply restriction_to_left_is_action. }
+destruct H. unfold actl in *. rewrite H. auto.
++ intros. destruct x. destruct x. simpl.
+assert (left_action _ _ (actl G)).
+{apply restriction_to_left_is_action. }
+destruct H. unfold actl in *.
+destruct (action G (h n)
        (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type)
-          i (inr m)) (g0 n1)) eqn:eqn1.
-refine (ex_intro _ (x, n n1) _).
-assert (exists k k1,
-action G (g n1)
+          i s) (id (Y G))) eqn:eqn1.
+destruct (action G (g n)
+     (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) x
+        s0) (id (Y G))) eqn:eqn2.
+destruct (action G (mult (X G) (g n) (h n))
+     (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i
+        s) (id (Y G))) eqn:eqn3.
+rewrite <- H0 in eqn3. rewrite eqn1 in eqn3. rewrite eqn2 in eqn3. inversion eqn3.
+subst. apply inj_pairT2 in eqn3. subst. auto.
+- unfold right_action. 
+assert (right_action _ _ (actr G)).
+{apply restriction_to_right_is_action. }
+destruct H. unfold actr in *. split.
++ intros. destruct x. destruct x. simpl. rewrite H. auto.
++ intros. destruct x. destruct x. destruct g. destruct h. destruct g0. destruct g2. destruct x.
+destruct x0. simpl.
+destruct (action G (id (X G))
+       (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type)
+          i s) (g n)) eqn:eqn1.
+destruct (action G (id (X G))
+     (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) x
+        s0) (g1 (n0 n))) eqn:eqn2.
+destruct (action G (id (X G))
+     (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i
+        s) (mult (Y G) (g n) (g1 (n0 n)))) eqn:eqn3.
+rewrite <- H0 in eqn3. rewrite eqn1 in eqn3. rewrite eqn2 in eqn3. inversion eqn3. subst.
+subst. apply inj_pairT2 in H3. subst. auto.
+- intros. inversion H. subst. destruct h. destruct g1. destruct x.
+destruct (action G (g n0)
+       (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type)
+          i m0) (g0 n0)) eqn:eqn1.
+destruct (action G (g n0)
+       (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type)
+          i m') (g0 n0)) eqn:eqn2.
+assert (leq _
+(action G (g n0)
          (existT
             (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i
-            (inr m)) (g0 n1) = 
-existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) k (inr k1)).
-{apply action_preserves_non_initial. } destruct H. destruct H. rewrite eqn1 in H.
-inversion H. subst. apply inj_pairT2 in H. subst. 
-refine (ex_intro _ x1 _). auto.
-Admitted.
+            m0) (g0 n0))
+(action G (g n0)
+         (existT
+            (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i
+            m') (g0 n0))).
+{apply coherence_1. auto. }
+rewrite eqn1 in H1. rewrite eqn2 in H1. assert (H2:=H1).
+apply leq_same_component in H2. subst. apply leq_exponential_unique with
+(i:=x0) (n:=n n0) (m:=s) (m':=s0). auto. auto. auto.
+- intros. simpl. destruct m. destruct x. destruct h. destruct g1. destruct x.
+destruct (action G (g n)
+       (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type)
+          i s) (g0 n)) eqn:eqn1. rewrite <- eqn1. apply coherence_2.
+- intros. destruct h. destruct i. destruct g1. destruct x. flatten_all.
+assert (exists k, 
+action G (g n)
+         (existT (fun i0 : I (P (E (A G))) => (unit + N (P (E (A G))) i0)%type) i
+            (inl tt)) (g0 n) = 
+existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) k (inl tt)).
+{apply action_preserves_initial. }
+destruct H.
+assert (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x s = 
+existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) x0 (inl tt)).
+{rewrite <- e. rewrite <- H. auto. }
+inversion H0. subst. apply inj_pairT2 in H0. subst. refine (ex_intro _ (x0, n0 n) _).
+auto.
+- intros. flatten_all. subst. 
+assert (exists k k1,
+action G (g n)
+       (existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) i0
+          (inr m)) (g0 n) = 
+     existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) k (inr k1)).
+{apply action_preserves_non_initial. }
+destruct H. destruct H. rewrite e3 in H. inversion H. subst. apply inj_pairT2 in H.
+subst. refine (ex_intro _ (x, n0 n) _). refine (ex_intro _ x1 _). auto.
+Defined.
 
 Definition asynchronous_game_exponential_negative (G: AsynchronousGame) 
-(neg : (finite_payoff_position (A G)) nil = (1)%Z) :=
+(neg : (finite_payoff_position (A G)) nil = (1)%Z) : AsynchronousGame :=
 asynchronous_game_exponential_positive
-(asynchronous_game_lifting G neg 0%Z)
-(positive_lifting_is_positive G neg 0%Z).
+(lifting G neg (1)%Z)
+(positive_lifting_is_positive G neg (1)%Z).
 
-
-Definition asynchronous_game_exponential (G: AsynchronousGame) :
+Definition exponential (G : AsynchronousGame) :
 AsynchronousGame :=
 match initial_payoff (A G) with
-| left p  => asynchronous_game_exponential_positive G p
+| left p => asynchronous_game_exponential_positive G p
 | right p => asynchronous_game_exponential_negative G p
 end.
+
 

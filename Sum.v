@@ -135,13 +135,6 @@ a = (existT _ (inr i) m) ->
 b = (existT _ (inr i) m') ->
 incompatible_sum E F a b.
 
-Ltac flatten_all :=
-  repeat (let e := fresh "e" in
-      match goal with
-      | h: context[match ?x with | _ => _ end] |- _ => destruct x eqn:e
-      | |- context[match ?x with | _ => _ end] => destruct x eqn:e
-      end).
-
 Definition event_structure_sum (E F : EventStructure) : EventStructure.
   refine({| 
             P := partial_order_sum (P E) (P F);
@@ -611,7 +604,7 @@ Definition asynchronous_game_sum_left (G H: AsynchronousGame)
 (neg : (finite_payoff_position (A G)) nil = (1)%Z)
 (pos : (finite_payoff_position (A H)) nil = (-1)%Z) : AsynchronousGame :=
 asynchronous_game_sum_positive
-(asynchronous_game_lifting G neg (1)%Z)
+(lifting G neg (1)%Z)
 H
 (positive_lifting_is_positive G neg (1)%Z)
 pos.
@@ -621,7 +614,7 @@ Definition asynchronous_game_sum_right (G H: AsynchronousGame)
 (neg : (finite_payoff_position (A H)) nil = (1)%Z) : AsynchronousGame :=
 asynchronous_game_sum_positive
 G
-(asynchronous_game_lifting H neg (1)%Z)
+(lifting H neg (1)%Z)
 pos
 (positive_lifting_is_positive H neg (1)%Z).
 
@@ -629,8 +622,8 @@ Definition asynchronous_game_sum_negative (G H: AsynchronousGame)
 (neg1 : (finite_payoff_position (A G)) nil = (1)%Z)
 (neg2 : (finite_payoff_position (A H)) nil = (1)%Z) : AsynchronousGame :=
 asynchronous_game_sum_positive
-(asynchronous_game_lifting G neg1 (1)%Z)
-(asynchronous_game_lifting H neg2 (1)%Z)
+(lifting G neg1 (1)%Z)
+(lifting H neg2 (1)%Z)
 (positive_lifting_is_positive G neg1 (1)%Z)
 (positive_lifting_is_positive H neg2 (1)%Z).
 

@@ -289,7 +289,7 @@ match l with
 end.
 
 
-Definition tensor (p q : Z) :=
+Definition tensor_nat (p q : Z) :=
 if Z.ltb p 0 then 
 (if Z.ltb q 0 then Z.add p q else p)
 else
@@ -507,7 +507,7 @@ Definition asynchronous_arena_tensor (A B : AsynchronousArena)
                 | nil => (-1)%Z
                 | _ => let left := finite_payoff_position A (cast_tensor_to_left _ _ l) in
                        let right := finite_payoff_position B (cast_tensor_to_right _ _ l) in
-                       tensor left right
+                       tensor_nat left right
               end);
             finite_payoff_walk w :=
               let fp := cast_tensor_to_left _ _ (fst (fst w)) in
@@ -520,7 +520,7 @@ Definition asynchronous_arena_tensor (A B : AsynchronousArena)
               let sp := cast_tensor_to_right _ _ (fst (snd w)) in
               let sm := cast_tensor_to_right _ _ (snd (snd w)) in
               let right := finite_payoff_walk B ((fp, fm), (sp, sm)) in
-              tensor left right;
+              tensor_nat left right;
             infinite_payoff f inf := 
               (infinite_payoff_right_finite A B f inf) \/
               (infinite_payoff_left_finite A B f inf) \/
@@ -906,7 +906,7 @@ Definition asynchronous_game_tensor_left (G H: AsynchronousGame)
 (neg : (finite_payoff_position (A G)) nil = (1)%Z)
 (pos : (finite_payoff_position (A H)) nil = (-1)%Z) : AsynchronousGame :=
 asynchronous_game_tensor_positive
-(asynchronous_game_lifting G neg (1)%Z)
+(lifting G neg (1)%Z)
 H
 (positive_lifting_is_positive G neg (1)%Z)
 pos.
@@ -916,7 +916,7 @@ Definition asynchronous_game_tensor_right (G H: AsynchronousGame)
 (neg : (finite_payoff_position (A H)) nil = (1)%Z) : AsynchronousGame :=
 asynchronous_game_tensor_positive
 G
-(asynchronous_game_lifting H neg (1)%Z)
+(lifting H neg (1)%Z)
 pos
 (positive_lifting_is_positive H neg (1)%Z).
 
@@ -924,13 +924,12 @@ Definition asynchronous_game_tensor_negative (G H: AsynchronousGame)
 (neg1 : (finite_payoff_position (A G)) nil = (1)%Z)
 (neg2 : (finite_payoff_position (A H)) nil = (1)%Z) : AsynchronousGame :=
 asynchronous_game_tensor_positive
-(asynchronous_game_lifting G neg1 (1)%Z)
-(asynchronous_game_lifting H neg2 (1)%Z)
+(lifting G neg1 (1)%Z)
+(lifting H neg2 (1)%Z)
 (positive_lifting_is_positive G neg1 (1)%Z)
 (positive_lifting_is_positive H neg2 (1)%Z).
 
-Definition asynchronous_game_tensor (G H: AsynchronousGame) :
-AsynchronousGame :=
+Definition tensor (G H: AsynchronousGame) : AsynchronousGame :=
 match initial_payoff (A G), initial_payoff (A H) with
 | left p, left p' => asynchronous_game_tensor_positive G H p p'
 | left p, right p' => asynchronous_game_tensor_right G H p p'

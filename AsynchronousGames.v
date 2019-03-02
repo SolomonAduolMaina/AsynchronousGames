@@ -173,9 +173,6 @@ existT
       (fun i : I (P (E (A G))) =>
        (unit + N (P (E (A G))) i)%type) k (inr k1)).
 {apply action_preserves_non_initial. }
-destruct H0. destruct H0. rewrite H in H0. inversion H0.
-Qed.
-
 Fact initial_is_unit :
 forall E m, initial_move E m <->
 (exists i, m = existT _ i (inl tt)).
