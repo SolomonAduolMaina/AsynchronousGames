@@ -6,6 +6,7 @@ Require Import Logic.Eqdep.
 Require Import Logic.Eqdep_dec.
 Require Import Arith.PeanoNat.
 Require Import Bool.Bool.
+Require Import Util.
 Require Import Group.
 Require Import AsynchronousGames.
 Require Import Lifting.
@@ -373,7 +374,7 @@ exists i k, m = existT _ (inr i) k /\ m' = existT _ i k.
 
 Definition infinite_payoff_right_finite (A B : AsynchronousArena) 
 (f : nat -> M (P (event_structure_sum (E A) (E B))) ) 
-(inf : Infinity) :=
+(inf : bool) :=
 (exists g, (forall n, inl_move_is_projection A B (f n) (g n)) /\ 
 (infinite_payoff A g inf))
 \/

@@ -43,9 +43,7 @@ Definition Path (E: EventStructure) := prod (Position E) (list (M (P E))).
 
 Definition Walk (E: EventStructure) := prod (Path E) (Path E).
 
-Inductive Infinity : Type :=
-| plus_infinity : Infinity
-| minus_infinity : Infinity.
+Definition InfinitePosition (E : EventStructure) := nat -> (M (P E)).
 
 Definition initial_move (P : PartialOrder) (m : M P) :=
 forall n, leq P n m -> n = m.
@@ -59,7 +57,7 @@ Record AsynchronousArena := {
     polarity : (M (P E)) -> bool;
     finite_payoff_position : Position E -> Z;
     finite_payoff_walk : Walk E -> Z;
-    infinite_payoff : (nat -> (M (P (E)))) -> Infinity -> Prop;
+    infinite_payoff : (InfinitePosition E) -> bool -> Prop;
 
     initial_payoff : sumbool
     (finite_payoff_position nil = (-1)%Z)
@@ -125,41 +123,6 @@ Record AsynchronousGame  :=
     exists i' m', action g (existT _ i (inr m)) h = existT _ i' (inr m');
 }.
 
-Definition valid_position (E : EventStructure) (p : Position E) :=
-forall m n, (In n p -> leq (P E) m n -> In m p)
-/\
-(In m p /\ In n p ->  not (incompatible E m n)).
-
-Definition move_from (E : EventStructure) (m : (M (P E))) (p q: Position E) :=
-(In m q) /\ (~ In m p) /\ (forall n, In n p -> In n q).
-
-Definition valid_path (E: EventStructure) (p : Path E) :=
-forall n, 0 <= n <= length (snd p) ->
-(valid_position E ((fst p) ++ (firstn n (snd p))) /\
-(n > 0 -> (exists m, (nth_error (snd p) (n-1)) = Some m /\
-move_from E m ((fst p) ++ (firstn (n-1) (snd p)))
-((fst p) ++ (firstn n (snd p)))))).
-
-Definition valid_walk (E: EventStructure) (w : Walk E) := 
-valid_path E (fst w) /\ valid_path E (snd w) /\
-(forall x,  In x (fst (fst w)) <-> In x (fst (snd w))).
-
-Definition strictly_increasing f := forall m n, m < n -> f m < f n.
-
-Definition strictly_increasing_list l :=
-forall m n, m < n < length l ->
-(exists k k', nth_error l m = Some k /\ nth_error l n = Some k' /\ k < k').
-
-Fixpoint index_of n l : option nat :=
-match l with
-| nil => None
-| x :: xs => if Nat.eqb n x then Some 0 else
-  (match (index_of n xs) with
-    | None => None
-    | Some k => Some (S k)
-  end)
-end.
-
 Fact action_does_not_send_inr_to_inl : forall G i i' g h s,
 ~ (action G g (existT _ i (inr s)) h = existT _ i' (inl tt)).
 Proof. intros. unfold not. intros.
@@ -173,6 +136,9 @@ existT
       (fun i : I (P (E (A G))) =>
        (unit + N (P (E (A G))) i)%type) k (inr k1)).
 {apply action_preserves_non_initial. }
+destruct H0. destruct H0. rewrite H in H0. inversion H0.
+Qed.
+
 Fact initial_is_unit :
 forall E m, initial_move E m <->
 (exists i, m = existT _ i (inl tt)).
@@ -186,18 +152,3 @@ apply anti_symmetric. split.
 ++ destruct n. apply leq_same_component in H0. subst. 
 apply unit_is_least. auto.
 Qed.
-
-Ltac flatten_all :=
-  repeat (let e := fresh "e" in
-      match goal with
-      | h: context[match ?x with | _ => _ end] |- _ => destruct x eqn:e
-      | |- context[match ?x with | _ => _ end] => destruct x eqn:e
-      end).
-
-Ltac flatten :=
-  repeat (let e := fresh "e" in
-      match goal with
-      | h: context[match ?x with | _ => _ end] |- _ => destruct x eqn:e
-      | |- context[match ?x with | _ => _ end] => destruct x eqn:e
-      end).
-

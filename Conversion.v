@@ -1,3 +1,5 @@
+Require Import Strings.String.
+Require Import List.
 Require Import ZArith.
 Require Import LinearLogic.
 Require Import Group.
@@ -8,8 +10,7 @@ Require Import Sum.
 Require Import Tensor.
 Require Import Exponential.
 
-Definition interpretation := 
-propositional_variable -> AsynchronousGame.
+Definition interpretation := string -> AsynchronousGame.
 
 Inductive empty_type : Type := .
 
@@ -89,6 +90,7 @@ Fixpoint convert (A : formula) (f : interpretation) :
 AsynchronousGame :=
 match A with
 | prop_variable A => f A
+| neg_prop_variable A => dual (f A)
 | one => ONE
 | bottom => BOTTOM
 | zero => ZERO
@@ -100,3 +102,15 @@ match A with
 | of_course A => exponential (convert A f)
 | why_not A => dual (exponential (dual (convert A f)))
 end.
+
+Definition game_par A B := dual (tensor (dual A) (dual B)).
+
+Fixpoint parify l :=
+match l with
+| nil => ZERO
+| A :: nil => A
+| A :: xs => game_par A (parify xs)
+end.
+
+Definition interpret (l : sequent) (f : interpretation) :=
+parify (map (fun x => convert x f) l).

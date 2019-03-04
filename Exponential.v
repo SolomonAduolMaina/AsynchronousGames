@@ -6,6 +6,7 @@ Require Import Logic.Eqdep.
 Require Import Logic.Eqdep_dec.
 Require Import Arith.PeanoNat.
 Require Import Bool.Bool.
+Require Import Util.
 Require Import Group.
 Require Import AsynchronousGames.
 Require Import Lifting.
@@ -208,7 +209,6 @@ Definition infinite_projection_to_n
 (g : (nat -> (M (P (E A)))))
 (n : nat) :=
 exists (h : nat -> nat),
-(strictly_increasing h) /\
 (forall m, 
 (exponential_move_is_in_n A (f m) n -> 
 (exists k, m = h k /\ exponential_move_is_projection A (f (h k)) (g k) ))).
@@ -219,7 +219,6 @@ Definition finite_projection_to_n
 (g : list (M (P (E A))))
 (n : nat) :=
 exists (h : list nat),
-(strictly_increasing_list h) /\
 (forall m, 
 (exponential_move_is_in_n A (f m) n -> 
 (exists index move, index_of m h = Some index /\ nth_error g index = Some move /\
@@ -227,11 +226,11 @@ exponential_move_is_projection A (f m) move))).
 
 Definition minus_infinity_exists (A : AsynchronousArena) 
 (f : nat -> M (P (event_structure_exponential (E A))) ) :=
-exists n g, infinite_projection_to_n A f g n /\ (infinite_payoff A g minus_infinity).
+exists n g, infinite_projection_to_n A f g n /\ (infinite_payoff A g false).
 
 Definition plus_infinity_exists (A : AsynchronousArena) 
 (f : nat -> M (P (event_structure_exponential (E A))) ) :=
-exists n g, infinite_projection_to_n A f g n /\ (infinite_payoff A g plus_infinity).
+exists n g, infinite_projection_to_n A f g n /\ (infinite_payoff A g true).
 
 Definition finite_negative_exists (A : AsynchronousArena) 
 (f : nat -> M (P (event_structure_exponential (E A)))) :=
@@ -245,13 +244,11 @@ Z.le 0%Z (finite_payoff_walk A ((nil, nil),(nil, g))).
 
 Definition infinite_payoff_exponential (A : AsynchronousArena) 
 (f : nat -> M (P (event_structure_exponential (E A))) ) 
-(inf : Infinity) :=
-match inf with
-| plus_infinity => (~(minus_infinity_exists A f)) /\
+(inf : bool) :=
+if inf then (~(minus_infinity_exists A f)) /\
 (plus_infinity_exists A f \/ all_finite_and_positive A f)
-| minus_infinity => (minus_infinity_exists A f) \/
-(~(plus_infinity_exists A f) /\ finite_negative_exists A f)
-end.
+else (minus_infinity_exists A f) \/
+(~(plus_infinity_exists A f) /\ finite_negative_exists A f).
 
 Definition asynchronous_arena_exponential (A : AsynchronousArena) 
 (positive1 : (finite_payoff_position A) nil = (-1)%Z)

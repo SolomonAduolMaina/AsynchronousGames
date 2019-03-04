@@ -6,6 +6,7 @@ Require Import Logic.Eqdep.
 Require Import Logic.Eqdep_dec.
 Require Import Arith.PeanoNat.
 Require Import Bool.Bool.
+Require Import Util.
 Require Import Group.
 Require Import AsynchronousGames.
 Require Import Lifting.
@@ -426,7 +427,6 @@ Definition inf_projects_to_left_inf
 (f : nat -> M (P (event_structure_tensor (E A) (E B))))
 (g : (nat -> (M (P (E A))))) :=
 exists (h : nat -> nat),
-(strictly_increasing h) /\
 (forall n, 
 (tensor_move_is_inl A B (f n) -> 
 (exists k, n = h k /\ inl_move_is_projection A B (f (h k)) (g k) ))).
@@ -436,7 +436,6 @@ Definition inf_projects_to_right_inf
 (f : nat -> M (P (event_structure_tensor (E A) (E B))))
 (g : (nat -> (M (P (E B))))) :=
 exists (h : nat -> nat),
-(strictly_increasing h) /\
 (forall n, 
 (tensor_move_is_inr A B (f n) -> 
 (exists k, n = h k /\ inr_move_is_projection A B (f (h k)) (g k) ))).
@@ -446,7 +445,6 @@ Definition inf_projects_to_left_finite
 (f : nat -> M (P (event_structure_tensor (E A) (E B))))
 (g : list (M (P (E A)))) :=
 exists (h : list nat),
-(strictly_increasing_list h) /\
 (forall n, 
 (tensor_move_is_inl A B (f n) -> 
 (exists k m, index_of n h = Some k /\ nth_error g k = Some m /\
@@ -457,7 +455,6 @@ Definition inf_projects_to_right_finite
 (f : nat -> M (P (event_structure_tensor (E A) (E B))))
 (g : list (M (P (E B)))) :=
 exists (h : list nat),
-(strictly_increasing_list h) /\
 (forall n, 
 (tensor_move_is_inr A B (f n) -> 
 (exists k m, index_of n h = Some k /\ nth_error g k = Some m /\
@@ -465,31 +462,29 @@ inr_move_is_projection A B (f n) m))).
 
 Definition infinite_payoff_right_finite (A B : AsynchronousArena) 
 (f : nat -> M (P (event_structure_tensor (E A) (E B))) ) 
-(inf : Infinity) :=
+(inf : bool) :=
 exists g l,
 (inf_projects_to_left_inf A B f g) /\ (inf_projects_to_right_finite A B f l)
 /\ (infinite_payoff A g inf).
 
 Definition infinite_payoff_left_finite (A B : AsynchronousArena) 
 (f : nat -> M (P (event_structure_tensor (E A) (E B))) ) 
-(inf : Infinity) :=
+(inf : bool) :=
 exists g l,
 (inf_projects_to_right_inf A B f g) /\ (inf_projects_to_left_finite A B f l)
 /\ (infinite_payoff B g inf).
 
 Definition infinite_payoff_both_infinite (A B : AsynchronousArena) 
 (f : nat -> M (P (event_structure_tensor (E A) (E B))) ) 
-(inf : Infinity) :=
-match inf with
-| plus_infinity =>
+(inf : bool) :=
+if inf then
 exists g g',
 (inf_projects_to_left_inf A B f g) /\ (inf_projects_to_right_inf A B f g')
 /\ (infinite_payoff A g inf) /\ (infinite_payoff A g inf)
-| minus_infinity =>
+else
 (exists g, (inf_projects_to_left_inf A B f g) /\ (infinite_payoff A g inf))
 \/
-(exists g, (inf_projects_to_right_inf A B f g) /\ (infinite_payoff B g inf))
-end.
+(exists g, (inf_projects_to_right_inf A B f g) /\ (infinite_payoff B g inf)).
 
 Definition asynchronous_arena_tensor (A B : AsynchronousArena) 
 (positive1 : (finite_payoff_position A) nil = (-1)%Z)

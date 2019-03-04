@@ -9,12 +9,6 @@ Require Import Bool.Bool.
 Require Import Group.
 Require Import AsynchronousGames.
 
-Fixpoint neg_inf i :=
-match i with
-| plus_infinity => minus_infinity
-| minus_infinity => plus_infinity
-end.
-
 Definition asynchronous_arena_dual (A: AsynchronousArena) 
 : AsynchronousArena.
   refine({| 
@@ -22,7 +16,7 @@ Definition asynchronous_arena_dual (A: AsynchronousArena)
             polarity m := negb (polarity A m);
             finite_payoff_position l := Z.sub 0 (finite_payoff_position A l);
             finite_payoff_walk w := Z.sub 0 (finite_payoff_walk A w);
-            infinite_payoff f inf := ~ (infinite_payoff A f inf);
+            infinite_payoff f inf := (infinite_payoff A f (negb inf));
          |}).
 Proof.
 - intros. simpl. 

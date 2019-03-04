@@ -1,12 +1,9 @@
 Require Import Strings.String.
 Require Import List.
 
-Inductive propositional_variable :=
-| variable : string -> propositional_variable
-| negation : propositional_variable -> propositional_variable.
-
 Inductive formula :=
-| prop_variable : propositional_variable -> formula
+| prop_variable : string -> formula
+| neg_prop_variable : string -> formula
 | zero : formula
 | one : formula
 | top : formula
@@ -20,9 +17,8 @@ Inductive formula :=
 
 Fixpoint negate (A : formula) : formula :=
 match A with
-| prop_variable (variable A) => 
-prop_variable (negation (variable A))
-| prop_variable (negation A) => prop_variable A
+| prop_variable s => neg_prop_variable s
+| neg_prop_variable s => prop_variable s
 | one => bottom
 | bottom => one
 | zero => top
@@ -44,8 +40,8 @@ match l with
 end.
 
 Inductive valid (l : sequent) : Prop :=
-| axiom : forall (X : propositional_variable),
-l = (prop_variable X) :: (negate (prop_variable X)) :: nil ->
+| axiom : forall (s : string),
+l = (prop_variable s) :: (neg_prop_variable s) :: nil ->
 valid l
 | exchange : forall Gamma A B Delta,
 valid (Gamma ++ (A :: B :: nil) ++ Delta) ->
