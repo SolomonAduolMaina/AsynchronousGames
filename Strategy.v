@@ -23,6 +23,7 @@ forall n, 0 <= n <= length (snd p) ->
 move_from E m ((fst p) ++ (firstn (n-1) (snd p)))
 ((fst p) ++ (firstn n (snd p)))))).
 
+
 Definition valid_walk (E: EventStructure) (w : Walk E) := 
 valid_path E (fst w) /\ valid_path E (snd w) /\
 (forall x,  In x (fst (fst w)) <-> In x (fst (snd w))).
@@ -34,6 +35,28 @@ negb (polarity A m) = polarity A m').
 
 Definition valid_alternating_path (A : AsynchronousArena) (p : Path (E A)) :=
 valid_path (E A) p /\ alternating A p.
+
+Fixpoint finite_part A (f : nat -> A) (n : nat) (counter : nat) : list A :=
+match n with
+| 0 => nil
+| S m => (f counter) :: (finite_part A f m (S counter))
+end.
+
+Definition valid_infinite_play (E: EventStructure)
+(f : nat -> (M (P E))) :=
+forall n, (valid_position E (finite_part _ f n 0)) /\
+move_from E (f n) (finite_part _ f n 0) (finite_part _ f (S n) 0).
+
+Definition alternating_infinite_play (A : AsynchronousArena) 
+(f : nat -> (M (P (E A)))) :=
+forall n, negb (polarity A (f n)) = polarity A (f (S n)).
+
+Definition valid_alternating_infinite_play (A : AsynchronousArena) 
+(f : nat -> (M (P (E A)))) :=
+valid_infinite_play (E A) f /\ alternating_infinite_play A f.
+
+Definition valid_alternating_walk (A : AsynchronousArena) (w : Walk (E A)) :=
+valid_walk (E A) w /\ alternating A (fst w) /\ alternating A (snd w).
 
 Definition incomparable P m n := (not (leq P m n)) /\ (not (leq P m n)).
 
@@ -57,11 +80,6 @@ Definition strategy_induces_play (G : AsynchronousGame) (sigma : Strategy G) p :
 (negative G -> (forall n, (Nat.odd n = true /\ n <= length p) -> 
 (sigma (firstn n p)) = nth_error p n )).
 
-Fixpoint finite_part A (f : nat -> A) (n : nat) (counter : nat) : list A :=
-match n with
-| 0 => nil
-| S m => (f counter) :: (finite_part A f m (S counter))
-end.
 
 Definition strategy_induces_path (G : AsynchronousGame) (sigma : Strategy G)
 (p : Path (E (A G))) :=
@@ -70,13 +88,16 @@ exists (q : Path (E (A G))) l, q = (nil, l) /\
 strategy_induces_play G sigma (l ++ (snd p)).
 
 Definition winning (G : AsynchronousGame) (sigma : Strategy G) :=
-(forall p, strategy_induces_play G sigma p ->
+(forall p, valid_alternating_path (A G) (nil, p) ->
+strategy_induces_play G sigma p ->
 Z.leb 0%Z (finite_payoff_position (A G) p) = true)
 /\
-(forall f n, strategy_induces_play G sigma (finite_part _ f n 0) -> 
+(forall f n, valid_alternating_infinite_play (A G) f ->
+strategy_induces_play G sigma (finite_part _ f n 0) -> 
 Z.leb 0%Z (finite_payoff_position (A G) (finite_part _ f n 0)) = true)
 /\
-(forall w, (strategy_induces_path G sigma (fst w) /\ 
+(forall w, valid_alternating_walk (A G) w ->
+(strategy_induces_path G sigma (fst w) /\ 
 strategy_induces_path G sigma (snd w)) ->
 Z.leb 0%Z (finite_payoff_walk (A G) w) = true).
 
