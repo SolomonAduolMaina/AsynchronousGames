@@ -1,10 +1,11 @@
+Require Import Util.
 Require Import List.
 Require Import ZArith.
 Require Import Group.
 
 Record PartialOrder :=
   {
-    I : Type; 
+    I : Type;
     N : I -> Type;
     M := {i : I & (sum unit (N i))};
     (* the set of moves is given by a choice of component, and either
@@ -22,7 +23,9 @@ Record PartialOrder :=
 
     leq_same_component : forall i i' m m',
     leq (existT _ i m) (existT _ i' m') -> i = i';
-  }.
+
+    index_equality : forall (i j : I), {i = j} + {i <> j};
+}.
 
 Record EventStructure := 
   {

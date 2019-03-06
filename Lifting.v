@@ -44,6 +44,7 @@ destruct x0. destruct H. destruct s.
 +++ apply transitive with (y:=m0). auto.
 - intros. destruct i. destruct i'. easy.
 - intros. destruct i. destruct i'. auto.
+- intros. left. destruct i. destruct j. auto.
 Defined.
 
 Definition event_structure_lifting (E : EventStructure) : EventStructure.

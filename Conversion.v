@@ -26,6 +26,7 @@ Proof.
 - intros. destruct x. destruct x.
 - intros. destruct i.
 - intros. destruct i.
+- intros. destruct i.
 Defined.
 
 Definition zero_event_structure : EventStructure.

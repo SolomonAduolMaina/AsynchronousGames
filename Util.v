@@ -1,5 +1,10 @@
 Require Import List.
 
+Inductive empty_type := .
+
+Fact empty_type_gives_anything : forall A, empty_type -> A.
+Proof. easy. Qed.
+
 Ltac flatten_all :=
   repeat (let e := fresh "e" in
       match goal with

@@ -32,7 +32,7 @@ Definition partial_order_tensor (P Q : PartialOrder) : PartialOrder.
   refine({| 
             I := (I P) * (I Q);
             N x := sum (N P (fst x)) (N Q (snd x));
-            leq := leq_tensor P Q
+            leq := leq_tensor P Q;
          |}).
 Proof. 
 - intros.
@@ -116,6 +116,11 @@ auto. auto.
 + auto.
 + subst. inversion H1. inversion H2. subst. auto.
 + subst. inversion H1. inversion H2. subst. auto.
+- intros. destruct i. destruct j. destruct (index_equality P i i1).
++ destruct (index_equality Q i0 i2).
+++ subst. left. auto.
+++ right. unfold not. intros. inversion H. contradiction n.
++ right. unfold not. intros. inversion H. contradiction n.
 Defined.
 
 Inductive incompatible_tensor (E F : EventStructure) :

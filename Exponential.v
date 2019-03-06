@@ -25,7 +25,7 @@ Definition partial_order_exponential (P : PartialOrder) : PartialOrder.
   refine({| 
             I := (I P) * nat;
             N x := N P (fst x);
-            leq := leq_exponential P
+            leq := leq_exponential P;
          |}).
 Proof. 
 - intros. destruct x. destruct x. apply leq_exponential_unique
@@ -68,6 +68,11 @@ apply leq_exponential_unique with (i:=i) (m:=inl tt) (m':=m) (n:=n).
 apply unit_is_least. auto. auto. auto.
 - intros. inversion H. subst. inversion H2. subst. apply inj_pairT2 in H2.
 subst. inversion H1. subst. inversion H1. subst. auto.
+- intros. destruct i. destruct j. destruct (index_equality P i i0).
++ subst. destruct (Nat.eq_dec n n0).
+++ subst. left. auto.
+++ right. unfold not. intros. inversion H. contradiction n1.
++ right. unfold not. intros. inversion H. contradiction n1.
 Defined.
 
 Inductive incompatible_exponential (E : EventStructure) :

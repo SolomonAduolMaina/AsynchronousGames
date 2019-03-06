@@ -42,7 +42,7 @@ Definition compatible E m n := not (incompatible E m n).
 Definition independent E m n := (compatible E m n) /\ (incomparable (P E) m n).
 
 Definition Strategy (G : AsynchronousGame) := 
-(list (M (P (E (A G))))) -> (M (P (E (A G)))).
+(list (M (P (E (A G))))) -> option (M (P (E (A G)))).
 
 Definition positive (G : AsynchronousGame) := 
 finite_payoff_position (A G) nil = (-1)%Z.
@@ -52,10 +52,10 @@ finite_payoff_position (A G) nil = (1)%Z.
 
 Definition strategy_induces_play (G : AsynchronousGame) (sigma : Strategy G) p :=
 (positive G -> (forall n, (Nat.even n = true /\ n <= length p) -> 
-Some (sigma (firstn n p)) = nth_error p n ))
+(sigma (firstn n p)) = nth_error p n))
 /\
 (negative G -> (forall n, (Nat.odd n = true /\ n <= length p) -> 
-Some (sigma (firstn n p)) = nth_error p n )).
+(sigma (firstn n p)) = nth_error p n )).
 
 Fixpoint finite_part A (f : nat -> A) (n : nat) (counter : nat) : list A :=
 match n with
@@ -73,11 +73,11 @@ Definition winning (G : AsynchronousGame) (sigma : Strategy G) :=
 (forall p, strategy_induces_play G sigma p ->
 Z.leb 0%Z (finite_payoff_position (A G) p) = true)
 /\
-(forall f n, strategy_induces_play G sigma (finite_part _ f n 0) ->
+(forall f n, strategy_induces_play G sigma (finite_part _ f n 0) -> 
 Z.leb 0%Z (finite_payoff_position (A G) (finite_part _ f n 0)) = true)
 /\
-(forall w, strategy_induces_path G sigma (fst w) /\ 
-strategy_induces_path G sigma (snd w) ->
+(forall w, (strategy_induces_path G sigma (fst w) /\ 
+strategy_induces_path G sigma (snd w)) ->
 Z.leb 0%Z (finite_payoff_walk (A G) w) = true).
 
 Definition backward_consistent G sigma :=
@@ -89,9 +89,9 @@ forall s1 m1 n1 m2 n2 s2,
 
 Definition forward_consistent (G : AsynchronousGame) (sigma : Strategy G) :=
 forall s1 m1 n1 m2 n2,
-(sigma (s1 ++ (m1 :: nil)) = n1 /\ sigma (s1 ++ (m2 :: nil)) = n2
+(sigma (s1 ++ (m1 :: nil)) = Some n1 /\ sigma (s1 ++ (m2 :: nil)) = Some n2
 /\ independent _ m1 m2 /\ independent _ m2 n1) ->
-(sigma (s1 ++ (m1 :: n1 :: m2 :: nil)) = n2
+(sigma (s1 ++ (m1 :: n1 :: m2 :: nil)) = Some n2
 /\ independent _ m1 n2 /\ independent _ n1 n2).
 
 Definition innocent (G : AsynchronousGame) (sigma : Strategy G) :=

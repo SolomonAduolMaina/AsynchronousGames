@@ -116,6 +116,17 @@ apply leq_sum_right with (i:=i0) (m:=m) (m':=m'0). auto. auto. auto.
 - intros. inversion H.
 + subst. inversion H1. inversion H2. subst. auto.
 + subst. inversion H1. inversion H2. subst. auto.
+- intros. destruct i.
++ destruct j.
+++ destruct (index_equality P i i0).
++++ subst. left. auto.
++++ right. unfold not. intros. inversion H. contradiction n.
+++ right. unfold not. intros. inversion H.
++ destruct j.
+++ right. unfold not. intros. inversion H.
+++ destruct (index_equality Q i i0).
++++ subst. left. auto.
++++ right. unfold not. intros. inversion H. contradiction n.
 Defined.
 
 Inductive incompatible_sum (E F : EventStructure) :
