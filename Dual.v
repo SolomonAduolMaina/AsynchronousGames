@@ -96,11 +96,11 @@ Qed.
 Definition asynchronous_arena_dual (A: AsynchronousArena) 
 : AsynchronousArena.
   refine({| 
-            E := E_def A ;
-            polarity := polarity_def A;
-            finite_payoff_position := finite_payoff_position_def A;
-            finite_payoff_walk := finite_payoff_walk_def A;
-            infinite_payoff := infinite_payoff_def A;
+            E := E A ;
+            polarity m := negb (polarity A m);
+            finite_payoff_position l := Z.sub 0 (finite_payoff_position A l);
+            finite_payoff_walk w := Z.sub 0 (finite_payoff_walk A w);
+            infinite_payoff f inf := (infinite_payoff A f (negb inf));
          |}).
 Proof.
 - apply (initial_payoff_proof A).
@@ -184,10 +184,10 @@ Qed.
 Definition dual (G: AsynchronousGame) 
 : AsynchronousGame.
   refine({| 
-            A := A_def G;
-            X := X_def G;
-            Y := Y_def G;
-            action := action_def G;
+            A := asynchronous_arena_dual (A G) ;
+            X := opposite_group (Y G);
+            Y := opposite_group (X G);
+            action g m h := action G h m g;
          |}).
 Proof. 
 - apply (restriction_to_left_is_action_proof G).
