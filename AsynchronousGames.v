@@ -1,6 +1,6 @@
 Require Import Util.
 Require Import List.
-Require Import ZArith.
+Require Export ZArith.
 Require Import Group.
 
 Record PartialOrder :=
