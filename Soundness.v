@@ -20,12 +20,20 @@ destruct H. destruct H0.
 assert (positive ZERO).
 {unfold positive. simpl. auto. }
 assert ((0 <=? finite_payoff_position (A ZERO) nil)%Z = true).
-{apply H. unfold strategy_induces_play. split.
-+ intros. destruct H4. simpl in H5. assert (n = 0). {lia. }
+{apply H. split.
++ unfold valid_path. simpl. intros. split.
+++ assert (n = 0). lia. subst. unfold valid_position. intros.
+simpl. tauto.
+++ assert (n = 0). lia. subst. intros. lia.
++ unfold alternating. intros. simpl in H3. destruct k.
+++ simpl in H3. destruct H3. inversion H3.
+++ simpl in H3. destruct H3. inversion H3.
++ intros. unfold strategy_induces_play. split.
+++ intros. destruct H4. simpl in H5. assert (n = 0). {lia. }
 subst. simpl. destruct (x nil) eqn:eqn.
-++ destruct m. destruct x0.
-++ auto.
-+ intros. unfold positive in H2. unfold negative in H3.
++++ destruct m. destruct x0.
++++ auto.
+++ intros. unfold positive in H2. unfold negative in H3.
 rewrite H2 in H3. lia. }
 apply Z.leb_le in H3. unfold positive in H2. rewrite H2 in H3. lia.
 Qed.
@@ -38,9 +46,8 @@ winning _ s /\ innocent _ s.
 + subst. simpl. unfold interpret. simpl. unfold game_par.
 unfold tensor. destruct (initial_payoff (A (dual (f s)))).
 ++ destruct (initial_payoff (A (dual (dual (f s))))).
-+++ simpl in *. unfold A_def in e0. unfold finite_payoff_position_def in *.
-simpl in *. unfold finite_payoff_position_def in e0. omega.
-+++ unfold asynchronous_game_tensor_right.
++++ simpl in *. omega.
++++ unfold asynchronous_game_tensor_right. unfold dual. simpl.
 refine (ex_intro _
 (fun l => 
 match l with
