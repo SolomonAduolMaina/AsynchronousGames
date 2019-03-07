@@ -10,82 +10,39 @@ Require Import Sum.
 Require Import Tensor.
 Require Import Exponential.
 
-Definition interpretation := string -> AsynchronousGame.
-
 Inductive empty_type : Type := .
 
-Definition zero_partial_order : PartialOrder.
-refine({| 
+Definition ZERO : AsynchronousGame :=
+        {| 
             I := empty_type;
             N i := empty_type;
             leq m n := True;
-         |}).
-Proof.
-- intros. destruct x. destruct x.
-- intros. destruct x. destruct x.
-- intros. destruct x. destruct x.
-- intros. destruct i.
-- intros. destruct i.
-- intros. destruct i.
-Defined.
 
-Definition zero_event_structure : EventStructure.
-refine({| 
-            P := zero_partial_order;
             incompatible m n := True;
             ideal m := nil;
-         |}).
-Proof.
-- intros. destruct x. destruct x.
-- intros. destruct x. destruct x.
-- intros. destruct x. destruct x.
-- intros. destruct x. destruct x.
-Defined.
 
-Definition zero_asynchronous_arena : AsynchronousArena.
-  refine({| 
-            E := zero_event_structure;
             polarity m := true;
             finite_payoff_position l := (-1)%Z;
             finite_payoff_walk w := 0%Z;
-             infinite_payoff f inf := True
-         |}).
-Proof.
-- intros. left. auto.
-- intros. destruct m. destruct x.
-- intros. destruct m. destruct x.
-- auto.
-Defined.
+            infinite_payoff f inf := True;
+            positive_or_negative := true;
 
-Definition ZERO : AsynchronousGame.
-  refine({| 
-             A := zero_asynchronous_arena;
-             X := trivial_group;
-             Y := trivial_group;
-             action g m h := m
-        |}).
-Proof.
-- intros. unfold left_action. split.
-+ intros. auto.
-+ intros. auto.
-- intros. unfold right_action. split.
-+ intros. auto.
-+ intros. auto.
-- intros. destruct m. destruct x.
-- intros. destruct m. destruct x.
-- intros. destruct i.
-- intros. destruct i.
-Defined.
+            X := trivial_group;
+            Y := trivial_group;
+            action g m h := m
+        |}.
 
 Definition TOP : AsynchronousGame := dual ZERO.
 
-Fact top_is_negative : finite_payoff_position (A TOP) nil = (1)%Z.
-Proof. intros. auto. Qed.
+Fact top_is_negative : positive_or_negative TOP = false%Z.
+Proof. auto. Qed.
 
 Definition ONE : AsynchronousGame :=
 lifting TOP top_is_negative 0%Z.
 
 Definition BOTTOM : AsynchronousGame := dual ONE.
+
+Definition interpretation := string -> AsynchronousGame.
 
 Fixpoint convert (A : formula) (f : interpretation) :
 AsynchronousGame :=

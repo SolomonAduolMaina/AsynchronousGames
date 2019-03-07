@@ -11,37 +11,173 @@ Require Import Group.
 Require Import AsynchronousGames.
 Require Import Lifting.
 
-Inductive leq_sum (P Q : PartialOrder) :
+Definition M_of_sum (P Q: AsynchronousGame) :=
 {i : I P + I Q & (sum unit (match i with
                             | inl i => N P i
                             | inr j => N Q j
-                            end))} ->
-{i : I P + I Q & (sum unit (match i with
-                            | inl i => N P i
-                            | inr j => N Q j
-                            end))} ->
-Prop :=
-| leq_sum_left : forall i m m' a b,
-leq P (existT _ i m) (existT _ i m') ->
-a = (existT _ (inl i) m) ->
-b = (existT _ (inl i) m') ->
-leq_sum P Q a b
-| leq_sum_right : forall i m m' a b,
-leq Q (existT _ i m) (existT _ i m') ->
-a = (existT _ (inr i) m) ->
-b = (existT _ (inr i) m') ->
-leq_sum P Q a b.
+                            end))}.
 
-Definition partial_order_sum (P Q : PartialOrder) : PartialOrder.
-  refine({| 
-            I := (I P) + (I Q);
+Inductive leq_sum (P Q : AsynchronousGame) :
+(M_of_sum P Q) -> (M_of_sum P Q) -> Prop :=
+| leq_sum_left : forall i m m' a b,
+    leq P (existT _ i m) (existT _ i m') ->
+    a = (existT _ (inl i) m) ->
+    b = (existT _ (inl i) m') ->
+    leq_sum P Q a b
+| leq_sum_right : forall i m m' a b,
+    leq Q (existT _ i m) (existT _ i m') ->
+    a = (existT _ (inr i) m) ->
+    b = (existT _ (inr i) m') ->
+    leq_sum P Q a b.
+
+Inductive incompatible_sum (E F : AsynchronousGame) :
+(M_of_sum E F) -> (M_of_sum E F) -> Prop :=
+| incomp_sum_least : forall i i' m m',
+    (i <> i') ->
+    incompatible_sum E F (existT _ i m) (existT _ i' m')
+| incomp_sum_left : forall i m m' a b,
+    incompatible E (existT _ i m) (existT _ i m') ->
+    a = (existT _ (inl i) m) ->
+    b = (existT _ (inl i) m') ->
+    incompatible_sum E F a b
+| incomp_sum_right : forall i m m' a b,
+    incompatible F (existT _ i m) (existT _ i m') ->
+    a = (existT _ (inr i) m) ->
+    b = (existT _ (inr i) m') ->
+    incompatible_sum E F a b.
+
+Fixpoint cast_sum_to_left E F (l : Position (M_of_sum E F)) : Position (M E) :=
+match l with
+    | nil => nil
+    | (existT _ (inl i) m) :: xs => (existT _ i m) :: (cast_sum_to_left E F xs)
+    | (existT _ (inr i) m) :: xs => cast_sum_to_left E F xs
+end.
+
+Fixpoint cast_sum_to_right E F (l : Position (M_of_sum E F)) : Position (M F) :=
+match l with
+    | nil => nil
+    | (existT _ (inr i) m) :: xs => (existT _ i m) :: (cast_sum_to_right E F xs)
+    | (existT _ (inl i) m) :: xs => cast_sum_to_right E F xs
+end.
+
+Definition inl_move_is_projection (A B : AsynchronousGame) 
+(m : (M_of_sum A B)) 
+(m' : M A) : Prop :=
+exists i k, m = existT _ (inl i) k /\ m' = existT _ i k.
+
+Definition inr_move_is_projection (A B : AsynchronousGame) 
+(m : (M_of_sum A B)) 
+(m' : M B) : Prop :=
+exists i k, m = existT _ (inr i) k /\ m' = existT _ i k.
+
+Definition infinite_payoff_right_finite (A B : AsynchronousGame) 
+(f : InfinitePosition (M_of_sum A B) ) 
+(inf : bool) :=
+(exists g, (forall n, inl_move_is_projection A B (f n) (g n)) /\ 
+(infinite_payoff A g inf))
+\/
+(exists g, (forall n, inr_move_is_projection A B (f n) (g n)) /\ 
+(infinite_payoff B g inf)).
+
+
+Definition asynchronous_game_sum_positive (G H: AsynchronousGame) 
+(pos1 : positive_or_negative G = true)
+(pos2 : positive_or_negative H = true) : AsynchronousGame :=
+         {| 
+            I := (I G) + (I H);
             N i := match i with
-                      | inl i => N P i
-                      | inr j => N Q j
+                      | inl i => N G i
+                      | inr j => N H j
                    end;
-            leq := leq_sum P Q;
-         |}).
-Proof. 
+            leq := leq_sum G H;
+
+            incompatible := incompatible_sum G H;
+            ideal m := match m with
+                      | existT _ (inl i) m =>
+                      map (fun x => match x with
+                                    | existT _ i (inl tt) => existT _ (inl i) (inl tt)
+                                    | existT _ i (inr m) => existT _ (inl i) (inr m)
+                      end) (ideal G (existT _ i m))
+                      | existT _ (inr i) m =>
+                      map (fun x => match x with
+                                    | existT _ i (inl tt) => existT _ (inr i) (inl tt)
+                                    | existT _ i (inr m) => existT _ (inr i) (inr m)
+                      end) (ideal H (existT _ i m))
+                      end;
+
+            polarity m := match m with
+                          | existT _ (inl i) m => (polarity G) (existT _ i m)
+                          | existT _ (inr i) m => (polarity H) (existT _ i m)
+                          end;
+            finite_payoff_position l := 
+                let left := (cast_sum_to_left G H l) in
+                if Nat.eqb (length l) (length left) then
+                finite_payoff_position G left else 
+                finite_payoff_position H (cast_sum_to_right G H l);
+            finite_payoff_walk w :=
+              let fp := cast_sum_to_left _ _ (fst (fst w)) in
+              let fm := cast_sum_to_left _ _ (snd (fst w)) in
+              let sp := cast_sum_to_left _ _ (fst (snd w)) in
+              let sm := cast_sum_to_left _ _ (snd (snd w)) in
+              if Nat.eqb (length fm) (length (snd (fst w))) &&
+                 Nat.eqb (length sm) (length (snd (snd w))) then
+              finite_payoff_walk G ((fp, fm), (sp, sm)) else
+              let fp := cast_sum_to_right _ _ (fst (fst w)) in
+              let fm := cast_sum_to_right _ _ (snd (fst w)) in
+              let sp := cast_sum_to_right _ _ (fst (snd w)) in
+              let sm := cast_sum_to_right _ _ (snd (snd w)) in
+              finite_payoff_walk H ((fp, fm), (sp, sm));
+             infinite_payoff f inf := infinite_payoff_right_finite G H f inf;
+            positive_or_negative := true;
+
+             X := product_group (X G) (X H);
+             Y := product_group (Y G) (Y H);
+             action g m h := match m with
+                                | existT _ (inl i) m => 
+                                  (match action G (fst g) (existT _ i m) (fst h) with
+                                    | existT _ i m => existT _ (inl i) m
+                                  end)
+                                | existT _ (inr i) m => 
+                                  (match action H (snd g) (existT _ i m) (snd h) with
+                                    | existT _ i m => existT _ (inr i) m
+                                  end)
+                              end;
+        |}.
+
+Definition asynchronous_game_sum_left (G H: AsynchronousGame) 
+(neg : positive_or_negative G = false)
+(pos : positive_or_negative H = true) : AsynchronousGame :=
+asynchronous_game_sum_positive
+(lifting G neg (1)%Z) H
+(positive_lifting_is_positive G neg (1)%Z) pos.
+
+Definition asynchronous_game_sum_right (G H: AsynchronousGame) 
+(pos : positive_or_negative G = true)
+(neg : positive_or_negative H = false) : AsynchronousGame :=
+asynchronous_game_sum_positive
+G (lifting H neg (1)%Z)
+pos (positive_lifting_is_positive H neg (1)%Z).
+
+Definition asynchronous_game_sum_negative (G H: AsynchronousGame) 
+(neg1 : positive_or_negative G = false)
+(neg2 : positive_or_negative H = false) : AsynchronousGame :=
+asynchronous_game_sum_positive
+(lifting G neg1 (1)%Z)
+(lifting H neg2 (1)%Z)
+(positive_lifting_is_positive G neg1 (1)%Z)
+(positive_lifting_is_positive H neg2 (1)%Z).
+
+Program Definition asynchronous_game_sum (G H: AsynchronousGame) :
+AsynchronousGame :=
+match positive_or_negative G, positive_or_negative H with
+| true, true => asynchronous_game_sum_positive G H eq_refl eq_refl
+| true, false => asynchronous_game_sum_right G H eq_refl eq_refl
+| false, true => asynchronous_game_sum_left G H eq_refl eq_refl
+| false, false => asynchronous_game_sum_negative G H eq_refl eq_refl
+end.
+
+
+(*Proof. 
 - intros. destruct x. destruct x. 
 + apply leq_sum_left with (i:=i) (m:=s) (m':=s).
 ++ apply reflexive.
@@ -129,41 +265,7 @@ apply leq_sum_right with (i:=i0) (m:=m) (m':=m'0). auto. auto. auto.
 +++ right. unfold not. intros. inversion H. contradiction n.
 Defined.
 
-Inductive incompatible_sum (E F : EventStructure) :
-(M (partial_order_sum (P E) (P F))) ->
-(M (partial_order_sum (P E) (P F))) ->
-Prop :=
-| incomp_sum_least : forall i i' m m',
-(i <> i') ->
-incompatible_sum E F (existT _ i m) (existT _ i' m')
-| incomp_sum_left : forall i m m' a b,
-incompatible E (existT _ i m) (existT _ i m') ->
-a = (existT _ (inl i) m) ->
-b = (existT _ (inl i) m') ->
-incompatible_sum E F a b
-| incomp_sum_right : forall i m m' a b,
-incompatible F (existT _ i m) (existT _ i m') ->
-a = (existT _ (inr i) m) ->
-b = (existT _ (inr i) m') ->
-incompatible_sum E F a b.
 
-Definition event_structure_sum (E F : EventStructure) : EventStructure.
-  refine({| 
-            P := partial_order_sum (P E) (P F);
-            incompatible := incompatible_sum E F;
-            ideal m := match m with
-                      | existT _ (inl i) m =>
-                      map (fun x => match x with
-                                    | existT _ i (inl tt) => existT _ (inl i) (inl tt)
-                                    | existT _ i (inr m) => existT _ (inl i) (inr m)
-                      end) (ideal E (existT _ i m))
-                      | existT _ (inr i) m =>
-                      map (fun x => match x with
-                                    | existT _ i (inl tt) => existT _ (inr i) (inl tt)
-                                    | existT _ i (inr m) => existT _ (inr i) (inr m)
-                      end) (ideal F (existT _ i m))
-                      end;
-         |}).
 Proof.
 - intros. inversion H.
 + subst. apply incomp_sum_least. auto.
@@ -259,23 +361,7 @@ apply incompatible_closed with (existT (fun i : I (P F) => (unit + N (P F) i)%ty
 auto. auto. auto.
 Defined.
 
-Fixpoint cast_sum_to_left E F (l : Position (event_structure_sum E F))
-: Position E :=
-match l with
-| nil => nil
-| (existT _ (inl i) m) :: xs
-=> (existT _ i m) :: (cast_sum_to_left E F xs)
-| (existT _ (inr i) m) :: xs => cast_sum_to_left E F xs
-end.
 
-Fixpoint cast_sum_to_right E F (l : Position (event_structure_sum E F))
-: Position F :=
-match l with
-| nil => nil
-| (existT _ (inr i) m) :: xs
-=> (existT _ i m) :: (cast_sum_to_right E F xs)
-| (existT _ (inl i) m) :: xs => cast_sum_to_right E F xs
-end.
 
 Fact initial_in_sum_is_initial :
 forall E F m, initial_move (P (event_structure_sum E F)) m <->
@@ -373,56 +459,7 @@ inversion H5. subst. apply inj_pairT2 in H5. subst. refine (ex_intro _ (inr x) _
 auto.
 Defined.
 
-Definition inl_move_is_projection (A B : AsynchronousArena) 
-(m : M (P (event_structure_sum (E A) (E B)))) 
-(m' : M (P (E A))) : Prop :=
-exists i k, m = existT _ (inl i) k /\ m' = existT _ i k.
 
-Definition inr_move_is_projection (A B : AsynchronousArena) 
-(m : M (P (event_structure_sum (E A) (E B)))) 
-(m' : M (P (E B))) : Prop :=
-exists i k, m = existT _ (inr i) k /\ m' = existT _ i k.
-
-Definition infinite_payoff_right_finite (A B : AsynchronousArena) 
-(f : nat -> M (P (event_structure_sum (E A) (E B))) ) 
-(inf : bool) :=
-(exists g, (forall n, inl_move_is_projection A B (f n) (g n)) /\ 
-(infinite_payoff A g inf))
-\/
-(exists g, (forall n, inr_move_is_projection A B (f n) (g n)) /\ 
-(infinite_payoff B g inf)).
-
-
-Definition asynchronous_arena_sum (A B : AsynchronousArena) 
-(positive1 : (finite_payoff_position A) nil = (-1)%Z)
-(positive2 : (finite_payoff_position B) nil = (-1)%Z)
-: AsynchronousArena.
-  refine({| 
-            E := event_structure_sum (E A) (E B);
-            polarity m := match m with
-                          | existT _ (inl i) m => (polarity A) (existT _ i m)
-                          | existT _ (inr i) m => (polarity B) (existT _ i m)
-                          end;
-            finite_payoff_position l := 
-                let left := (cast_sum_to_left (E A) (E B) l) in
-                if Nat.eqb (length l) (length left) then
-                finite_payoff_position A left else 
-                finite_payoff_position B (cast_sum_to_right (E A) (E B) l);
-            finite_payoff_walk w :=
-              let fp := cast_sum_to_left _ _ (fst (fst w)) in
-              let fm := cast_sum_to_left _ _ (snd (fst w)) in
-              let sp := cast_sum_to_left _ _ (fst (snd w)) in
-              let sm := cast_sum_to_left _ _ (snd (snd w)) in
-              if Nat.eqb (length fm) (length (snd (fst w))) &&
-                 Nat.eqb (length sm) (length (snd (snd w))) then
-              finite_payoff_walk A ((fp, fm), (sp, sm)) else
-              let fp := cast_sum_to_right _ _ (fst (fst w)) in
-              let fm := cast_sum_to_right _ _ (snd (fst w)) in
-              let sp := cast_sum_to_right _ _ (fst (snd w)) in
-              let sm := cast_sum_to_right _ _ (snd (snd w)) in
-              finite_payoff_walk B ((fp, fm), (sp, sm));
-             infinite_payoff f inf := infinite_payoff_right_finite A B f inf
-         |}).
 Proof.
 - left. auto.
 - intros. flatten_all.
@@ -455,25 +492,7 @@ apply polarity_second in H1. apply H1 in H0. auto. lia.
 apply initial_null. auto.
 Defined.
 
-Definition asynchronous_game_sum_positive (G H: AsynchronousGame) 
-(pos1 : (finite_payoff_position (A G)) nil = (-1)%Z)
-(pos2 : (finite_payoff_position (A H)) nil = (-1)%Z)
-: AsynchronousGame.
-  refine({| 
-             A := asynchronous_arena_sum (A G) (A H) pos1 pos2;
-             X := product_group (X G) (X H);
-             Y := product_group (Y G) (Y H);
-             action g m h := match m with
-                                | existT _ (inl i) m => 
-                                  (match action G (fst g) (existT _ i m) (fst h) with
-                                    | existT _ i m => existT _ (inl i) m
-                                  end)
-                                | existT _ (inr i) m => 
-                                  (match action H (snd g) (existT _ i m) (snd h) with
-                                    | existT _ i m => existT _ (inr i) m
-                                  end)
-                              end;
-        |}).
+
 Proof.
 - split.
 + intros. flatten_all. subst.
@@ -611,39 +630,4 @@ existT (fun i : I (P (E (A H))) => (unit + N (P (E (A H))) i)%type) k (inr k1)).
 destruct H0. destruct H0. rewrite e in H0. inversion H0. subst. apply inj_pairT2 in H3. subst.
 refine (ex_intro _ x1 _). auto.
 Defined.
-
-Definition asynchronous_game_sum_left (G H: AsynchronousGame) 
-(neg : (finite_payoff_position (A G)) nil = (1)%Z)
-(pos : (finite_payoff_position (A H)) nil = (-1)%Z) : AsynchronousGame :=
-asynchronous_game_sum_positive
-(lifting G neg (1)%Z)
-H
-(positive_lifting_is_positive G neg (1)%Z)
-pos.
-
-Definition asynchronous_game_sum_right (G H: AsynchronousGame) 
-(pos : (finite_payoff_position (A G)) nil = (-1)%Z)
-(neg : (finite_payoff_position (A H)) nil = (1)%Z) : AsynchronousGame :=
-asynchronous_game_sum_positive
-G
-(lifting H neg (1)%Z)
-pos
-(positive_lifting_is_positive H neg (1)%Z).
-
-Definition asynchronous_game_sum_negative (G H: AsynchronousGame) 
-(neg1 : (finite_payoff_position (A G)) nil = (1)%Z)
-(neg2 : (finite_payoff_position (A H)) nil = (1)%Z) : AsynchronousGame :=
-asynchronous_game_sum_positive
-(lifting G neg1 (1)%Z)
-(lifting H neg2 (1)%Z)
-(positive_lifting_is_positive G neg1 (1)%Z)
-(positive_lifting_is_positive H neg2 (1)%Z).
-
-Definition asynchronous_game_sum (G H: AsynchronousGame) :
-AsynchronousGame :=
-match initial_payoff (A G), initial_payoff (A H) with
-| left p, left p' => asynchronous_game_sum_positive G H p p'
-| left p, right p' => asynchronous_game_sum_right G H p p'
-| right p, left p' => asynchronous_game_sum_left G H p p'
-| right p, right p' => asynchronous_game_sum_negative G H p p'
-end.
+*)

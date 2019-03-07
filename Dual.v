@@ -9,7 +9,27 @@ Require Import Bool.Bool.
 Require Import Group.
 Require Import AsynchronousGames.
 
-Definition E_def (A : AsynchronousArena) := E A.
+Definition dual (G: AsynchronousGame) : AsynchronousGame :=
+         {| 
+            I := I G;
+            N := N G;
+            leq := leq G;
+
+            incompatible := incompatible G;
+            ideal := ideal G;
+
+            polarity m := negb (polarity G m);
+            finite_payoff_position l := Z.sub 0 (finite_payoff_position G l);
+            finite_payoff_walk w := Z.sub 0 (finite_payoff_walk G w);
+            infinite_payoff f inf := (infinite_payoff G f (negb inf));
+            positive_or_negative := negb (positive_or_negative G);
+
+            X := opposite_group (Y G);
+            Y := opposite_group (X G);
+            action g m h := action G h m g;
+         |}.
+
+(* Definition E_def (A : AsynchronousArena) := E A.
 
 Definition polarity_def (A : AsynchronousArena) :=
 fun m => negb (polarity A m).
@@ -91,25 +111,11 @@ Proof. intros. simpl.
 assert ((- finite_payoff_walk A w)%Z = 0%Z <->
 (finite_payoff_walk A w)%Z = 0%Z).
 {lia. } apply H0. apply initial_null. auto.
-Qed.
+Qed.*)
 
-Definition asynchronous_arena_dual (A: AsynchronousArena) 
-: AsynchronousArena.
-  refine({| 
-            E := E A ;
-            polarity m := negb (polarity A m);
-            finite_payoff_position l := Z.sub 0 (finite_payoff_position A l);
-            finite_payoff_walk w := Z.sub 0 (finite_payoff_walk A w);
-            infinite_payoff f inf := (infinite_payoff A f (negb inf));
-         |}).
-Proof.
-- apply (initial_payoff_proof A).
-- apply (polarity_first_proof A).
-- apply (polarity_second_proof A).
-- apply (initial_null_proof A).
-Defined.
 
-Definition A_def (G: AsynchronousGame) := asynchronous_arena_dual (A G).
+
+(*Definition A_def (G: AsynchronousGame) := asynchronous_arena_dual (A G).
 
 Definition X_def (G: AsynchronousGame) := opposite_group (Y G).
 
@@ -180,20 +186,5 @@ forall i g h m,
 Proof.
 intros. apply action_preserves_non_initial.
 Qed.
+*)
 
-Definition dual (G: AsynchronousGame) 
-: AsynchronousGame.
-  refine({| 
-            A := asynchronous_arena_dual (A G) ;
-            X := opposite_group (Y G);
-            Y := opposite_group (X G);
-            action g m h := action G h m g;
-         |}).
-Proof. 
-- apply (restriction_to_left_is_action_proof G).
-- apply (restriction_to_right_is_action_proof G).
-- apply (coherence_1_proof G).
-- apply (coherence_2_proof G).
-- apply (action_preserves_initial_proof G).
-- apply (action_preserves_non_initial_proof G).
-Defined.

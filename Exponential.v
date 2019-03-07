@@ -11,22 +11,171 @@ Require Import Group.
 Require Import AsynchronousGames.
 Require Import Lifting.
 
-Inductive leq_exponential (P : PartialOrder) :
-{i : ((I P) * nat) & (sum unit (N P (fst i))) } ->
-{i : ((I P) * nat) & (sum unit (N P (fst i))) } ->
-Prop :=
-| leq_exponential_unique : forall i m m' n a b,
-leq P (existT _ i m) (existT _ i m') ->
-a = (existT _ (i, n) m) ->
-b = (existT _ (i, n) m') ->
-leq_exponential P a b.
+Definition M_of_exp (G : AsynchronousGame) :=
+{i : ((I G) * nat) & (sum unit (N G (fst i))) }.
 
-Definition partial_order_exponential (P : PartialOrder) : PartialOrder.
-  refine({| 
-            I := (I P) * nat;
-            N x := N P (fst x);
-            leq := leq_exponential P;
-         |}).
+Inductive leq_exponential (P : AsynchronousGame) :
+(M_of_exp P) -> (M_of_exp P) -> Prop :=
+| leq_exponential_unique : forall i m m' n a b,
+    leq P (existT _ i m) (existT _ i m') ->
+    a = (existT _ (i, n) m) ->
+    b = (existT _ (i, n) m') ->
+    leq_exponential P a b.
+
+Inductive incompatible_exponential (E : AsynchronousGame) :
+(M_of_exp E) -> (M_of_exp E) -> Prop :=
+| incomp_exponential_unique : forall i m m' n a b,
+    incompatible E (existT _ i m) (existT _ i m') ->
+    a = (existT _ (i,n) m) ->
+    b = (existT _ (i,n) m') ->
+    incompatible_exponential E a b.
+
+Fixpoint project_exponential E (l : list (M_of_exp E))
+: (list nat) * (nat -> (Position (M E))) :=
+match l with
+| nil => (nil, fun _ => nil)
+| (existT _ (i,n) m) :: xs => 
+  let (is, f) := project_exponential E xs in
+    (match (in_dec Nat.eq_dec n is) with
+    | left _ => (is, fun s => if Nat.eqb s n then (existT _ i m) :: (f s) else f s)
+    | right _ => (n::is, fun s => if Nat.eqb s n then (existT _ i m) :: (f s) else f s)
+end)
+end.
+
+Definition tensor_nat (p q : Z) :=
+if Z.ltb p 0 then 
+(if Z.ltb q 0 then Z.add p q else p)
+else
+(if Z.ltb q 0 then q else Z.add p q).
+
+Fixpoint exponential_walk_payoff A (l1 l2 l3 l4 : list (list (M A))) : Z :=
+match l1, l2, l3, l4 with
+| x1 :: xs1, x2 :: xs2, x3 :: xs3, x4 :: xs4 =>
+tensor_nat (finite_payoff_walk A ((x1, x2), (x3, x4))) (exponential_walk_payoff A xs1 xs2 xs3 xs4)
+| _, _, _, _ => 0%Z
+end.
+
+Definition exponential_move_is_in_n (A: AsynchronousGame) 
+(m : (M_of_exp A)) (n : nat) : Prop :=
+match m with
+| existT _ (i, k) _ => k = n
+end.
+
+Definition exponential_move_is_projection (A: AsynchronousGame) 
+(m : (M_of_exp A)) (m' : M A) : Prop :=
+exists i n k, m = existT _ (i,n) k /\ m' = existT _ i k.
+
+Definition infinite_projection_to_n
+(A : AsynchronousGame) 
+(f : InfinitePosition (M_of_exp A))
+(g : InfinitePosition (M A))
+(n : nat) :=
+exists (h : nat -> nat),
+(forall m, 
+(exponential_move_is_in_n A (f m) n -> 
+(exists k, m = h k /\ exponential_move_is_projection A (f (h k)) (g k) ))).
+
+Definition finite_projection_to_n
+(A : AsynchronousGame) 
+(f : InfinitePosition (M_of_exp A))
+(g : Position (M A))
+(n : nat) :=
+exists (h : list nat),
+(forall m, 
+(exponential_move_is_in_n A (f m) n -> 
+(exists index move, index_of m h = Some index /\ nth_error g index = Some move /\
+exponential_move_is_projection A (f m) move))).
+
+Definition minus_infinity_exists (A : AsynchronousGame) 
+(f : InfinitePosition (M_of_exp A)) :=
+exists n g, infinite_projection_to_n A f g n /\ (infinite_payoff A g false).
+
+Definition plus_infinity_exists (A : AsynchronousGame) 
+(f : InfinitePosition (M_of_exp A) ) :=
+exists n g, infinite_projection_to_n A f g n /\ (infinite_payoff A g true).
+
+Definition finite_negative_exists (A : AsynchronousGame) 
+(f : InfinitePosition (M_of_exp A)) :=
+exists g n, finite_projection_to_n A f g n /\ 
+Z.lt (finite_payoff_walk A ((nil, nil),(nil, g))) 0%Z.
+
+Definition all_finite_and_positive (A : AsynchronousGame) 
+(f : InfinitePosition (M_of_exp A)) :=
+forall n, exists g, finite_projection_to_n A f g n /\ 
+Z.le 0%Z (finite_payoff_walk A ((nil, nil),(nil, g))).
+
+Definition infinite_payoff_exponential (A : AsynchronousGame) 
+(f : InfinitePosition (M_of_exp A) ) 
+(inf : bool) :=
+if inf then (~(minus_infinity_exists A f)) /\
+(plus_infinity_exists A f \/ all_finite_and_positive A f)
+else (minus_infinity_exists A f) \/
+(~(plus_infinity_exists A f) /\ finite_negative_exists A f).
+
+Definition asynchronous_game_exponential_positive (G: AsynchronousGame) 
+(pos1 : positive_or_negative G = true)
+: AsynchronousGame :=
+        {| 
+            I := (I G) * nat;
+            N x := N G (fst x);
+            leq := leq_exponential G;
+
+            incompatible := incompatible_exponential G;
+            ideal m := match m with
+                      | existT _ (i, n) m =>
+                      map (fun x => match x with
+                                    | existT _ i (inl tt) => existT _ (i, n) (inl tt)
+                                    | existT _ i (inr m) => existT _ (i, n) (inr m)
+                          end) (ideal G (existT _ i m))
+                      end;
+
+            polarity m := match m with
+                          | existT _ (i,n) m => polarity G (existT _ i m)
+                          end;
+            finite_payoff_position l :=  
+              match l with
+                | nil => (-1)%Z
+                | _ => let (l, f) := project_exponential _ l in
+                       let l := map f l in 
+                       let l := map (finite_payoff_position G) l in
+                       fold_right tensor_nat 0%Z l
+              end;
+            finite_payoff_walk w :=
+              let (l_fp, f_fp) := project_exponential _ (fst (fst w)) in
+              let l_fp := map f_fp l_fp in
+              let (l_fm, f_fm) := project_exponential _ (snd (fst w)) in
+              let l_fm := map f_fm l_fm in
+              let (l_sp, f_sp) := project_exponential _ (fst (snd w)) in
+              let l_sp := map f_sp l_sp in
+              let (l_sm, f_sm) := project_exponential _ (snd (snd w)) in
+              let l_sm := map f_sm l_sm in
+              exponential_walk_payoff G l_fp l_fm l_sp l_sm;
+            infinite_payoff f inf := infinite_payoff_exponential G f inf;
+            positive_or_negative := true;
+
+             X := indexed_product_group (X G) nat;
+             Y := wreath_product (Y G);
+             action g move h := 
+                match move,h with
+                  | existT _ (i,n) m, (f, exist _ (pi,_) _) =>
+                    (match action G (g n) (existT _ i m) (f n) with
+                      | existT _ i m => existT _ (i, pi n) m
+                     end)
+                end;
+        |}.
+
+Definition asynchronous_game_exponential_negative (G: AsynchronousGame) 
+(neg : positive_or_negative G = false) : AsynchronousGame :=
+asynchronous_game_exponential_positive
+(lifting G neg (1)%Z)
+(positive_lifting_is_positive G neg (1)%Z).
+
+Program Definition exponential (G : AsynchronousGame) : AsynchronousGame := 
+match positive_or_negative G with
+| true => asynchronous_game_exponential_positive G eq_refl
+| false => asynchronous_game_exponential_negative G eq_refl
+end.
+(*
 Proof. 
 - intros. destruct x. destruct x. apply leq_exponential_unique
 with (i:=i) (m:=s) (m':=s) (n:=n). apply reflexive. auto. auto.
@@ -75,28 +224,7 @@ subst. inversion H1. subst. inversion H1. subst. auto.
 + right. unfold not. intros. inversion H. contradiction n1.
 Defined.
 
-Inductive incompatible_exponential (E : EventStructure) :
-(M (partial_order_exponential (P E))) ->
-(M (partial_order_exponential (P E))) ->
-Prop :=
-| incomp_exponential_unique : forall i m m' n a b,
-incompatible E (existT _ i m) (existT _ i m') ->
-a = (existT _ (i,n) m) ->
-b = (existT _ (i,n) m') ->
-incompatible_exponential E a b.
 
-Definition event_structure_exponential (E : EventStructure) : EventStructure.
-  refine({| 
-            P := partial_order_exponential (P E);
-            incompatible := incompatible_exponential E;
-            ideal m := match m with
-                      | existT _ (i, n) m =>
-                      map (fun x => match x with
-                                    | existT _ i (inl tt) => existT _ (i, n) (inl tt)
-                                    | existT _ i (inr m) => existT _ (i, n) (inr m)
-                          end) (ideal E (existT _ i m))
-                      end;
-         |}).
 Proof.
 - intros. inversion H. subst. apply incomp_exponential_unique with
 (i:=i) (m:=m') (m':=m) (n:=n). apply symmetric. auto. auto. auto.
@@ -173,116 +301,7 @@ apply initial_is_unit in H3. destruct H3. inversion H3. subst. apply inj_pairT2 
 apply initial_is_unit. refine (ex_intro _ (x2,x0) _). auto.
 Qed.
 
-Fixpoint project_exponential E (l : list (M (P (event_structure_exponential E))))
-: (list nat) * (nat -> list (M (P E))) :=
-match l with
-| nil => (nil, fun _ => nil)
-| (existT _ (i,n) m) :: xs
-=> let (is, f) := project_exponential E xs in
-(match (in_dec Nat.eq_dec n is) with
-| left _ => (is, fun s => if Nat.eqb s n then (existT _ i m) :: (f s) else f s)
-| right _ => (n::is, fun s => if Nat.eqb s n then (existT _ i m) :: (f s) else f s)
-end)
-end.
 
-Definition tensor_nat (p q : Z) :=
-if Z.ltb p 0 then 
-(if Z.ltb q 0 then Z.add p q else p)
-else
-(if Z.ltb q 0 then q else Z.add p q).
-
-Fixpoint exponential_walk_payoff A (l1 l2 l3 l4 : list (list (M (P (E A))))) : Z :=
-match l1, l2, l3, l4 with
-| x1 :: xs1, x2 :: xs2, x3 :: xs3, x4 :: xs4 =>
-tensor_nat (finite_payoff_walk A ((x1, x2), (x3, x4))) (exponential_walk_payoff A xs1 xs2 xs3 xs4)
-| _, _, _, _ => 0%Z
-end.
-
-Definition exponential_move_is_in_n (A: AsynchronousArena) 
-(m : M (P (event_structure_exponential (E A)))) (n : nat) : Prop :=
-match m with
-| existT _ (i, k) _ => k = n
-end.
-
-Definition exponential_move_is_projection (A: AsynchronousArena) 
-(m : M (P (event_structure_exponential (E A)))) (m' : M (P (E A))) : Prop :=
-exists i n k, m = existT _ (i,n) k /\ m' = existT _ i k.
-
-Definition infinite_projection_to_n
-(A : AsynchronousArena) 
-(f : nat -> M (P (event_structure_exponential (E A))))
-(g : (nat -> (M (P (E A)))))
-(n : nat) :=
-exists (h : nat -> nat),
-(forall m, 
-(exponential_move_is_in_n A (f m) n -> 
-(exists k, m = h k /\ exponential_move_is_projection A (f (h k)) (g k) ))).
-
-Definition finite_projection_to_n
-(A : AsynchronousArena) 
-(f : nat -> M (P (event_structure_exponential (E A))))
-(g : list (M (P (E A))))
-(n : nat) :=
-exists (h : list nat),
-(forall m, 
-(exponential_move_is_in_n A (f m) n -> 
-(exists index move, index_of m h = Some index /\ nth_error g index = Some move /\
-exponential_move_is_projection A (f m) move))).
-
-Definition minus_infinity_exists (A : AsynchronousArena) 
-(f : nat -> M (P (event_structure_exponential (E A))) ) :=
-exists n g, infinite_projection_to_n A f g n /\ (infinite_payoff A g false).
-
-Definition plus_infinity_exists (A : AsynchronousArena) 
-(f : nat -> M (P (event_structure_exponential (E A))) ) :=
-exists n g, infinite_projection_to_n A f g n /\ (infinite_payoff A g true).
-
-Definition finite_negative_exists (A : AsynchronousArena) 
-(f : nat -> M (P (event_structure_exponential (E A)))) :=
-exists g n, finite_projection_to_n A f g n /\ 
-Z.lt (finite_payoff_walk A ((nil, nil),(nil, g))) 0%Z.
-
-Definition all_finite_and_positive (A : AsynchronousArena) 
-(f : nat -> M (P (event_structure_exponential (E A)))) :=
-forall n, exists g, finite_projection_to_n A f g n /\ 
-Z.le 0%Z (finite_payoff_walk A ((nil, nil),(nil, g))).
-
-Definition infinite_payoff_exponential (A : AsynchronousArena) 
-(f : nat -> M (P (event_structure_exponential (E A))) ) 
-(inf : bool) :=
-if inf then (~(minus_infinity_exists A f)) /\
-(plus_infinity_exists A f \/ all_finite_and_positive A f)
-else (minus_infinity_exists A f) \/
-(~(plus_infinity_exists A f) /\ finite_negative_exists A f).
-
-Definition asynchronous_arena_exponential (A : AsynchronousArena) 
-(positive1 : (finite_payoff_position A) nil = (-1)%Z)
-: AsynchronousArena.
-  refine({| 
-            E := event_structure_exponential (E A);
-            polarity m := match m with
-                          | existT _ (i,n) m => polarity A (existT _ i m)
-                          end;
-            finite_payoff_position l :=  
-              match l with
-                | nil => (-1)%Z
-                | _ => let (l, f) := project_exponential _ l in
-                       let l := map f l in 
-                       let l := map (finite_payoff_position A) l in
-                       fold_right tensor_nat 0%Z l
-              end;
-            finite_payoff_walk w :=
-              let (l_fp, f_fp) := project_exponential _ (fst (fst w)) in
-              let l_fp := map f_fp l_fp in
-              let (l_fm, f_fm) := project_exponential _ (snd (fst w)) in
-              let l_fm := map f_fm l_fm in
-              let (l_sp, f_sp) := project_exponential _ (fst (snd w)) in
-              let l_sp := map f_sp l_sp in
-              let (l_sm, f_sm) := project_exponential _ (snd (snd w)) in
-              let l_sm := map f_sm l_sm in
-              exponential_walk_payoff A l_fp l_fm l_sp l_sm;
-            infinite_payoff f inf := infinite_payoff_exponential A f inf
-         |}).
 Proof.
 - left. auto.
 - intros. destruct m. apply initial_is_unit in H. destruct H. inversion H. subst.
@@ -298,21 +317,7 @@ destruct (project_exponential (E A) p). destruct (project_exponential (E A) p0).
 destruct (map l0 l); destruct (map l2 l1); simpl; auto.
 Defined.
 
-Definition asynchronous_game_exponential_positive (G: AsynchronousGame) 
-(pos1 : (finite_payoff_position (A G)) nil = (-1)%Z)
-: AsynchronousGame.
-  refine({| 
-             A := asynchronous_arena_exponential (A G) pos1;
-             X := indexed_product_group (X G) nat;
-             Y := wreath_product (Y G);
-             action g move h := 
-                match move,h with
-                  | existT _ (i,n) m, (f, exist _ (pi,_) _) =>
-                    (match action G (g n) (existT _ i m) (f n) with
-                      | existT _ i m => existT _ (i, pi n) m
-                     end)
-                end;
-        |}).
+
 Proof.
 - unfold left_action. split.
 + intros. destruct x. destruct x. simpl.
@@ -400,17 +405,4 @@ destruct H. destruct H. rewrite e3 in H. inversion H. subst. apply inj_pairT2 in
 subst. refine (ex_intro _ (x, n0 n) _). refine (ex_intro _ x1 _). auto.
 Defined.
 
-Definition asynchronous_game_exponential_negative (G: AsynchronousGame) 
-(neg : (finite_payoff_position (A G)) nil = (1)%Z) : AsynchronousGame :=
-asynchronous_game_exponential_positive
-(lifting G neg (1)%Z)
-(positive_lifting_is_positive G neg (1)%Z).
-
-Definition exponential (G : AsynchronousGame) :
-AsynchronousGame :=
-match initial_payoff (A G) with
-| left p => asynchronous_game_exponential_positive G p
-| right p => asynchronous_game_exponential_negative G p
-end.
-
-
+*)
