@@ -96,6 +96,37 @@ end) : Strategy (dual (asynchronous_game_tensor_positive (lifting (dual a) 1) a)
 apply s.
 Defined.
 
+Fact copycat_never_stalls (G : AsynchronousGame) :
+strategy_never_stalls (dual (tensor (dual G) (dual (dual G)))) (copycat_strategy G).
+Proof. unfold strategy_never_stalls. split.
++ intros. destruct G. rewrite unfold_dual in *. 
+remember
+{|
+            A := asynchronous_arena_dual A;
+            X := opposite_group Y;
+            Y := opposite_group X;
+            action := fun (g : G (opposite_group Y)) (m : M (P (E (asynchronous_arena_dual A)))) (h : G (opposite_group X))
+                      => action h m g |}.
+unfold tensor in H. destruct (positive_or_negative (AsynchronousGames.A a)) eqn:eqn1.
+++ unfold positive in H. simpl in H. rewrite eqn1 in H. simpl in H. inversion H.
+++ unfold positive in H. simpl in H. rewrite eqn1 in H. simpl in H. inversion H.
++ intros. destruct G. rewrite unfold_dual in *. 
+remember
+{|
+            A := asynchronous_arena_dual A;
+            X := opposite_group Y;
+            Y := opposite_group X;
+            action := fun (g : G (opposite_group Y)) (m : M (P (E (asynchronous_arena_dual A)))) (h : G (opposite_group X))
+                      => action h m g |}.
+unfold tensor in H. rewrite odd_equiv in H0. unfold Nat.Odd in H0. destruct H0.
+assert (exists k xs, p = k :: xs).
+{destruct p.
++ simpl in H0. lia.
++ simpl. refine (ex_intro _ m _). refine (ex_intro _ p _). auto.
+} destruct H1. destruct H1. subst p. destruct x0. unfold copycat_strategy.
+
+
+
 Theorem conversion_is_sound :
 forall (l : sequent) (f : interpretation),
 (forall l, well_formed_asynchronousgame (interpret l f)) ->
@@ -105,4 +136,5 @@ winning _ s /\ innocent _ s /\ uniform _ s.
 assert (well_formed_asynchronousgame (interpret l f)).
 {apply H. } induction H0.
 + subst. simpl. unfold interpret. simpl. unfold game_par.
-refine (ex_intro _ (copycat_strategy (f s)) _).
+refine (ex_intro _ (copycat_strategy (f s)) _). unfold interpret in H1.
+simpl in H1. unfold game_par in H1.
