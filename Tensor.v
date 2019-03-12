@@ -28,13 +28,245 @@ a = (existT _ (i, j) (inr (inr m))) ->
 b = (existT _ (i, j) (inr (inr m'))) ->
 leq_tensor P Q a b.
 
-Definition partial_order_tensor (P Q : PartialOrder) : PartialOrder.
-  refine({| 
+Definition partial_order_tensor (P Q : PartialOrder) : PartialOrder :=
+         {| 
             I := (I P) * (I Q);
             N x := sum (N P (fst x)) (N Q (snd x));
             leq := leq_tensor P Q;
-         |}).
-Proof. 
+         |}.
+
+Inductive incompatible_tensor (E F : EventStructure) :
+(M (partial_order_tensor (P E) (P F))) ->
+(M (partial_order_tensor (P E) (P F))) ->
+Prop :=
+| incomp_tensor_least : forall i j i' j' m m',
+((i <> i') \/ (j <> j')) ->
+incompatible_tensor E F (existT _ (i, j) m) (existT _ (i', j') m')
+| incomp_tensor_left : forall index m m' a b,
+incompatible E (existT _ (fst index) (inr m)) 
+(existT _ (fst index) (inr m')) ->
+a = (existT _ index (inr (inl m))) ->
+b = (existT _ index (inr (inl m'))) ->
+incompatible_tensor E F a b
+| incomp_tensor_right : forall index m m' a b, 
+incompatible F (existT _ (snd index) (inr m)) 
+(existT _ (snd index) (inr m')) ->
+a = (existT _ index (inr (inr m))) ->
+b = (existT _ index (inr (inr m'))) ->
+incompatible_tensor E F a b.
+
+Definition event_structure_tensor (E F : EventStructure) : EventStructure :=
+        {| 
+            P := partial_order_tensor (P E) (P F);
+            incompatible := incompatible_tensor E F;
+            ideal m := match m with
+                      | existT _ (i, j) (inl tt) => (existT _ (i, j) (inl tt)) :: nil
+                      | existT _ (i, j) (inr (inl m)) =>
+                      map (fun x => match x with
+                                    | existT _ i (inl tt) => existT _ (i, j) (inl tt)
+                                    | existT _ i (inr m) => existT _ (i, j) (inr (inl m))
+                      end) (ideal E (existT _ i (inr m)))
+                      | existT _ (i, j) (inr (inr m)) =>
+                      map (fun x => match x with
+                                    | existT _ j (inl tt) => existT _ (i, j) (inl tt)
+                                    | existT _ j (inr m) => existT _ (i, j) (inr (inr m))
+                                    end) (ideal F (existT _ j (inr m)))
+                      end;
+         |}.
+
+Fixpoint cast_tensor_to_left E F (l : Position (event_structure_tensor E F))
+: Position E :=
+match l with
+| nil => nil
+| (existT _ (i,j) (inl tt)) :: xs
+=> (existT _ i (inl tt)) :: (cast_tensor_to_left E F xs)
+| (existT _ (i,j) (inr (inl m))) :: xs
+=> (existT _ i (inr m)) :: (cast_tensor_to_left E F xs)
+| (existT _ i (inr (inr _))) :: xs
+=> cast_tensor_to_left E F xs
+end.
+
+Fixpoint cast_tensor_to_right E F (l : Position (event_structure_tensor E F))
+: Position F :=
+match l with
+| nil => nil
+| (existT _ (i,j) (inl tt)) :: xs
+=> (existT _ j (inl tt)) :: (cast_tensor_to_right E F xs)
+| (existT _ (i,j) (inr (inr m))) :: xs
+=> (existT _ j (inr m)) :: (cast_tensor_to_right E F xs)
+| (existT _ i (inr (inl _))) :: xs
+=> cast_tensor_to_right E F xs
+end.
+
+Definition tensor_nat (p q : Z) :=
+if Z.ltb p 0 then 
+(if Z.ltb q 0 then Z.add p q else p)
+else
+(if Z.ltb q 0 then q else Z.add p q).
+
+Definition tensor_move_is_inl (A B : AsynchronousArena) 
+(m : M (P (event_structure_tensor (E A) (E B)))) : Prop :=
+match m with
+| existT _ _ (inl tt) => True
+| existT _ _ (inr (inl _)) => True
+| _ => False
+end.
+
+Definition tensor_move_is_inr (A B : AsynchronousArena) 
+(m : M (P (event_structure_tensor (E A) (E B)))) : Prop :=
+match m with
+| existT _ _ (inl tt) => True
+| existT _ _ (inr (inr _)) => True
+| _ => False
+end.
+
+Definition inl_move_is_projection (A B : AsynchronousArena) 
+(m : M (P (event_structure_tensor (E A) (E B)))) 
+(m' : M (P (E A))) : Prop :=
+(exists i, m = existT _ i (inl tt) /\ m' = existT _ (fst i) (inl tt))
+\/
+(exists i k, m = existT _ i (inr (inl k)) /\ m' = existT _ (fst i) (inr k)).
+
+Definition inr_move_is_projection (A B : AsynchronousArena) 
+(m : M (P (event_structure_tensor (E A) (E B)))) 
+(m' : M (P (E B))) : Prop :=
+(exists i, m = existT _ i (inl tt) /\ m' = existT _ (snd i) (inl tt))
+\/
+(exists i k, m = existT _ i (inr (inr k)) /\ m' = existT _ (snd i) (inr k)).
+
+Definition inf_projects_to_left_inf
+(A B : AsynchronousArena) 
+(f : nat -> M (P (event_structure_tensor (E A) (E B))))
+(g : (nat -> (M (P (E A))))) :=
+exists (h : nat -> nat),
+(forall n, 
+(tensor_move_is_inl A B (f n) -> 
+(exists k, n = h k /\ inl_move_is_projection A B (f (h k)) (g k) ))).
+
+Definition inf_projects_to_right_inf
+(A B : AsynchronousArena) 
+(f : nat -> M (P (event_structure_tensor (E A) (E B))))
+(g : (nat -> (M (P (E B))))) :=
+exists (h : nat -> nat),
+(forall n, 
+(tensor_move_is_inr A B (f n) -> 
+(exists k, n = h k /\ inr_move_is_projection A B (f (h k)) (g k) ))).
+
+Definition inf_projects_to_left_finite
+(A B : AsynchronousArena) 
+(f : nat -> M (P (event_structure_tensor (E A) (E B))))
+(g : list (M (P (E A)))) :=
+exists (h : list nat),
+(forall n, 
+(tensor_move_is_inl A B (f n) -> 
+(exists k m, index_of n h = Some k /\ nth_error g k = Some m /\
+inl_move_is_projection A B (f n) m))).
+
+Definition inf_projects_to_right_finite
+(A B : AsynchronousArena) 
+(f : nat -> M (P (event_structure_tensor (E A) (E B))))
+(g : list (M (P (E B)))) :=
+exists (h : list nat),
+(forall n, 
+(tensor_move_is_inr A B (f n) -> 
+(exists k m, index_of n h = Some k /\ nth_error g k = Some m /\
+inr_move_is_projection A B (f n) m))).
+
+Definition infinite_payoff_right_finite (A B : AsynchronousArena) 
+(f : nat -> M (P (event_structure_tensor (E A) (E B))) ) 
+(inf : bool) :=
+exists g l,
+(inf_projects_to_left_inf A B f g) /\ (inf_projects_to_right_finite A B f l)
+/\ (infinite_payoff A g inf).
+
+Definition infinite_payoff_left_finite (A B : AsynchronousArena) 
+(f : nat -> M (P (event_structure_tensor (E A) (E B))) ) 
+(inf : bool) :=
+exists g l,
+(inf_projects_to_right_inf A B f g) /\ (inf_projects_to_left_finite A B f l)
+/\ (infinite_payoff B g inf).
+
+Definition infinite_payoff_both_infinite (A B : AsynchronousArena) 
+(f : nat -> M (P (event_structure_tensor (E A) (E B))) ) 
+(inf : bool) :=
+if inf then
+exists g g',
+(inf_projects_to_left_inf A B f g) /\ (inf_projects_to_right_inf A B f g')
+/\ (infinite_payoff A g inf) /\ (infinite_payoff A g inf)
+else
+(exists g, (inf_projects_to_left_inf A B f g) /\ (infinite_payoff A g inf))
+\/
+(exists g, (inf_projects_to_right_inf A B f g) /\ (infinite_payoff B g inf)).
+
+Definition asynchronous_arena_tensor (A B : AsynchronousArena) : AsynchronousArena :=
+        {| 
+            E := event_structure_tensor (E A) (E B);
+            polarity m := match m with
+                          | existT _ (i,j) (inl ll) => true
+                          | existT _ (i,j) (inr (inl m)) => (polarity A) (existT _ i (inr m))
+                          | existT _ (i,j) (inr (inr m)) => (polarity B) (existT _ j (inr m))
+                          end;
+            finite_payoff_position l :=
+              (match l with
+                | nil => (-1)%Z
+                | _ => let left := finite_payoff_position A (cast_tensor_to_left _ _ l) in
+                       let right := finite_payoff_position B (cast_tensor_to_right _ _ l) in
+                       tensor_nat left right
+              end);
+            finite_payoff_walk w :=
+              let fp := cast_tensor_to_left _ _ (fst (fst w)) in
+              let fm := cast_tensor_to_left _ _ (snd (fst w)) in
+              let sp := cast_tensor_to_left _ _ (fst (snd w)) in
+              let sm := cast_tensor_to_left _ _ (snd (snd w)) in
+              let left := finite_payoff_walk A ((fp, fm), (sp, sm)) in
+              let fp := cast_tensor_to_right _ _ (fst (fst w)) in
+              let fm := cast_tensor_to_right _ _ (snd (fst w)) in
+              let sp := cast_tensor_to_right _ _ (fst (snd w)) in
+              let sm := cast_tensor_to_right _ _ (snd (snd w)) in
+              let right := finite_payoff_walk B ((fp, fm), (sp, sm)) in
+              tensor_nat left right;
+            infinite_payoff f inf := 
+              (infinite_payoff_right_finite A B f inf) \/
+              (infinite_payoff_left_finite A B f inf) \/
+              (infinite_payoff_both_infinite A B f inf);
+            positive_or_negative := true;
+         |}.
+
+Definition asynchronous_game_tensor_positive (G H: AsynchronousGame) : AsynchronousGame :=
+         {| 
+             A := asynchronous_arena_tensor (A G) (A H);
+             X := product_group (X G) (X H);
+             Y := product_group (Y G) (Y H);
+             action g m h := match m with
+                                | existT _ (i,j) (inl tt) => 
+                                  (match action G (fst g) (existT _ i (inl tt)) (fst h),
+                                         action H (snd g) (existT _ j (inl tt)) (snd h) with
+                                    | existT _ i _, existT _ j _ => existT _ (i,j) (inl tt)
+                                  end)
+                                | existT _ (i,j) (inr (inl m)) => 
+                                  (match action G (fst g) (existT _ i (inr m)) (fst h),
+                                         action H (snd g) (existT _ j (inl tt)) (snd h) with
+                                    | existT _ i (inl tt), existT _ j _ => existT _ (i,j) (inl tt)
+                                    | existT _ i (inr m), existT _ j _ => existT _ (i,j) (inr (inl m))
+                                  end)
+                                | existT _ (i,j) (inr (inr m)) => 
+                                  (match action G (fst g) (existT _ i (inl tt)) (fst h),
+                                         action H (snd g) (existT _ j (inr m)) (snd h) with
+                                    | existT _ i _, existT _ j (inl tt) => existT _ (i,j) (inl tt)
+                                    | existT _ i _, existT _ j (inr m) => existT _ (i,j) (inr (inr m))
+                                  end)
+                             end;
+        |}.
+
+Definition tensor (G H: AsynchronousGame) : AsynchronousGame :=
+match positive_or_negative (A G), positive_or_negative (A H) with
+| true, true => asynchronous_game_tensor_positive G H
+| true, false => asynchronous_game_tensor_positive G (lifting H (1)%Z)
+| false, true => asynchronous_game_tensor_positive (lifting G (1)%Z) H
+| false, false => asynchronous_game_tensor_positive (lifting G (1)%Z) (lifting H (1)%Z)
+end.
+
+(*Proof. 
 - intros.
 + destruct x. destruct x. destruct s.
 ++ destruct u. apply leq_tensor_least.
@@ -123,44 +355,7 @@ auto. auto.
 + right. unfold not. intros. inversion H. contradiction n.
 Defined.
 
-Inductive incompatible_tensor (E F : EventStructure) :
-(M (partial_order_tensor (P E) (P F))) ->
-(M (partial_order_tensor (P E) (P F))) ->
-Prop :=
-| incomp_tensor_least : forall i j i' j' m m',
-((i <> i') \/ (j <> j')) ->
-incompatible_tensor E F (existT _ (i, j) m) (existT _ (i', j') m')
-| incomp_tensor_left : forall index m m' a b,
-incompatible E (existT _ (fst index) (inr m)) 
-(existT _ (fst index) (inr m')) ->
-a = (existT _ index (inr (inl m))) ->
-b = (existT _ index (inr (inl m'))) ->
-incompatible_tensor E F a b
-| incomp_tensor_right : forall index m m' a b, 
-incompatible F (existT _ (snd index) (inr m)) 
-(existT _ (snd index) (inr m')) ->
-a = (existT _ index (inr (inr m))) ->
-b = (existT _ index (inr (inr m'))) ->
-incompatible_tensor E F a b.
 
-Definition event_structure_tensor (E F : EventStructure) : EventStructure.
-  refine({| 
-            P := partial_order_tensor (P E) (P F);
-            incompatible := incompatible_tensor E F;
-            ideal m := match m with
-                      | existT _ (i, j) (inl tt) => (existT _ (i, j) (inl tt)) :: nil
-                      | existT _ (i, j) (inr (inl m)) =>
-                      map (fun x => match x with
-                                    | existT _ i (inl tt) => existT _ (i, j) (inl tt)
-                                    | existT _ i (inr m) => existT _ (i, j) (inr (inl m))
-                      end) (ideal E (existT _ i (inr m)))
-                      | existT _ (i, j) (inr (inr m)) =>
-                      map (fun x => match x with
-                                    | existT _ j (inl tt) => existT _ (i, j) (inl tt)
-                                    | existT _ j (inr m) => existT _ (i, j) (inr (inr m))
-                                    end) (ideal F (existT _ j (inr m)))
-                      end;
-         |}).
 Proof.
 - intros. inversion H.
 + subst. apply incomp_tensor_least. intuition.
@@ -270,36 +465,7 @@ with (y:=(existT (fun i0 : I (P F) => (unit + N (P F) i0)%type)
      (snd (i, j)) (inr m0))). auto. auto. auto.
 Defined.
 
-Fixpoint cast_tensor_to_left E F (l : Position (event_structure_tensor E F))
-: Position E :=
-match l with
-| nil => nil
-| (existT _ (i,j) (inl tt)) :: xs
-=> (existT _ i (inl tt)) :: (cast_tensor_to_left E F xs)
-| (existT _ (i,j) (inr (inl m))) :: xs
-=> (existT _ i (inr m)) :: (cast_tensor_to_left E F xs)
-| (existT _ i (inr (inr _))) :: xs
-=> cast_tensor_to_left E F xs
-end.
 
-Fixpoint cast_tensor_to_right E F (l : Position (event_structure_tensor E F))
-: Position F :=
-match l with
-| nil => nil
-| (existT _ (i,j) (inl tt)) :: xs
-=> (existT _ j (inl tt)) :: (cast_tensor_to_right E F xs)
-| (existT _ (i,j) (inr (inr m))) :: xs
-=> (existT _ j (inr m)) :: (cast_tensor_to_right E F xs)
-| (existT _ i (inr (inl _))) :: xs
-=> cast_tensor_to_right E F xs
-end.
-
-
-Definition tensor_nat (p q : Z) :=
-if Z.ltb p 0 then 
-(if Z.ltb q 0 then Z.add p q else p)
-else
-(if Z.ltb q 0 then q else Z.add p q).
 
 Fact second_in_tensor_is_second :
 forall E F m, second_move (P (event_structure_tensor E F)) m <->
@@ -397,135 +563,7 @@ assert (initial_move (P F) (existT (fun i : I (P F) => (unit + N (P F) i)%type) 
 Qed. 
 
 
-Definition tensor_move_is_inl (A B : AsynchronousArena) 
-(m : M (P (event_structure_tensor (E A) (E B)))) : Prop :=
-match m with
-| existT _ _ (inl tt) => True
-| existT _ _ (inr (inl _)) => True
-| _ => False
-end.
 
-Definition tensor_move_is_inr (A B : AsynchronousArena) 
-(m : M (P (event_structure_tensor (E A) (E B)))) : Prop :=
-match m with
-| existT _ _ (inl tt) => True
-| existT _ _ (inr (inr _)) => True
-| _ => False
-end.
-
-Definition inl_move_is_projection (A B : AsynchronousArena) 
-(m : M (P (event_structure_tensor (E A) (E B)))) 
-(m' : M (P (E A))) : Prop :=
-(exists i, m = existT _ i (inl tt) /\ m' = existT _ (fst i) (inl tt))
-\/
-(exists i k, m = existT _ i (inr (inl k)) /\ m' = existT _ (fst i) (inr k)).
-
-Definition inr_move_is_projection (A B : AsynchronousArena) 
-(m : M (P (event_structure_tensor (E A) (E B)))) 
-(m' : M (P (E B))) : Prop :=
-(exists i, m = existT _ i (inl tt) /\ m' = existT _ (snd i) (inl tt))
-\/
-(exists i k, m = existT _ i (inr (inr k)) /\ m' = existT _ (snd i) (inr k)).
-
-Definition inf_projects_to_left_inf
-(A B : AsynchronousArena) 
-(f : nat -> M (P (event_structure_tensor (E A) (E B))))
-(g : (nat -> (M (P (E A))))) :=
-exists (h : nat -> nat),
-(forall n, 
-(tensor_move_is_inl A B (f n) -> 
-(exists k, n = h k /\ inl_move_is_projection A B (f (h k)) (g k) ))).
-
-Definition inf_projects_to_right_inf
-(A B : AsynchronousArena) 
-(f : nat -> M (P (event_structure_tensor (E A) (E B))))
-(g : (nat -> (M (P (E B))))) :=
-exists (h : nat -> nat),
-(forall n, 
-(tensor_move_is_inr A B (f n) -> 
-(exists k, n = h k /\ inr_move_is_projection A B (f (h k)) (g k) ))).
-
-Definition inf_projects_to_left_finite
-(A B : AsynchronousArena) 
-(f : nat -> M (P (event_structure_tensor (E A) (E B))))
-(g : list (M (P (E A)))) :=
-exists (h : list nat),
-(forall n, 
-(tensor_move_is_inl A B (f n) -> 
-(exists k m, index_of n h = Some k /\ nth_error g k = Some m /\
-inl_move_is_projection A B (f n) m))).
-
-Definition inf_projects_to_right_finite
-(A B : AsynchronousArena) 
-(f : nat -> M (P (event_structure_tensor (E A) (E B))))
-(g : list (M (P (E B)))) :=
-exists (h : list nat),
-(forall n, 
-(tensor_move_is_inr A B (f n) -> 
-(exists k m, index_of n h = Some k /\ nth_error g k = Some m /\
-inr_move_is_projection A B (f n) m))).
-
-Definition infinite_payoff_right_finite (A B : AsynchronousArena) 
-(f : nat -> M (P (event_structure_tensor (E A) (E B))) ) 
-(inf : bool) :=
-exists g l,
-(inf_projects_to_left_inf A B f g) /\ (inf_projects_to_right_finite A B f l)
-/\ (infinite_payoff A g inf).
-
-Definition infinite_payoff_left_finite (A B : AsynchronousArena) 
-(f : nat -> M (P (event_structure_tensor (E A) (E B))) ) 
-(inf : bool) :=
-exists g l,
-(inf_projects_to_right_inf A B f g) /\ (inf_projects_to_left_finite A B f l)
-/\ (infinite_payoff B g inf).
-
-Definition infinite_payoff_both_infinite (A B : AsynchronousArena) 
-(f : nat -> M (P (event_structure_tensor (E A) (E B))) ) 
-(inf : bool) :=
-if inf then
-exists g g',
-(inf_projects_to_left_inf A B f g) /\ (inf_projects_to_right_inf A B f g')
-/\ (infinite_payoff A g inf) /\ (infinite_payoff A g inf)
-else
-(exists g, (inf_projects_to_left_inf A B f g) /\ (infinite_payoff A g inf))
-\/
-(exists g, (inf_projects_to_right_inf A B f g) /\ (infinite_payoff B g inf)).
-
-Definition asynchronous_arena_tensor (A B : AsynchronousArena) 
-(positive1 : (finite_payoff_position A) nil = (-1)%Z)
-(positive2 : (finite_payoff_position B) nil = (-1)%Z)
-: AsynchronousArena.
-  refine({| 
-            E := event_structure_tensor (E A) (E B);
-            polarity m := match m with
-                          | existT _ (i,j) (inl ll) => true
-                          | existT _ (i,j) (inr (inl m)) => (polarity A) (existT _ i (inr m))
-                          | existT _ (i,j) (inr (inr m)) => (polarity B) (existT _ j (inr m))
-                          end;
-            finite_payoff_position l :=
-              (match l with
-                | nil => (-1)%Z
-                | _ => let left := finite_payoff_position A (cast_tensor_to_left _ _ l) in
-                       let right := finite_payoff_position B (cast_tensor_to_right _ _ l) in
-                       tensor_nat left right
-              end);
-            finite_payoff_walk w :=
-              let fp := cast_tensor_to_left _ _ (fst (fst w)) in
-              let fm := cast_tensor_to_left _ _ (snd (fst w)) in
-              let sp := cast_tensor_to_left _ _ (fst (snd w)) in
-              let sm := cast_tensor_to_left _ _ (snd (snd w)) in
-              let left := finite_payoff_walk A ((fp, fm), (sp, sm)) in
-              let fp := cast_tensor_to_right _ _ (fst (fst w)) in
-              let fm := cast_tensor_to_right _ _ (snd (fst w)) in
-              let sp := cast_tensor_to_right _ _ (fst (snd w)) in
-              let sm := cast_tensor_to_right _ _ (snd (snd w)) in
-              let right := finite_payoff_walk B ((fp, fm), (sp, sm)) in
-              tensor_nat left right;
-            infinite_payoff f inf := 
-              (infinite_payoff_right_finite A B f inf) \/
-              (infinite_payoff_left_finite A B f inf) \/
-              (infinite_payoff_both_infinite A B f inf)
-         |}).
 Proof.
 - left. auto.
 - intros. apply initial_is_unit in H. destruct H. subst.
@@ -550,34 +588,7 @@ assert (forall a b f, a = 0%Z /\ b = 0%Z /\ f 0%Z 0%Z  = 0%Z
 apply H1. auto.
 Defined.
 
-Definition asynchronous_game_tensor_positive (G H: AsynchronousGame) 
-(pos1 : (finite_payoff_position (A G)) nil = (-1)%Z)
-(pos2 : (finite_payoff_position (A H)) nil = (-1)%Z)
-: AsynchronousGame.
-  refine({| 
-             A := asynchronous_arena_tensor (A G) (A H) pos1 pos2;
-             X := product_group (X G) (X H);
-             Y := product_group (Y G) (Y H);
-             action g m h := match m with
-                                | existT _ (i,j) (inl tt) => 
-                                  (match action G (fst g) (existT _ i (inl tt)) (fst h),
-                                         action H (snd g) (existT _ j (inl tt)) (snd h) with
-                                    | existT _ i _, existT _ j _ => existT _ (i,j) (inl tt)
-                                  end)
-                                | existT _ (i,j) (inr (inl m)) => 
-                                  (match action G (fst g) (existT _ i (inr m)) (fst h),
-                                         action H (snd g) (existT _ j (inl tt)) (snd h) with
-                                    | existT _ i (inl tt), existT _ j _ => existT _ (i,j) (inl tt)
-                                    | existT _ i (inr m), existT _ j _ => existT _ (i,j) (inr (inl m))
-                                  end)
-                                | existT _ (i,j) (inr (inr m)) => 
-                                  (match action G (fst g) (existT _ i (inl tt)) (fst h),
-                                         action H (snd g) (existT _ j (inr m)) (snd h) with
-                                    | existT _ i _, existT _ j (inl tt) => existT _ (i,j) (inl tt)
-                                    | existT _ i _, existT _ j (inr m) => existT _ (i,j) (inr (inr m))
-                                  end)
-                             end;
-        |}).
+
 Proof.
 - intros.
 assert (left_action _ _ (actl G) /\ left_action _ _ (actl H)).
@@ -900,40 +911,5 @@ existT (fun i : I (P (E (A G))) => (unit + N (P (E (A G))) i)%type) k
          (inl tt)).
 {apply action_preserves_initial. }
 destruct H0. rewrite eqn1 in H0. inversion H0.
-Defined.
-
-Definition asynchronous_game_tensor_left (G H: AsynchronousGame) 
-(neg : (finite_payoff_position (A G)) nil = (1)%Z)
-(pos : (finite_payoff_position (A H)) nil = (-1)%Z) : AsynchronousGame :=
-asynchronous_game_tensor_positive
-(lifting G neg (1)%Z)
-H
-(positive_lifting_is_positive G neg (1)%Z)
-pos.
-
-Definition asynchronous_game_tensor_right (G H: AsynchronousGame) 
-(pos : (finite_payoff_position (A G)) nil = (-1)%Z)
-(neg : (finite_payoff_position (A H)) nil = (1)%Z) : AsynchronousGame :=
-asynchronous_game_tensor_positive
-G
-(lifting H neg (1)%Z)
-pos
-(positive_lifting_is_positive H neg (1)%Z).
-
-Definition asynchronous_game_tensor_negative (G H: AsynchronousGame) 
-(neg1 : (finite_payoff_position (A G)) nil = (1)%Z)
-(neg2 : (finite_payoff_position (A H)) nil = (1)%Z) : AsynchronousGame :=
-asynchronous_game_tensor_positive
-(lifting G neg1 (1)%Z)
-(lifting H neg2 (1)%Z)
-(positive_lifting_is_positive G neg1 (1)%Z)
-(positive_lifting_is_positive H neg2 (1)%Z).
-
-Definition tensor (G H: AsynchronousGame) : AsynchronousGame :=
-match initial_payoff (A G), initial_payoff (A H) with
-| left p, left p' => asynchronous_game_tensor_positive G H p p'
-| left p, right p' => asynchronous_game_tensor_right G H p p'
-| right p, left p' => asynchronous_game_tensor_left G H p p'
-| right p, right p' => asynchronous_game_tensor_negative G H p p'
-end.
+Defined.*)
 

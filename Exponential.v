@@ -21,59 +21,12 @@ a = (existT _ (i, n) m) ->
 b = (existT _ (i, n) m') ->
 leq_exponential P a b.
 
-Definition partial_order_exponential (P : PartialOrder) : PartialOrder.
-  refine({| 
+Definition partial_order_exponential (P : PartialOrder) : PartialOrder :=
+         {| 
             I := (I P) * nat;
             N x := N P (fst x);
             leq := leq_exponential P;
-         |}).
-Proof. 
-- intros. destruct x. destruct x. apply leq_exponential_unique
-with (i:=i) (m:=s) (m':=s) (n:=n). apply reflexive. auto. auto.
-- intros. destruct x. destruct y. destruct H. inversion H. subst.
-inversion H0. subst. inversion H6. subst. apply inj_pairT2 in H6. subst.
-inversion H5. subst. apply inj_pairT2 in H5. subst. inversion H3. subst.
-apply inj_pairT2 in H3. subst. inversion H2. subst. apply inj_pairT2 in H2.
-subst.
-assert ((existT
-          (fun i : I P =>
-           (unit + N P i)%type) i m) = 
-       (existT
-          (fun i : I P =>
-           (unit + N P i)%type) i m')).
-{apply anti_symmetric. auto. } apply inj_pairT2 in H2. subst. auto.
-- intros. destruct x. destruct y. destruct z. destruct H. inversion H.
-inversion H0. subst. inversion H8. subst. apply inj_pairT2 in H8. subst.
-inversion H7. subst. inversion H7. subst. apply inj_pairT2 in H7. subst.
-inversion H3. subst. inversion H3. subst. apply inj_pairT2 in H3. subst.
-inversion H2. subst. inversion H2. subst. apply inj_pairT2 in H2. subst.
-assert
-(leq P
-       (existT
-          (fun i : I P =>
-           (unit + N P i)%type) i m)
-       (existT
-          (fun i : I P =>
-           (unit + N P i)%type) i m'0)).
-{apply transitive with (y:=(existT
-          (fun i : I P =>
-           (unit + N P i)%type) i m')). auto. }
-apply leq_exponential_unique with (i:=i) (m:=m) (m':=m'0) (n:=n).
-auto. auto. auto.
-- intros. unfold iff. split.
-+ intros. inversion H. subst. inversion H2. subst. apply inj_pairT2 in H2.
-subst. inversion H1. subst. apply inj_pairT2 in H1. subst. auto.
-+ intros. subst. destruct i'.
-apply leq_exponential_unique with (i:=i) (m:=inl tt) (m':=m) (n:=n).
-apply unit_is_least. auto. auto. auto.
-- intros. inversion H. subst. inversion H2. subst. apply inj_pairT2 in H2.
-subst. inversion H1. subst. inversion H1. subst. auto.
-- intros. destruct i. destruct j. destruct (index_equality P i i0).
-+ subst. destruct (Nat.eq_dec n n0).
-++ subst. left. auto.
-++ right. unfold not. intros. inversion H. contradiction n1.
-+ right. unfold not. intros. inversion H. contradiction n1.
-Defined.
+         |}.
 
 Inductive incompatible_exponential (E : EventStructure) :
 (M (partial_order_exponential (P E))) ->
@@ -85,8 +38,8 @@ a = (existT _ (i,n) m) ->
 b = (existT _ (i,n) m') ->
 incompatible_exponential E a b.
 
-Definition event_structure_exponential (E : EventStructure) : EventStructure.
-  refine({| 
+Definition event_structure_exponential (E : EventStructure) : EventStructure :=
+        {| 
             P := partial_order_exponential (P E);
             incompatible := incompatible_exponential E;
             ideal m := match m with
@@ -96,82 +49,7 @@ Definition event_structure_exponential (E : EventStructure) : EventStructure.
                                     | existT _ i (inr m) => existT _ (i, n) (inr m)
                           end) (ideal E (existT _ i m))
                       end;
-         |}).
-Proof.
-- intros. inversion H. subst. apply incomp_exponential_unique with
-(i:=i) (m:=m') (m':=m) (n:=n). apply symmetric. auto. auto. auto.
-- unfold not. intros. inversion H. subst. apply inj_pairT2 in H2. subst.
-assert (~ (incompatible E
-       (existT (fun i : I (P E) => (unit + N (P E) i)%type) i
-          m')
-       (existT (fun i : I (P E) => (unit + N (P E) i)%type) i
-          m'))).
-{apply irreflexive. }
-contradiction H1.
-- intros. unfold iff. split.
-+ intros. destruct x. destruct y. destruct x. destruct x0.
-apply in_map_iff. refine (ex_intro _ (existT _ i0 s0) _). split.
-destruct s0.
-++ destruct u. simpl in H. inversion H. subst. inversion H2. subst.
-inversion H1. subst. auto.
-++ simpl in H. inversion H. subst. inversion H1. inversion H2. subst. auto.
-++ simpl in H. inversion H. subst. inversion H1. inversion H2. subst.
-apply inj_pairT2 in H1. subst. apply inj_pairT2 in H9. subst. apply inj_pairT2 in H2.
-subst. apply ideal_finite. auto.
-+ destruct x. destruct y. destruct x. destruct x0. intros. apply in_map_iff in H.
-destruct H. destruct x. destruct s1.
-++ destruct u. destruct H. inversion H. subst. apply inj_pairT2 in H. subst.
-apply ideal_finite in H0. simpl. assert (H2:=H0). apply leq_same_component in H2.
-subst. apply leq_exponential_unique with
-(i:=i) (m:=inl tt) (m':=s) (n:=n0). auto. auto. auto.
-++ destruct H. apply ideal_finite in H0. inversion H. subst. apply inj_pairT2 in H.
-subst. assert (H2:=H0). apply leq_same_component in H2. subst. simpl.
-apply leq_exponential_unique with
-(i:=i) (m:=inr n1) (m':=s) (n:=n0). auto. auto. auto.
-- intros. destruct H. inversion H. subst. simpl in H0. inversion H0. subst.
-inversion H3. subst. apply inj_pairT2 in H3. subst. apply incomp_exponential_unique with
-(i:=i0) (m:=m) (m':=m'0) (n:=n0). apply incompatible_closed with
-(y:=(existT (fun i : I (P E) => (unit + N (P E) i)%type) i0 m0)).
-auto. auto. auto.
-Defined.
-
-Fact second_in_exponential_is_second :
-forall E m, second_move (P (event_structure_exponential E)) m <->
-((exists i n k, m = existT _ (i,n) k /\ 
-second_move (P E) (existT _ i k))).
-Proof. unfold iff. split.
-+ intros. unfold second_move in H. destruct H.
-rewrite initial_is_unit in H. destruct m. destruct x.
- refine (ex_intro _ i _). refine (ex_intro _ n _). refine (ex_intro _ s _). split.
-++ auto.
-++ unfold second_move. split.
-+++ unfold not. intros. apply initial_is_unit in H1. destruct H1. inversion H1.
-subst. apply inj_pairT2 in H1. subst. contradiction H. refine (ex_intro _ (x,n) _). auto.
-+++ intros. destruct H1. destruct n0. assert (H3 := H1). apply leq_same_component in H1.
-subst.
-assert (initial_move (P (event_structure_exponential E)) 
-(existT _ (i,n) s0)). apply H0. split.
-++++ simpl. apply leq_exponential_unique with
-(i:=i) (m:=s0) (m':=s) (n:=n). auto. auto. auto.
-++++ unfold not. intros. apply inj_pairT2 in H1. subst. contradiction H2. auto.
-++++ apply initial_is_unit in H1. destruct H1. inversion H1. subst.
-apply inj_pairT2 in H1. subst. apply initial_is_unit. refine (ex_intro _ i _).
-auto.
-+ intros. destruct H. destruct H. destruct H. destruct H. subst. unfold second_move. 
-unfold second_move in H0. destruct H0. split.
-++ unfold not. intros. apply initial_is_unit in H1. destruct H1. inversion H1. subst.
-apply inj_pairT2 in H1. subst. contradiction H. apply initial_is_unit.
-refine (ex_intro _ x _). auto.
-++ intros. destruct H1. destruct n. assert (H3 := H1).
-apply leq_same_component in H3. subst.
-assert (initial_move _ (existT _ x s)).
-{apply H0. split.
-+ simpl in H1. inversion H1. subst. inversion H4. subst. apply inj_pairT2 in H4. subst.
-apply inj_pairT2 in H5. subst. auto.
-+ unfold not. intros. apply inj_pairT2 in H3. subst. contradiction H2. auto. }
-apply initial_is_unit in H3. destruct H3. inversion H3. subst. apply inj_pairT2 in H3. subst.
-apply initial_is_unit. refine (ex_intro _ (x2,x0) _). auto.
-Qed.
+         |}.
 
 Fixpoint project_exponential E (l : list (M (P (event_structure_exponential E))))
 : (list nat) * (nat -> list (M (P E))) :=
@@ -256,9 +134,8 @@ else (minus_infinity_exists A f) \/
 (~(plus_infinity_exists A f) /\ finite_negative_exists A f).
 
 Definition asynchronous_arena_exponential (A : AsynchronousArena) 
-(positive1 : (finite_payoff_position A) nil = (-1)%Z)
-: AsynchronousArena.
-  refine({| 
+: AsynchronousArena :=
+        {| 
             E := event_structure_exponential (E A);
             polarity m := match m with
                           | existT _ (i,n) m => polarity A (existT _ i m)
@@ -281,8 +158,157 @@ Definition asynchronous_arena_exponential (A : AsynchronousArena)
               let (l_sm, f_sm) := project_exponential _ (snd (snd w)) in
               let l_sm := map f_sm l_sm in
               exponential_walk_payoff A l_fp l_fm l_sp l_sm;
-            infinite_payoff f inf := infinite_payoff_exponential A f inf
-         |}).
+            infinite_payoff f inf := infinite_payoff_exponential A f inf;
+            positive_or_negative := true;
+         |}.
+
+Definition asynchronous_game_exponential_positive (G: AsynchronousGame) 
+: AsynchronousGame :=
+         {| 
+             A := asynchronous_arena_exponential (A G);
+             X := indexed_product_group (X G) nat;
+             Y := wreath_product (Y G);
+             action g move h := 
+                match move,h with
+                  | existT _ (i,n) m, (f, exist _ (pi,_) _) =>
+                    (match action G (g n) (existT _ i m) (f n) with
+                      | existT _ i m => existT _ (i, pi n) m
+                     end)
+                end;
+        |}.
+
+Definition exponential (G : AsynchronousGame) : AsynchronousGame := 
+match positive_or_negative (A G) with
+| true => asynchronous_game_exponential_positive G
+| false => asynchronous_game_exponential_positive (lifting G (0)%Z)
+end.
+(*
+Proof. 
+- intros. destruct x. destruct x. apply leq_exponential_unique
+with (i:=i) (m:=s) (m':=s) (n:=n). apply reflexive. auto. auto.
+- intros. destruct x. destruct y. destruct H. inversion H. subst.
+inversion H0. subst. inversion H6. subst. apply inj_pairT2 in H6. subst.
+inversion H5. subst. apply inj_pairT2 in H5. subst. inversion H3. subst.
+apply inj_pairT2 in H3. subst. inversion H2. subst. apply inj_pairT2 in H2.
+subst.
+assert ((existT
+          (fun i : I P =>
+           (unit + N P i)%type) i m) = 
+       (existT
+          (fun i : I P =>
+           (unit + N P i)%type) i m')).
+{apply anti_symmetric. auto. } apply inj_pairT2 in H2. subst. auto.
+- intros. destruct x. destruct y. destruct z. destruct H. inversion H.
+inversion H0. subst. inversion H8. subst. apply inj_pairT2 in H8. subst.
+inversion H7. subst. inversion H7. subst. apply inj_pairT2 in H7. subst.
+inversion H3. subst. inversion H3. subst. apply inj_pairT2 in H3. subst.
+inversion H2. subst. inversion H2. subst. apply inj_pairT2 in H2. subst.
+assert
+(leq P
+       (existT
+          (fun i : I P =>
+           (unit + N P i)%type) i m)
+       (existT
+          (fun i : I P =>
+           (unit + N P i)%type) i m'0)).
+{apply transitive with (y:=(existT
+          (fun i : I P =>
+           (unit + N P i)%type) i m')). auto. }
+apply leq_exponential_unique with (i:=i) (m:=m) (m':=m'0) (n:=n).
+auto. auto. auto.
+- intros. unfold iff. split.
++ intros. inversion H. subst. inversion H2. subst. apply inj_pairT2 in H2.
+subst. inversion H1. subst. apply inj_pairT2 in H1. subst. auto.
++ intros. subst. destruct i'.
+apply leq_exponential_unique with (i:=i) (m:=inl tt) (m':=m) (n:=n).
+apply unit_is_least. auto. auto. auto.
+- intros. inversion H. subst. inversion H2. subst. apply inj_pairT2 in H2.
+subst. inversion H1. subst. inversion H1. subst. auto.
+- intros. destruct i. destruct j. destruct (index_equality P i i0).
++ subst. destruct (Nat.eq_dec n n0).
+++ subst. left. auto.
+++ right. unfold not. intros. inversion H. contradiction n1.
++ right. unfold not. intros. inversion H. contradiction n1.
+Defined.
+
+
+Proof.
+- intros. inversion H. subst. apply incomp_exponential_unique with
+(i:=i) (m:=m') (m':=m) (n:=n). apply symmetric. auto. auto. auto.
+- unfold not. intros. inversion H. subst. apply inj_pairT2 in H2. subst.
+assert (~ (incompatible E
+       (existT (fun i : I (P E) => (unit + N (P E) i)%type) i
+          m')
+       (existT (fun i : I (P E) => (unit + N (P E) i)%type) i
+          m'))).
+{apply irreflexive. }
+contradiction H1.
+- intros. unfold iff. split.
++ intros. destruct x. destruct y. destruct x. destruct x0.
+apply in_map_iff. refine (ex_intro _ (existT _ i0 s0) _). split.
+destruct s0.
+++ destruct u. simpl in H. inversion H. subst. inversion H2. subst.
+inversion H1. subst. auto.
+++ simpl in H. inversion H. subst. inversion H1. inversion H2. subst. auto.
+++ simpl in H. inversion H. subst. inversion H1. inversion H2. subst.
+apply inj_pairT2 in H1. subst. apply inj_pairT2 in H9. subst. apply inj_pairT2 in H2.
+subst. apply ideal_finite. auto.
++ destruct x. destruct y. destruct x. destruct x0. intros. apply in_map_iff in H.
+destruct H. destruct x. destruct s1.
+++ destruct u. destruct H. inversion H. subst. apply inj_pairT2 in H. subst.
+apply ideal_finite in H0. simpl. assert (H2:=H0). apply leq_same_component in H2.
+subst. apply leq_exponential_unique with
+(i:=i) (m:=inl tt) (m':=s) (n:=n0). auto. auto. auto.
+++ destruct H. apply ideal_finite in H0. inversion H. subst. apply inj_pairT2 in H.
+subst. assert (H2:=H0). apply leq_same_component in H2. subst. simpl.
+apply leq_exponential_unique with
+(i:=i) (m:=inr n1) (m':=s) (n:=n0). auto. auto. auto.
+- intros. destruct H. inversion H. subst. simpl in H0. inversion H0. subst.
+inversion H3. subst. apply inj_pairT2 in H3. subst. apply incomp_exponential_unique with
+(i:=i0) (m:=m) (m':=m'0) (n:=n0). apply incompatible_closed with
+(y:=(existT (fun i : I (P E) => (unit + N (P E) i)%type) i0 m0)).
+auto. auto. auto.
+Defined.
+
+Fact second_in_exponential_is_second :
+forall E m, second_move (P (event_structure_exponential E)) m <->
+((exists i n k, m = existT _ (i,n) k /\ 
+second_move (P E) (existT _ i k))).
+Proof. unfold iff. split.
++ intros. unfold second_move in H. destruct H.
+rewrite initial_is_unit in H. destruct m. destruct x.
+ refine (ex_intro _ i _). refine (ex_intro _ n _). refine (ex_intro _ s _). split.
+++ auto.
+++ unfold second_move. split.
++++ unfold not. intros. apply initial_is_unit in H1. destruct H1. inversion H1.
+subst. apply inj_pairT2 in H1. subst. contradiction H. refine (ex_intro _ (x,n) _). auto.
++++ intros. destruct H1. destruct n0. assert (H3 := H1). apply leq_same_component in H1.
+subst.
+assert (initial_move (P (event_structure_exponential E)) 
+(existT _ (i,n) s0)). apply H0. split.
+++++ simpl. apply leq_exponential_unique with
+(i:=i) (m:=s0) (m':=s) (n:=n). auto. auto. auto.
+++++ unfold not. intros. apply inj_pairT2 in H1. subst. contradiction H2. auto.
+++++ apply initial_is_unit in H1. destruct H1. inversion H1. subst.
+apply inj_pairT2 in H1. subst. apply initial_is_unit. refine (ex_intro _ i _).
+auto.
++ intros. destruct H. destruct H. destruct H. destruct H. subst. unfold second_move. 
+unfold second_move in H0. destruct H0. split.
+++ unfold not. intros. apply initial_is_unit in H1. destruct H1. inversion H1. subst.
+apply inj_pairT2 in H1. subst. contradiction H. apply initial_is_unit.
+refine (ex_intro _ x _). auto.
+++ intros. destruct H1. destruct n. assert (H3 := H1).
+apply leq_same_component in H3. subst.
+assert (initial_move _ (existT _ x s)).
+{apply H0. split.
++ simpl in H1. inversion H1. subst. inversion H4. subst. apply inj_pairT2 in H4. subst.
+apply inj_pairT2 in H5. subst. auto.
++ unfold not. intros. apply inj_pairT2 in H3. subst. contradiction H2. auto. }
+apply initial_is_unit in H3. destruct H3. inversion H3. subst. apply inj_pairT2 in H3. subst.
+apply initial_is_unit. refine (ex_intro _ (x2,x0) _). auto.
+Qed.
+
+
 Proof.
 - left. auto.
 - intros. destruct m. apply initial_is_unit in H. destruct H. inversion H. subst.
@@ -298,21 +324,7 @@ destruct (project_exponential (E A) p). destruct (project_exponential (E A) p0).
 destruct (map l0 l); destruct (map l2 l1); simpl; auto.
 Defined.
 
-Definition asynchronous_game_exponential_positive (G: AsynchronousGame) 
-(pos1 : (finite_payoff_position (A G)) nil = (-1)%Z)
-: AsynchronousGame.
-  refine({| 
-             A := asynchronous_arena_exponential (A G) pos1;
-             X := indexed_product_group (X G) nat;
-             Y := wreath_product (Y G);
-             action g move h := 
-                match move,h with
-                  | existT _ (i,n) m, (f, exist _ (pi,_) _) =>
-                    (match action G (g n) (existT _ i m) (f n) with
-                      | existT _ i m => existT _ (i, pi n) m
-                     end)
-                end;
-        |}).
+
 Proof.
 - unfold left_action. split.
 + intros. destruct x. destruct x. simpl.
@@ -400,17 +412,4 @@ destruct H. destruct H. rewrite e3 in H. inversion H. subst. apply inj_pairT2 in
 subst. refine (ex_intro _ (x, n0 n) _). refine (ex_intro _ x1 _). auto.
 Defined.
 
-Definition asynchronous_game_exponential_negative (G: AsynchronousGame) 
-(neg : (finite_payoff_position (A G)) nil = (1)%Z) : AsynchronousGame :=
-asynchronous_game_exponential_positive
-(lifting G neg (1)%Z)
-(positive_lifting_is_positive G neg (1)%Z).
-
-Definition exponential (G : AsynchronousGame) :
-AsynchronousGame :=
-match initial_payoff (A G) with
-| left p => asynchronous_game_exponential_positive G p
-| right p => asynchronous_game_exponential_negative G p
-end.
-
-
+*)

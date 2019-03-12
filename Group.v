@@ -117,6 +117,12 @@ Proof.
 + apply inverses_exist.
 Defined.
 
+Fact opposite_involutive (X : Group) : 
+opposite_group (opposite_group X) = X.
+Proof. unfold opposite_group. simpl. destruct X. simpl.
+f_equal; apply proof_irrelevance.
+Qed.
+
 Definition indexed_product_group (X : Group) (I : Type) : Group.
 refine ({|
         G := I -> (G X);

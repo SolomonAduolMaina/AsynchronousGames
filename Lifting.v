@@ -20,6 +20,114 @@ Definition leq_def (P : PartialOrder) :=
                        | _, _ => False
                        end).
 
+Definition partial_order_lifting (P : PartialOrder) : PartialOrder :=
+        {| 
+            I := unit;
+            N x := M P;
+            leq m n := match m,n with
+                       | existT _ tt (inl _), _ => True
+                       | existT _ tt (inr m), existT _ tt (inr n) => (leq P) m n
+                       | _, _ => False
+                       end;
+         |}.
+
+Definition event_structure_lifting (E : EventStructure) : EventStructure :=
+        {| 
+            P := partial_order_lifting (P E);
+            incompatible m n := match m,n with
+                                | existT _ tt (inr m), existT _ tt (inr n) => incompatible E m n
+                                | _, _ => False
+                                end;
+            ideal m := match m with
+                       | existT _ tt (inl tt) => (existT _ tt (inl tt)) :: nil
+                       | existT _ tt (inr m) =>
+                        (existT _ tt (inl tt)) :: (map (fun x => existT _ tt (inr x)) (ideal E m))
+                       end;
+         |}.
+
+Fixpoint cast_lifting E (l : Position (event_structure_lifting E))
+: Position E :=
+match l with
+| nil => nil
+| (existT _ tt (inl tt)) :: xs => cast_lifting E xs
+| (existT _ tt (inr m)) :: xs => m :: cast_lifting E xs
+end.
+
+Fixpoint contains_only_initial E (p : Position (event_structure_lifting E)) :=
+match p with
+| nil => false
+| existT _ tt (inl tt) :: nil => true
+| existT _ tt (inl tt) :: xs  => contains_only_initial E xs
+| _ => false
+end.
+
+Fixpoint cast_to_original E (p : Position (event_structure_lifting E)) :
+Position E :=
+match p with
+| nil => nil
+| existT _ tt (inl tt) :: xs => cast_to_original E xs
+| existT _ tt (inr m) :: xs => m :: (cast_to_original E xs)
+end.
+
+Definition asynchronous_arena_lifting (A : AsynchronousArena) 
+(p : Z): AsynchronousArena :=
+        {| 
+            E := event_structure_lifting (E A);
+            polarity m := match m with
+                          | existT _ tt (inl tt) => true
+                          | existT _ tt (inr m) => (polarity A) m
+                          end;
+            finite_payoff_position l :=
+              (match l with
+                | nil => (-1)%Z
+                | existT _ tt (inl tt) :: nil => p
+                | _ => finite_payoff_position A (cast_to_original _ l)
+              end);
+            finite_payoff_walk w :=
+              match w with
+                | ((_, nil), (_, nil)) => 0%Z
+                | ((_::_, _), (_::_, _)) =>
+                    let fp := cast_to_original _ (fst (fst w)) in
+                    let fm := cast_to_original _ (snd (fst w)) in
+                    let sp := cast_to_original _ (fst (snd w)) in
+                    let sm := cast_to_original _ (snd (snd w)) in
+                    finite_payoff_walk A ((fp, fm), (sp, sm)) 
+                | _ => finite_payoff_position A 
+                       (cast_to_original _ ((fst (snd w)) ++ (snd (snd w))))
+               end;
+            infinite_payoff f inf := match f 0 with
+                                      | existT _ tt (inl tt) => (exists g, 
+                                        (forall n, n > 0 -> exists m, 
+                                        (f n = existT _ tt (inr m) /\ g (n-1) = m /\ 
+                                         infinite_payoff A g inf)))
+                                      | _ => False
+                                     end;
+            positive_or_negative := true;
+         |}.
+
+Definition lifting (G : AsynchronousGame) (p : Z) : AsynchronousGame :=
+       {| 
+             A := asynchronous_arena_lifting (A G) p;
+             X := X G;
+             Y := Y G;
+             action g m h := match m with
+                                | existT _ tt (inl tt) => m
+                                | existT _ tt (inr m) => 
+                                  existT _ tt (inr (action G g m h))
+                             end;
+        |}.
+
+(*Definition I_def (P : PartialOrder) := unit.
+
+Definition N_def (P : PartialOrder) := (fun (x : unit) => M P).
+
+Definition leq_def (P : PartialOrder) := 
+(fun (m n : {i : unit & (sum unit (M P))}) => match m,n with
+                       | existT _ tt (inl _), _ => True
+                       | existT _ tt (inr m), existT _ tt (inr n) => (leq P) m n
+                       | _, _ => False
+                       end).
+
 Fact reflexive_proof (P : PartialOrder) : forall x, leq_def P x x.
 Proof.
 unfold leq_def. intros. destruct x. destruct x. destruct s.
@@ -70,24 +178,6 @@ Fact index_equality_proof (P : PartialOrder) :
 forall (i j : I_def P), {i = j} + {i <> j}.
 Proof. intros. left. destruct i. destruct j. auto. Qed.
 
-Definition partial_order_lifting (P : PartialOrder) : PartialOrder.
-  refine({| 
-            I := unit;
-            N x := M P;
-            leq m n := match m,n with
-                       | existT _ tt (inl _), _ => True
-                       | existT _ tt (inr m), existT _ tt (inr n) => (leq P) m n
-                       | _, _ => False
-                       end;
-         |}).
-Proof. 
-- apply (reflexive_proof P).
-- apply (anti_symmetric_proof P).
-- apply (transitive_proof P).
-- apply (unit_is_least_proof P).
-- apply (leq_same_component_proof P).
-- apply (index_equality_proof P).
-Defined.
 
 Definition P_def (E : EventStructure) := partial_order_lifting (P E).
 
@@ -161,25 +251,6 @@ destruct x0. destruct x1. destruct s.
 +++ simpl in H. apply incompatible_closed with (y:=n0). auto.
 Qed.
 
-Definition event_structure_lifting (E : EventStructure) : EventStructure.
-  refine({| 
-            P := partial_order_lifting (P E);
-            incompatible m n := match m,n with
-                                | existT _ tt (inr m), existT _ tt (inr n) => incompatible E m n
-                                | _, _ => False
-                                end;
-            ideal m := match m with
-                       | existT _ tt (inl tt) => (existT _ tt (inl tt)) :: nil
-                       | existT _ tt (inr m) =>
-                        (existT _ tt (inl tt)) :: (map (fun x => existT _ tt (inr x)) (ideal E m))
-                       end;
-         |}).
-Proof.
-- apply (symmetric_proof E).
-- apply (irreflexive_proof E).
-- apply (ideal_finite_proof E).
-- apply (incompatible_closed_proof E).
-Defined.
 
 Fixpoint cast_lifting E (l : Position (event_structure_lifting E))
 : Position E :=
@@ -227,21 +298,6 @@ assert
 auto.
 Qed.
 
-Fixpoint contains_only_initial E (p : Position (event_structure_lifting E)) :=
-match p with
-| nil => false
-| existT _ tt (inl tt) :: nil => true
-| existT _ tt (inl tt) :: xs  => contains_only_initial E xs
-| _ => false
-end.
-
-Fixpoint cast_to_original E (p : Position (event_structure_lifting E)) :
-Position E :=
-match p with
-| nil => nil
-| existT _ tt (inl tt) :: xs => cast_to_original E xs
-| existT _ tt (inr m) :: xs => m :: (cast_to_original E xs)
-end.
 
 Definition E_def (A : AsynchronousArena) := 
  event_structure_lifting (E A).
@@ -324,49 +380,6 @@ Proof. unfold finite_payoff_walk_def.
 intros. destruct w. destruct p. destruct p0. simpl in *. destruct H. subst. simpl.
 destruct l; destruct l1; auto.
 Qed.
-
-Definition asynchronous_arena_lifting (A : AsynchronousArena) 
-(negative : (finite_payoff_position A) nil = (1)%Z)
-(p : Z)
-: AsynchronousArena.
-  refine({| 
-            E := event_structure_lifting (E A);
-            polarity m := match m with
-                          | existT _ tt (inl tt) => true
-                          | existT _ tt (inr m) => (polarity A) m
-                          end;
-            finite_payoff_position l :=
-              (match l with
-                | nil => (-1)%Z
-                | _ => if contains_only_initial _ l then p else
-                       finite_payoff_position A (cast_to_original _ l)
-              end);
-            finite_payoff_walk w :=
-              match w with
-                | ((_, nil), (_, nil)) => 0%Z
-                | ((_::_, _), (_::_, _)) =>
-                    let fp := cast_to_original _ (fst (fst w)) in
-                    let fm := cast_to_original _ (snd (fst w)) in
-                    let sp := cast_to_original _ (fst (snd w)) in
-                    let sm := cast_to_original _ (snd (snd w)) in
-                    finite_payoff_walk A ((fp, fm), (sp, sm)) 
-                | _ => finite_payoff_position A 
-                       (cast_to_original _ ((fst (snd w)) ++ (snd (snd w))))
-               end;
-            infinite_payoff f inf := match f 0 with
-                                      | existT _ tt (inl tt) => (exists g, 
-                                        (forall n, n > 0 -> exists m, 
-                                        (f n = existT _ tt (inr m) /\ g (n-1) = m /\ 
-                                         infinite_payoff A g inf)))
-                                      | _ => False
-                                     end;
-         |}).
-Proof.
-- apply (initial_payoff_proof A p).
-- apply (polarity_first_proof A p).
-- apply (polarity_second_proof A p negative).
-- apply (initial_null_proof A).
-Defined.
 
 Definition A_def (G : AsynchronousGame) 
 (negative : (finite_payoff_position (A G)) nil = (1)%Z)
@@ -476,35 +489,7 @@ forall i g h m,
 Proof. unfold action_def.
 intros. destruct i. refine (ex_intro _ tt _).
 refine (ex_intro _ (action G g m h) _). auto.
-Qed.
+Qed.*)
 
-Definition lifting (G : AsynchronousGame) 
-(negative : (finite_payoff_position (A G)) nil = (1)%Z)
-(p : Z)
-: AsynchronousGame.
-  refine({| 
-             A := asynchronous_arena_lifting (A G) negative p;
-             X := X G;
-             Y := Y G;
-             action g m h := match m with
-                                | existT _ tt (inl tt) => m
-                                | existT _ tt (inr m) => 
-                                  existT _ tt (inr (action G g m h))
-                             end;
-        |}).
-Proof.
-- apply (restriction_to_left_is_action_proof G negative p).
-- apply (restriction_to_right_is_action_proof G negative p).
-- apply (coherence_1_proof G negative p).
-- apply (coherence_2_proof G negative p).
-- apply (action_preserves_initial_proof G negative p).
-- apply (action_preserves_non_initial_proof G negative p).
-Defined.
 
-Fact positive_lifting_is_positive :
-forall (G : AsynchronousGame) 
-(neg : (finite_payoff_position (A G)) nil = (1)%Z)
-(p : Z),
-finite_payoff_position 
-(A (lifting G neg p)) nil = (-1)%Z.
-Proof. intros. auto. Qed.
+

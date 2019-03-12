@@ -1,11 +1,20 @@
 Require Import List.
+Require Import Lia.
 Require Import ZArith.
+Require Import Arith.Even.
 Require Import AsynchronousGames.
 
+Definition lastn {A} n (l : list A) := rev (firstn n (rev l)).
+
+Definition nth_error_from_back {A} (l : list A) n := nth_error (rev l) n.
+
 Definition valid_position (E : EventStructure) (p : Position E) :=
-forall m n, (In n p -> leq (P E) m n -> In m p)
+NoDup p /\ 
+(forall m n, 
+(forall a, (nth_error p a = Some n /\ leq (P E) m n /\ m <> n) ->
+exists b, (nth_error p b = Some m /\ b > a))
 /\
-(In m p /\ In n p ->  not (incompatible E m n)).
+(In m p /\ In n p ->  not (incompatible E m n))).
 
 Definition valid_infinite_position
 (E : EventStructure) (f : InfinitePosition E) :=
@@ -18,10 +27,10 @@ Definition move_from (E : EventStructure) (m : (M (P E))) (p q: Position E) :=
 
 Definition valid_path (E: EventStructure) (p : Path E) :=
 forall n, 0 <= n <= length (snd p) ->
-(valid_position E ((fst p) ++ (firstn n (snd p))) /\
-(n > 0 -> (exists m, (nth_error (snd p) (n-1)) = Some m /\
-move_from E m ((fst p) ++ (firstn (n-1) (snd p)))
-((fst p) ++ (firstn n (snd p)))))).
+(valid_position E ((lastn n (snd p)) ++ (fst p)) /\
+(n > 0 -> (exists m, (nth_error_from_back (snd p) (n-1)) = Some m /\
+move_from E m ((lastn (n-1) (snd p)) ++ (fst p))
+((lastn n (snd p)) ++ (fst p))))).
 
 
 Definition valid_walk (E: EventStructure) (w : Walk E) := 
@@ -30,7 +39,7 @@ valid_path E (fst w) /\ valid_path E (snd w) /\
 
 Definition alternating (A : AsynchronousArena) (p : Path (E A)) :=
 forall k m m', 
-((nth_error (snd p) k = Some m /\ nth_error (snd p) (S k) = Some m') ->
+((nth_error_from_back (snd p) k = Some m /\ nth_error_from_back (snd p) (S k) = Some m') ->
 negb (polarity A m) = polarity A m').
 
 Definition valid_alternating_path (A : AsynchronousArena) (p : Path (E A)) :=
@@ -67,27 +76,58 @@ Definition independent E m n := (compatible E m n) /\ (incomparable (P E) m n).
 Definition Strategy (G : AsynchronousGame) := 
 (list (M (P (E (A G))))) -> option (M (P (E (A G)))).
 
-Definition positive (G : AsynchronousGame) := 
-finite_payoff_position (A G) nil = (-1)%Z.
+Definition positive (G : AsynchronousGame) := positive_or_negative (A G) = true.
 
-Definition negative (G : AsynchronousGame) := 
-finite_payoff_position (A G) nil = (1)%Z.
+Definition negative (G : AsynchronousGame) := positive_or_negative (A G) = false.
 
 Definition strategy_induces_play (G : AsynchronousGame) (sigma : Strategy G) p :=
-(positive G -> (forall n, (Nat.even n = true /\ n <= length p) -> 
-(sigma (firstn n p)) = nth_error p n))
+(positive G -> (forall n, (even n /\ n <= length p) -> 
+(sigma (lastn n p)) = nth_error_from_back p n))
 /\
-(negative G -> (forall n, (Nat.odd n = true /\ n <= length p) -> 
-(sigma (firstn n p)) = nth_error p n )).
+(negative G -> (forall n, (odd n /\ n <= length p) -> 
+(sigma (lastn n p)) = nth_error_from_back p n )).
 
+Definition strategy_never_stalls (G : AsynchronousGame) (sigma : Strategy G) :=
+(positive G -> (forall p, even (length p) -> sigma p <> None)) /\
+(negative G -> (forall p, odd (length p) -> sigma p <> None)).
+
+Fact induced_play_length (G : AsynchronousGame) (sigma : Strategy G) :
+strategy_never_stalls G sigma ->
+(forall p, strategy_induces_play G sigma p ->
+((positive G -> odd (length p)) /\ (negative G -> even (length p)))).
+Proof. intros. unfold strategy_never_stalls in H. destruct H. 
+unfold strategy_induces_play in H0. destruct H0.
+split.
++ intros. destruct (even_odd_dec (length p)).
+++ assert (sigma p <> None). {apply H. auto. auto. }
+assert (sigma (lastn (length p) p) = nth_error_from_back p (length p)).
+{apply H0. auto. auto. } unfold lastn in H5. rewrite <- rev_length in H5.
+rewrite firstn_all in H5. rewrite rev_involutive in H5. unfold nth_error_from_back in H5.
+rewrite H5 in H4. apply nth_error_Some in H4. lia.
+++ auto.
++ intros. destruct (even_odd_dec (length p)).
+++ auto.
+++ assert (sigma p <> None). {apply H1. auto. auto. }
+assert (sigma (lastn (length p) p) = nth_error_from_back p (length p)).
+{apply H2. auto. auto. } unfold lastn in H5. rewrite <- rev_length in H5.
+rewrite firstn_all in H5. rewrite rev_involutive in H5. unfold nth_error_from_back in H5.
+rewrite H5 in H4. apply nth_error_Some in H4. lia.
+Qed.
+
+Definition strategy_preserves_validity (G : AsynchronousGame) (sigma : Strategy G) :=
+forall p k, valid_position (E (A G)) p /\ sigma p = Some k ->
+valid_position (E (A G)) (k :: p).
 
 Definition strategy_induces_path (G : AsynchronousGame) (sigma : Strategy G)
-(p : Path (E (A G))) :=
-exists (q : Path (E (A G))) l, q = (nil, l) /\
-(forall k, In k l <-> In k (fst p)) /\ 
-strategy_induces_play G sigma (l ++ (snd p)).
+(p : Path (E (A G))) := exists s, 
+strategy_induces_play G sigma s /\
+strategy_induces_play G sigma ((snd p) ++ s).
 
 Definition winning (G : AsynchronousGame) (sigma : Strategy G) :=
+(strategy_never_stalls G sigma)
+/\
+(strategy_preserves_validity G sigma)
+/\
 (forall p, valid_alternating_path (A G) (nil, p) ->
 strategy_induces_play G sigma p ->
 Z.leb 0%Z (finite_payoff_position (A G) p) = true)
@@ -103,17 +143,24 @@ Z.leb 0%Z (finite_payoff_walk (A G) w) = true).
 
 Definition backward_consistent G sigma :=
 forall s1 m1 n1 m2 n2 s2,
-(strategy_induces_play G sigma (s1 ++ (m1 :: n1 :: m2 :: n2 :: nil) ++ s2)
+(strategy_induces_play G sigma (s2 ++ (n2 :: m2 :: n1 :: m1 :: s1 :: nil))
 /\ independent _ n1 m2 /\ independent _ m1 m2) ->
-(strategy_induces_play G sigma (s1 ++ (m2 :: n2 :: m1 :: n1 :: nil) ++ s2)
+(strategy_induces_play G sigma (s2 ++ (n1 :: m1 :: n2 :: m2 :: s1 :: nil))
 /\ independent _ n1 n2 /\ independent _ m1 n2).
 
 Definition forward_consistent (G : AsynchronousGame) (sigma : Strategy G) :=
 forall s1 m1 n1 m2 n2,
-(sigma (s1 ++ (m1 :: nil)) = Some n1 /\ sigma (s1 ++ (m2 :: nil)) = Some n2
+(sigma (m1 :: s1) = Some n1 /\ sigma (m2 :: s1) = Some n2
 /\ independent _ m1 m2 /\ independent _ m2 n1) ->
-(sigma (s1 ++ (m1 :: n1 :: m2 :: nil)) = Some n2
-/\ independent _ m1 n2 /\ independent _ n1 n2).
+(sigma (m2 :: n1 :: m1 :: s1) = Some n2 /\ independent _ m1 n2 /\ independent _ n1 n2).
 
 Definition innocent (G : AsynchronousGame) (sigma : Strategy G) :=
 forward_consistent G sigma /\ backward_consistent G sigma.
+
+Definition play_action (G : AsynchronousGame) g h p :=
+map (fun m => action G g m h) p.
+
+Definition uniform (G : AsynchronousGame) (sigma : Strategy G) :=
+forall p h, strategy_induces_play G sigma p ->
+exists g, strategy_induces_play G sigma (play_action G g h p).
+

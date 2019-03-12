@@ -20,13 +20,6 @@ refine({|
             N i := empty_type;
             leq m n := True;
          |}).
-Proof.
-- intros. destruct x. destruct x.
-- intros. destruct x. destruct x.
-- intros. destruct x. destruct x.
-- intros. destruct i.
-- intros. destruct i.
-- intros. destruct i.
 Defined.
 
 Definition zero_event_structure : EventStructure.
@@ -35,11 +28,6 @@ refine({|
             incompatible m n := True;
             ideal m := nil;
          |}).
-Proof.
-- intros. destruct x. destruct x.
-- intros. destruct x. destruct x.
-- intros. destruct x. destruct x.
-- intros. destruct x. destruct x.
 Defined.
 
 Definition zero_asynchronous_arena : AsynchronousArena.
@@ -48,13 +36,9 @@ Definition zero_asynchronous_arena : AsynchronousArena.
             polarity m := true;
             finite_payoff_position l := (-1)%Z;
             finite_payoff_walk w := 0%Z;
-             infinite_payoff f inf := True
+            infinite_payoff f inf := True;
+            positive_or_negative := true;
          |}).
-Proof.
-- intros. left. auto.
-- intros. destruct m. destruct x.
-- intros. destruct m. destruct x.
-- auto.
 Defined.
 
 Definition ZERO : AsynchronousGame.
@@ -64,26 +48,11 @@ Definition ZERO : AsynchronousGame.
              Y := trivial_group;
              action g m h := m
         |}).
-Proof.
-- intros. unfold left_action. split.
-+ intros. auto.
-+ intros. auto.
-- intros. unfold right_action. split.
-+ intros. auto.
-+ intros. auto.
-- intros. destruct m. destruct x.
-- intros. destruct m. destruct x.
-- intros. destruct i.
-- intros. destruct i.
 Defined.
 
 Definition TOP : AsynchronousGame := dual ZERO.
 
-Fact top_is_negative : finite_payoff_position (A TOP) nil = (1)%Z.
-Proof. intros. auto. Qed.
-
-Definition ONE : AsynchronousGame :=
-lifting TOP top_is_negative 0%Z.
+Definition ONE : AsynchronousGame := lifting TOP 0%Z.
 
 Definition BOTTOM : AsynchronousGame := dual ONE.
 
