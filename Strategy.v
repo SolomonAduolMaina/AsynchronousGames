@@ -119,7 +119,7 @@ forall p k, valid_position (E (A G)) p /\ sigma p = Some k ->
 valid_position (E (A G)) (k :: p).
 
 Definition strategy_induces_path (G : AsynchronousGame) (sigma : Strategy G)
-(p : Path (E (A G))) := exists s, 
+(p : Path (E (A G))) := exists s, (forall k, In k s <-> In k (fst p)) /\ 
 strategy_induces_play G sigma s /\
 strategy_induces_play G sigma ((snd p) ++ s).
 
