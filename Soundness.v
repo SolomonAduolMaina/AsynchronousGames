@@ -42,7 +42,7 @@ Theorem zero_has_no_winning_strategy :
 not (exists (s : Strategy ZERO), winning _ s).
 Proof. unfold not. intros. destruct H. unfold winning in H.
 destruct H. destruct H. assert (positive ZERO). unfold positive. simpl. auto.
-unfold strategy_never_stalls in H.
+unfold strategy_is_total in H.
 assert (x nil <> None).
 {apply H. auto. simpl. apply Even.even_O. }
 destruct (x nil).
@@ -96,9 +96,9 @@ end) : Strategy (dual (asynchronous_game_tensor_positive (lifting (dual a) 1) a)
 apply s.
 Defined.
 
-Fact copycat_never_stalls (G : AsynchronousGame) :
-strategy_never_stalls (dual (tensor (dual G) (dual (dual G)))) (copycat_strategy G).
-Proof. unfold strategy_never_stalls. split.
+Fact copycat_is_total (G : AsynchronousGame) :
+strategy_is_total (dual (tensor (dual G) (dual (dual G)))) (copycat_strategy G).
+Proof. unfold strategy_is_total. split.
 + intros. destruct G. rewrite unfold_dual in *. 
 remember
 {|
@@ -123,7 +123,11 @@ assert (exists k xs, p = k :: xs).
 {destruct p.
 + simpl in H0. lia.
 + simpl. refine (ex_intro _ m _). refine (ex_intro _ p _). auto.
-} destruct H1. destruct H1. subst p. destruct x0. unfold copycat_strategy.
+} destruct H1. destruct H1. subst p. destruct x0. rewrite unfold_dual in x0.
+(* I NEED TO DESTRUCT x0 AGAIN HERE BUT THE TYPE OF x0 IS NOT
+   SUFFICIENTLY UNFOLDED TO DESTRUCT! ALSO CANNOT USE unfold_dual IN x0 BECAUSE
+  "Cannot change x0, it is used in conclusion." SO ANNOYING! *)
+
 
 
 

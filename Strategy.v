@@ -87,15 +87,15 @@ Definition strategy_induces_play (G : AsynchronousGame) (sigma : Strategy G) p :
 (negative G -> (forall n, (odd n /\ n <= length p) -> 
 (sigma (lastn n p)) = nth_error_from_back p n )).
 
-Definition strategy_never_stalls (G : AsynchronousGame) (sigma : Strategy G) :=
+Definition strategy_is_total (G : AsynchronousGame) (sigma : Strategy G) :=
 (positive G -> (forall p, even (length p) -> sigma p <> None)) /\
 (negative G -> (forall p, odd (length p) -> sigma p <> None)).
 
 Fact induced_play_length (G : AsynchronousGame) (sigma : Strategy G) :
-strategy_never_stalls G sigma ->
+strategy_is_total G sigma ->
 (forall p, strategy_induces_play G sigma p ->
 ((positive G -> odd (length p)) /\ (negative G -> even (length p)))).
-Proof. intros. unfold strategy_never_stalls in H. destruct H. 
+Proof. intros. unfold strategy_is_total in H. destruct H. 
 unfold strategy_induces_play in H0. destruct H0.
 split.
 + intros. destruct (even_odd_dec (length p)).
@@ -124,7 +124,7 @@ strategy_induces_play G sigma s /\
 strategy_induces_play G sigma ((snd p) ++ s).
 
 Definition winning (G : AsynchronousGame) (sigma : Strategy G) :=
-(strategy_never_stalls G sigma)
+(strategy_is_total G sigma)
 /\
 (strategy_preserves_validity G sigma)
 /\
