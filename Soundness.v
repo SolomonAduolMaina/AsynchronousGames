@@ -157,9 +157,94 @@ destruct (f 0). destruct x. destruct s.
 +++++++ destruct n0. destruct x.
 ++++ intros. destruct w. destruct p. destruct p0. destruct p.
 +++++ destruct l.
+++++++ destruct l0. 
++++++++ simpl. apply Z.leb_le. lia.
++++++++ simpl. apply Z.leb_le. lia.
+++++++ simpl. apply Z.leb_le. lia.
++++++ simpl. destruct l.
 ++++++ destruct p0.
-+++++++ destruct l0. simpl. apply Z.leb_le. lia.
-++++++
++++++++ destruct l0.
+++++++++ apply Z.leb_le. lia.
+++++++++ apply Z.leb_le. lia.
++++++++ destruct l0.
+++++++++ apply Z.leb_le. lia.
+++++++++ apply Z.leb_le. lia.
+++++++ destruct p0.
++++++++ apply Z.leb_le. lia.
++++++++ apply Z.leb_le. lia.
+Qed.
+
+Theorem bottom_has_no_winning_strategy :
+not (exists (s : Strategy BOTTOM), winning _ s).
+Proof. unfold not. intros. destruct H. unfold winning in H.
+destruct H. unfold strategy_is_total in H. unfold positive in *.
+unfold negative in *. simpl positive_or_negative in *. destruct H.
+assert (valid_play (E (A (BOTTOM))) ((existT _ tt (inl tt)) :: nil)).
+{unfold valid_play. split.
++ apply NoDup_cons.
+++ auto.
+++ apply NoDup_nil.
++ split.
+++ intros. destruct m. destruct n. destruct H2. destruct H3.
+simpl in H3. destruct x0. unfold nth_error_from_back in H2.
+simpl in H2.
+assert (a < length ((existT
+          (fun _ : unit => (unit + M zero_partial_order)%type)
+          tt (inl tt) :: nil))).
+{apply nth_error_Some. unfold not. intros.
+assert (forall A (a b c : A), a = b /\ b = c -> a = c).
+{intros. destruct H6. subst. auto. }
+assert (Some (existT (fun _ : unit => (unit + M zero_partial_order)%type) x1 s0)
+= None).
+{apply H6 with (b:= (nth_error
+       (existT
+          (fun _ : unit =>
+           (unit + M zero_partial_order)%type)
+          tt (inl tt) :: nil) a)). auto. } inversion H7. }
+simpl in H5. assert (a = 0). {lia. } subst. simpl in H2. inversion H2.
+subst. destruct s.
++++ destruct u. contradiction H4. auto.
++++ contradiction H3.
+++ intros. destruct H2. simpl in H2. simpl in H3. destruct H2.
++++ destruct H3.
+++++ subst. simpl. auto.
+++++ contradiction H3.
++++ contradiction H2. }
+destruct H0.
+assert (x (existT
+          (fun i : I (P (E (A BOTTOM))) =>
+           (unit + N (P (E (A BOTTOM))) i)%type) tt 
+          (inl tt) :: nil) <> None).
+{apply H1. auto. auto. simpl. apply odd_S. apply even_O. }
+assert (strategy_induces_play BOTTOM x nil).
+{unfold strategy_induces_play. unfold positive. unfold negative.
+simpl. split.
++ intros. inversion H5.
++ intros. destruct H6. assert (n = 0). {lia. } subst. inversion H6. }
+unfold strategy_preserves_validity in H0. destruct 
+(x
+       (existT
+          (fun i : I (P (E (A BOTTOM))) =>
+           (unit + N (P (E (A BOTTOM))) i)%type) tt 
+          (inl tt) :: nil)) eqn:eqn1.
++
+assert (valid_play (E (A BOTTOM)) (m :: (existT
+            (fun i : I (P (E (A BOTTOM))) =>
+             (unit + N (P (E (A BOTTOM))) i)%type) tt
+            (inl tt) :: nil))).
+{apply H0. auto. }
+unfold valid_play in H6. destruct H6.
+assert (m <> existT
+             (fun i : I (P (E (A BOTTOM))) =>
+              (unit + N (P (E (A BOTTOM))) i)%type) tt
+             (inl tt)).
+{unfold not. intros. subst. inversion H6. contradiction H10. 
+simpl. left. auto. }
+destruct m. destruct x0. destruct s.
+++ destruct u. contradiction H8. auto.
+++ destruct n. destruct x0.
++ contradiction H4. auto.
+Qed.
 
 Fact conversion_is_sound :
 forall (l : sequent) (f : interpretation),
