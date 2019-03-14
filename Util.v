@@ -1,9 +1,45 @@
 Require Import List.
+Require Import Lia.
 
 Inductive empty_type := .
 
 Fact empty_type_gives_anything : forall A, empty_type -> A.
 Proof. easy. Qed.
+
+Fact odd_length_induction :
+forall A (P : (list A) -> Prop),
+(forall x, P (x :: nil) /\
+(forall x y l, P l -> P (x :: y :: l))) ->
+(forall k l, length l = 2 * k + 1 -> P l).
+Proof. induction k.
++ intros. assert (length l = 1). {lia. } destruct l.
+++ simpl in H1. lia.
+++ simpl in H0. assert (length l = 0). {lia. }
+apply length_zero_iff_nil in H2. subst. apply H.
++ intros. assert (length l = 2 * k + 3). {lia. } destruct l.
+++ simpl in H1. lia.
+++ destruct l.
++++ simpl in H1. lia.
++++ apply H.
+++++ apply a.
+++++ apply IHk. simpl in H0. lia.
+Qed.
+
+Fact even_length_induction :
+forall A (P : (list A) -> Prop),
+(P nil /\
+(forall x y l, P l -> P (x :: y :: l))) ->
+(forall k l, length l = 2 * k -> P l).
+Proof. induction k.
++ intros. assert (length l = 0). {lia. }
+apply length_zero_iff_nil in H1. subst. apply H.
++ intros. assert (length l = 2 * k + 2). {lia. }
+destruct l.
+++ simpl in H1. lia.
+++ destruct l.
++++ simpl in H1. lia.
++++ apply H. apply IHk. simpl in H0. lia.
+Qed.
 
 Ltac flatten_all :=
   repeat (let e := fresh "e" in

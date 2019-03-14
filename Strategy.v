@@ -2,19 +2,72 @@ Require Import List.
 Require Import Lia.
 Require Import ZArith.
 Require Import Arith.Even.
+Require Import Util.
 Require Import AsynchronousGames.
 
 Definition lastn {A} n (l : list A) := rev (firstn n (rev l)).
 
 Definition nth_error_from_back {A} (l : list A) n := nth_error (rev l) n.
 
-Definition valid_position (E : EventStructure) (p : Position E) :=
+Fact nth_error_some_iff_nth_error_from_back A : forall n (l : list A),
+nth_error l n <> None <-> nth_error_from_back l n <> None.
+Proof. intros. unfold iff. split.
++ intros. apply nth_error_Some in H. unfold nth_error_from_back.
+apply nth_error_Some. rewrite rev_length. auto.
++ intros. unfold nth_error_from_back in H. apply nth_error_Some in H.
+rewrite rev_length in H. apply nth_error_Some. auto.
+Qed.
+
+Fact nth_error_cons_same A : forall n (l:list A) x a, 
+nth_error_from_back l n = Some a -> nth_error_from_back (x::l) n = Some a.
+Proof. intros. unfold nth_error_from_back in H. unfold nth_error_from_back. 
+rewrite <- H. simpl. apply nth_error_app1. rewrite rev_length. apply nth_error_Some. apply nth_error_some_iff_nth_error_from_back. unfold
+nth_error_from_back. rewrite H. easy.
+Qed.
+
+Definition valid_play (E : EventStructure) (p : Position E) :=
 NoDup p /\ 
 (forall m n, 
-(forall a, (nth_error p a = Some n /\ leq (P E) m n /\ m <> n) ->
-exists b, (nth_error p b = Some m /\ b > a))
+(forall a, (nth_error_from_back p a = Some n /\ leq (P E) m n /\ m <> n) ->
+exists b, (nth_error_from_back p b = Some m /\ b < a))
 /\
 (In m p /\ In n p ->  not (incompatible E m n))).
+
+Definition valid_position (E : EventStructure) (p : Position E) := valid_play E p.
+
+Fact validity_closed_under_prefix (E : EventStructure) :
+forall m p, valid_play E (m :: p) -> valid_play E p.
+Proof. intros. unfold valid_play in H. destruct H. unfold valid_play. split.
++ apply NoDup_cons_iff in H. apply H.
++ intros. split.
+++ intros. destruct H1.
+assert (nth_error_from_back (m :: p) a = Some n).
+{apply nth_error_cons_same. auto. } 
+assert ((forall a : nat,
+      nth_error_from_back (m :: p) a = Some n /\
+      leq (P E) m0 n /\ m0 <> n ->
+      exists b : nat,
+        nth_error_from_back (m :: p) b = Some m0 /\
+        b < a)).
+{ apply H0. }
+assert (exists b : nat,
+       nth_error_from_back (m :: p) b = Some m0 /\
+       b < a).
+{apply H4. auto. } destruct H5. refine (ex_intro _ x _).
+assert (a < length p).
+{unfold nth_error_from_back in H1. 
+assert (nth_error (rev p) a <> None). {rewrite H1. easy. }
+simpl. apply nth_error_Some in H6. simpl in H6. rewrite rev_length in H6. auto. }
+destruct H5. assert (x < length p). lia.
+unfold nth_error_from_back in H5. simpl in H5.
+assert (nth_error (rev p ++ m :: nil) x = nth_error (rev p) x).
+{apply nth_error_app1. rewrite rev_length. auto. }
+unfold nth_error_from_back. rewrite <- H9. auto.
+++ intros. destruct H1.
+assert (In m0 (m :: p) /\ In n (m :: p)).
+{split; apply in_cons; auto. }
+apply H0. auto.
+Qed.
 
 Definition valid_infinite_position
 (E : EventStructure) (f : InfinitePosition E) :=
@@ -26,11 +79,7 @@ Definition move_from (E : EventStructure) (m : (M (P E))) (p q: Position E) :=
 (In m q) /\ (~ In m p) /\ (forall n, In n p -> In n q).
 
 Definition valid_path (E: EventStructure) (p : Path E) :=
-forall n, 0 <= n <= length (snd p) ->
-(valid_position E ((lastn n (snd p)) ++ (fst p)) /\
-(n > 0 -> (exists m, (nth_error_from_back (snd p) (n-1)) = Some m /\
-move_from E m ((lastn (n-1) (snd p)) ++ (fst p))
-((lastn n (snd p)) ++ (fst p))))).
+valid_play E ((snd p) ++ (fst p)).
 
 
 Definition valid_walk (E: EventStructure) (w : Walk E) := 
@@ -51,10 +100,8 @@ match n with
 | S m => (f counter) :: (finite_part A f m (S counter))
 end.
 
-Definition valid_infinite_play (E: EventStructure)
-(f : nat -> (M (P E))) :=
-forall n, (valid_position E (finite_part _ f n 0)) /\
-move_from E (f n) (finite_part _ f n 0) (finite_part _ f (S n) 0).
+Definition valid_infinite_play (E: EventStructure) (f : nat -> (M (P E))) := 
+forall n, valid_play E (finite_part _ f n 0).
 
 Definition alternating_infinite_play (A : AsynchronousArena) 
 (f : nat -> (M (P (E A)))) :=
@@ -87,36 +134,96 @@ Definition strategy_induces_play (G : AsynchronousGame) (sigma : Strategy G) p :
 (negative G -> (forall n, (odd n /\ n <= length p) -> 
 (sigma (lastn n p)) = nth_error_from_back p n )).
 
+Definition strategy_preserves_validity (G : AsynchronousGame) (sigma : Strategy G) :=
+forall p k m, (strategy_induces_play G sigma p /\ valid_play _ (k :: p) /\
+sigma (k :: p) = Some m) -> valid_play _ (m :: k :: p).
+
 Definition strategy_is_total (G : AsynchronousGame) (sigma : Strategy G) :=
-(positive G -> (forall p, even (length p) -> sigma p <> None)) /\
-(negative G -> (forall p, odd (length p) -> sigma p <> None)).
+(positive G -> (forall p, valid_play _ p -> even (length p) -> sigma p <> None)) /\
+(negative G -> (forall p, valid_play _ p -> odd (length p) -> sigma p <> None)).
 
 Fact induced_play_length (G : AsynchronousGame) (sigma : Strategy G) :
-strategy_is_total G sigma ->
-(forall p, strategy_induces_play G sigma p ->
+strategy_is_total G sigma -> 
+(forall p, strategy_induces_play G sigma p -> valid_play _ p ->
 ((positive G -> odd (length p)) /\ (negative G -> even (length p)))).
 Proof. intros. unfold strategy_is_total in H. destruct H. 
 unfold strategy_induces_play in H0. destruct H0.
 split.
 + intros. destruct (even_odd_dec (length p)).
-++ assert (sigma p <> None). {apply H. auto. auto. }
+++ assert (sigma p <> None). {apply H. auto. auto. auto. }
 assert (sigma (lastn (length p) p) = nth_error_from_back p (length p)).
-{apply H0. auto. auto. } unfold lastn in H5. rewrite <- rev_length in H5.
-rewrite firstn_all in H5. rewrite rev_involutive in H5. unfold nth_error_from_back in H5.
-rewrite H5 in H4. apply nth_error_Some in H4. lia.
+{apply H0. auto. auto. } unfold lastn in H6. rewrite <- rev_length in H6.
+rewrite firstn_all in H6. rewrite rev_involutive in H6. unfold nth_error_from_back in H6.
+rewrite H6 in H5. apply nth_error_Some in H5. lia.
 ++ auto.
 + intros. destruct (even_odd_dec (length p)).
 ++ auto.
-++ assert (sigma p <> None). {apply H1. auto. auto. }
+++ assert (sigma p <> None). {apply H2. auto. auto. auto. }
 assert (sigma (lastn (length p) p) = nth_error_from_back p (length p)).
-{apply H2. auto. auto. } unfold lastn in H5. rewrite <- rev_length in H5.
-rewrite firstn_all in H5. rewrite rev_involutive in H5. unfold nth_error_from_back in H5.
-rewrite H5 in H4. apply nth_error_Some in H4. lia.
+{apply H3. auto. auto. } unfold lastn in H6. rewrite <- rev_length in H6.
+rewrite firstn_all in H6. rewrite rev_involutive in H6. unfold nth_error_from_back in H6.
+rewrite H6 in H5. apply nth_error_Some in H5. lia.
 Qed.
 
-Definition strategy_preserves_validity (G : AsynchronousGame) (sigma : Strategy G) :=
-forall p k, valid_position (E (A G)) p /\ sigma p = Some k ->
-valid_position (E (A G)) (k :: p).
+Fact firstn_app : forall A n (l1 : list A) l2, n <= length l1 ->
+firstn n (l1 ++ l2) = firstn n l1.
+Proof. induction n.
++ intros. simpl. auto.
++ intros. simpl. destruct l1.
+++ simpl in H. lia.
+++ simpl. simpl in H. assert (n <= length l1). {lia. }
+apply IHn with (l2:=l2) in H0. rewrite H0. auto.
+Qed.
+
+Fact strategy_closed_under_prefix (G : AsynchronousGame) (sigma : Strategy G) :
+forall x y p, strategy_is_total G sigma ->
+strategy_induces_play G sigma (x :: y :: p) -> valid_play _ (x :: y :: p) ->
+strategy_induces_play G sigma p.
+Proof. intros. assert (Hk:=H0). unfold strategy_induces_play in H0.
+destruct H0. unfold strategy_induces_play. split.
++ intros. apply induced_play_length in Hk. assert (H5:=H3).
+apply Hk in H3. simpl in H3. inversion H3. subst. inversion H7. subst.
+assert (n < length p).
+{destruct H4. inversion H6. subst. contradiction
+(not_even_and_odd (length p)). lia. }
+apply H0 with (n:=n) in H5.
+assert (nth_error_from_back (x :: y :: p) n = 
+ nth_error_from_back p n).
+{unfold nth_error_from_back. simpl. rewrite <- app_assoc.
+apply nth_error_app1. rewrite rev_length. auto. } rewrite H9 in H5.
+assert (lastn n (x :: y :: p) = lastn n p).
+{unfold lastn. simpl. rewrite <- app_assoc.
+assert (firstn n (rev p ++ (y :: nil) ++ x :: nil) = 
+firstn n (rev p)).
+{apply firstn_app. rewrite rev_length. lia. } rewrite H10. auto. }
+rewrite H10 in H5. auto.
+++ split.
++++ apply H4.
++++ simpl. lia.
+++ auto.
+++ auto.
++ intros. apply induced_play_length in Hk. assert (H5:=H3).
+apply Hk in H3. simpl in H3. inversion H3. subst. inversion H7. subst.
+assert (n < length p).
+{destruct H4. inversion H6. subst. contradiction
+(not_even_and_odd (length p)). lia. }
+apply H2 with (n:=n) in H5.
+assert (nth_error_from_back (x :: y :: p) n = 
+ nth_error_from_back p n).
+{unfold nth_error_from_back. simpl. rewrite <- app_assoc.
+apply nth_error_app1. rewrite rev_length. auto. } rewrite H9 in H5.
+assert (lastn n (x :: y :: p) = lastn n p).
+{unfold lastn. simpl. rewrite <- app_assoc.
+assert (firstn n (rev p ++ (y :: nil) ++ x :: nil) = 
+firstn n (rev p)).
+{apply firstn_app. rewrite rev_length. lia. } rewrite H10. auto. }
+rewrite H10 in H5. auto.
+++ split.
++++ apply H4.
++++ simpl. lia.
+++ auto.
+++ auto.
+Qed.
 
 Definition strategy_induces_path (G : AsynchronousGame) (sigma : Strategy G)
 (p : Path (E (A G))) := exists s, (forall k, In k s <-> In k (fst p)) /\ 
@@ -124,9 +231,9 @@ strategy_induces_play G sigma s /\
 strategy_induces_play G sigma ((snd p) ++ s).
 
 Definition winning (G : AsynchronousGame) (sigma : Strategy G) :=
-(strategy_is_total G sigma)
+(strategy_is_total G sigma) (* PROGRESS *)
 /\
-(strategy_preserves_validity G sigma)
+(strategy_preserves_validity G sigma) (* PRESERVATION *)
 /\
 (forall p, valid_alternating_path (A G) (nil, p) ->
 strategy_induces_play G sigma p ->
