@@ -43,10 +43,13 @@ not (exists (s : Strategy ZERO), winning _ s).
 Proof. unfold not. intros. destruct H. unfold winning in H.
 destruct H. destruct H. assert (positive ZERO). unfold positive. simpl. auto.
 assert (x nil <> None).
-{apply H. auto. simpl. unfold valid_play. unfold valid_position. split.
+{apply H. auto. simpl. unfold valid_alternating_play. unfold valid_alternating_play. split.
+- unfold valid_alternating_play. split.
 + apply NoDup_nil.
 + intros. destruct m. destruct x0.
-+ simpl. apply even_O. }
+- unfold alternating. intros. unfold nth_error_from_back in H3.
+simpl in H3. destruct H3. inversion H4.
+- simpl. apply even_O. }
 destruct (x nil).
 + destruct m. destruct x0.
 + contradiction H3. auto.
@@ -102,8 +105,8 @@ assert (exists k xs, p = k :: xs).
 + refine (ex_intro _ m0 _). refine (ex_intro _ p _). auto. }
 destruct H2. destruct H2. subst.
 assert (m <> x).
-{unfold not. intros. subst. unfold valid_play in H0. unfold valid_position in H0.
-destruct H0. inversion H0. contradiction H6. left. auto. }
+{unfold not. intros. subst. unfold valid_alternating_play in H0. destruct H0.
+unfold valid_alternating_play in H0. destruct H0. inversion H0. contradiction H7. left. auto. }
 destruct m. destruct x1. destruct s.
 ++++ destruct x. destruct x. destruct s.
 +++++ destruct u. destruct u0. contradiction H2. auto.
@@ -134,8 +137,7 @@ inversion H3.
 ++++++ apply Z.leb_le. lia.
 +++++ apply Z.leb_le. lia.
 +++ split.
-++++ intros. unfold valid_alternating_infinite_play in H1. destruct H1.
-unfold valid_infinite_play in H1. destruct n.
+++++ intros. unfold valid_alternating_infinite_play in H1. destruct n.
 +++++ simpl finite_part in *. contradiction H0.
 +++++ simpl finite_part in *. destruct n.
 ++++++ simpl in *. destruct (f 0). destruct x. destruct s.
@@ -145,13 +147,13 @@ unfold valid_infinite_play in H1. destruct n.
 assert (valid_play (E (A ONE))
        (finite_part (M (partial_order_lifting zero_partial_order)) f 2 0)).
 {apply H1. }
-simpl finite_part in *. unfold valid_play in H4. destruct H4.
+simpl finite_part in *. unfold valid_play in H3. destruct H3.
 assert (f 0 <> f 1).
-{unfold not. intros. rewrite H6 in H4. inversion H4. contradiction H9. left. auto. }
+{unfold not. intros. rewrite H5 in H3. inversion H3. contradiction H8. left. auto. }
 destruct (f 0). destruct x. destruct s.
 +++++++ destruct u. destruct (f 1).
 ++++++++ destruct x. destruct s.
-+++++++++ destruct u. contradiction H6. auto.
++++++++++ destruct u. contradiction H5. auto.
 +++++++++ destruct n0. destruct x.
 +++++++ destruct n0. destruct x.
 ++++ intros. destruct w. destruct p. destruct p0. destruct p.
@@ -178,8 +180,9 @@ not (exists (s : Strategy BOTTOM), winning _ s).
 Proof. unfold not. intros. destruct H. unfold winning in H.
 destruct H. unfold strategy_is_total in H. unfold positive in *.
 unfold negative in *. simpl positive_or_negative in *. destruct H.
-assert (valid_play (E (A (BOTTOM))) ((existT _ tt (inl tt)) :: nil)).
-{unfold valid_play. split.
+assert (valid_alternating_play (A (BOTTOM)) ((existT _ tt (inl tt)) :: nil)).
+{unfold valid_alternating_play. split.
+- unfold valid_alternating_play. split.
 + apply NoDup_cons.
 ++ auto.
 ++ apply NoDup_nil.
@@ -208,7 +211,10 @@ subst. destruct s.
 +++ destruct H3.
 ++++ subst. simpl. auto.
 ++++ contradiction H3.
-+++ contradiction H2. }
++++ contradiction H2.
+- unfold alternating. intros. unfold nth_error_from_back in H2. destruct k.
++ simpl in H2. destruct H2. inversion H3.
++ simpl in H2. destruct H2. inversion H3. }
 destruct H0.
 assert (x (existT
           (fun i : I (P (E (A BOTTOM))) =>
@@ -232,7 +238,7 @@ assert (valid_play (E (A BOTTOM)) (m :: (existT
              (unit + N (P (E (A BOTTOM))) i)%type) tt
             (inl tt) :: nil))).
 {apply H0. auto. }
-unfold valid_play in H6. destruct H6.
+unfold valid_alternating_play in H6. destruct H6.
 assert (m <> existT
              (fun i : I (P (E (A BOTTOM))) =>
               (unit + N (P (E (A BOTTOM))) i)%type) tt
@@ -294,12 +300,12 @@ destruct H4. destruct H4. subst. simpl. destruct x. destruct s0.
 ++ destruct u. easy.
 ++ destruct n; easy. }
 assert (forall p, strategy_induces_play _ copycat p ->
-valid_play _ p ->
+valid_alternating_play _ p ->
 (forall n, (odd n /\ n < length p) -> (exists k,
 nth_error_from_back p (n-1) = Some k /\ 
 nth_error_from_back p n = Some (copy_move k)))).
 { remember (fun p => strategy_induces_play _ copycat p ->
-valid_play _ p ->
+valid_alternating_play _ p ->
 (forall n, (odd n /\ n < length p) -> (exists k,
 nth_error_from_back p (n-1) = Some k /\ 
 nth_error_from_back p n = Some (copy_move k)))) as P.
@@ -315,10 +321,11 @@ assert (strategy_induces_play _ copycat l).
 {apply strategy_closed_under_prefix with (x:=x) (y:=y).
 + auto.
 + auto.
-+ auto. }
-assert (valid_play _ (y :: l)).
++ auto.
+ }
+assert (valid_alternating_play _ (y :: l)).
 {apply validity_closed_under_prefix with (m:=x). auto. }
-assert (valid_play _ l).
+assert (valid_alternating_play _ l).
 {apply validity_closed_under_prefix with (m:=y). auto. }
 assert (forall n : nat,
      odd n /\ n < length l ->
@@ -342,7 +349,7 @@ assert (strategy_is_total (dual
                     (lifting (dual a) 1))) copycat -> 
 (forall p, strategy_induces_play (dual
                  (asynchronous_game_tensor_positive a
-                    (lifting (dual a) 1))) copycat p -> valid_play _ p ->
+                    (lifting (dual a) 1))) copycat p -> valid_alternating_play _ p ->
 ((positive (dual
                  (asynchronous_game_tensor_positive a
                     (lifting (dual a) 1))) -> odd (length p)) /\ (negative (dual
@@ -401,7 +408,7 @@ assert (forall l, even (length l) -> P l).
 {apply even_length_list_induction. auto. }
 subst P. intros. apply H4.
 assert (strategy_is_total _ copycat -> 
-(forall p, strategy_induces_play _ copycat p -> valid_play _ p ->
+(forall p, strategy_induces_play _ copycat p -> valid_alternating_play _ p ->
 ((positive (dual
                 (asynchronous_game_tensor_positive a
                    (lifting (dual a) 1))) -> odd (length p)) /\ 
@@ -453,6 +460,26 @@ unfold positive_iff_player_always_starts in H11.
 simpl positive_or_negative in H11. simpl in eqn1. apply negb_true_iff in eqn1. rewrite eqn1 in H11. apply H11. auto.
 apply H7.
 ++++ auto. }
-
+assert (strategy_preserves_validity (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1))) copycat).
+{unfold strategy_preserves_validity. intros. destruct H8. destruct H9. unfold valid_alternating_play. split.
+- unfold valid_play. split.
++ apply NoDup_cons. unfold not. intros. rewrite Heqcopycat in H10. inversion H10. subst m. destruct H11.
+++ destruct k. destruct x. destruct i0. destruct s0.
++++ destruct u. subst copy_move. inversion H11.
++++ destruct n.
+++++ subst copy_move. inversion H11.
+++++ subst copy_move. destruct n.
++++++ destruct s0.
+++++++ destruct u. inversion H11.
+++++++ inversion H11.
+++ assert (exists n, nth_error p n = Some (copy_move k)).
+{apply In_nth_error. auto. }
+destruct H12. destruct (even_odd_dec x).
++++ assert (even (length p)).
+{apply induced_play_length with
+(sigma:=copycat). auto. auto. apply validity_closed_under_prefix with (m:=k). auto. unfold negative. subst a.
+ simpl. auto. }
+assert (x < length p).
+{apply nth_error_Some. rewrite H12. easy. }
 
 

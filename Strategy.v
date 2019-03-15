@@ -33,66 +33,62 @@ exists b, (nth_error_from_back p b = Some m /\ b < a))
 /\
 (In m p /\ In n p ->  not (incompatible E m n))).
 
-Definition valid_position (E : EventStructure) (p : Position E) := valid_play E p.
+Definition alternating (A : AsynchronousArena) p :=
+forall k m m', 
+((nth_error_from_back p k = Some m /\ nth_error_from_back p (S k) = Some m') ->
+negb (polarity A m) = polarity A m').
 
-Fact validity_closed_under_prefix (E : EventStructure) :
-forall m p, valid_play E (m :: p) -> valid_play E p.
-Proof. intros. unfold valid_play in H. destruct H. unfold valid_play. split.
+Definition valid_alternating_play (A : AsynchronousArena) p :=
+valid_play (E A) p /\ alternating A p.
+
+Fact validity_closed_under_prefix (A : AsynchronousArena) :
+forall m p, valid_alternating_play A (m :: p) -> valid_alternating_play A p.
+Proof. intros. unfold valid_alternating_play in H. destruct H.
+unfold valid_play in H. destruct H. unfold valid_alternating_play. split.
+- unfold valid_play. split.
 + apply NoDup_cons_iff in H. apply H.
 + intros. split.
-++ intros. destruct H1.
+++ intros. destruct H2.
 assert (nth_error_from_back (m :: p) a = Some n).
 {apply nth_error_cons_same. auto. } 
 assert ((forall a : nat,
       nth_error_from_back (m :: p) a = Some n /\
-      leq (P E) m0 n /\ m0 <> n ->
+      leq (P (E A)) m0 n /\ m0 <> n ->
       exists b : nat,
         nth_error_from_back (m :: p) b = Some m0 /\
         b < a)).
-{ apply H0. }
+{ apply H1. }
 assert (exists b : nat,
        nth_error_from_back (m :: p) b = Some m0 /\
        b < a).
-{apply H4. auto. } destruct H5. refine (ex_intro _ x _).
+{apply H5. auto. } destruct H6. refine (ex_intro _ x _).
 assert (a < length p).
-{unfold nth_error_from_back in H1. 
-assert (nth_error (rev p) a <> None). {rewrite H1. easy. }
-simpl. apply nth_error_Some in H6. simpl in H6. rewrite rev_length in H6. auto. }
-destruct H5. assert (x < length p). lia.
-unfold nth_error_from_back in H5. simpl in H5.
+{unfold nth_error_from_back in H2. 
+assert (nth_error (rev p) a <> None). {rewrite H2. easy. }
+simpl. apply nth_error_Some in H7. simpl in H7. rewrite rev_length in H7. auto. }
+destruct H6. assert (x < length p). lia.
+unfold nth_error_from_back in H6. simpl in H6.
 assert (nth_error (rev p ++ m :: nil) x = nth_error (rev p) x).
 {apply nth_error_app1. rewrite rev_length. auto. }
-unfold nth_error_from_back. rewrite <- H9. auto.
-++ intros. destruct H1.
+unfold nth_error_from_back. rewrite <- H10. auto.
+++ intros. destruct H2.
 assert (In m0 (m :: p) /\ In n (m :: p)).
 {split; apply in_cons; auto. }
-apply H0. auto.
+apply H1. auto.
+- intros. unfold alternating. unfold alternating in H0. intros.
+destruct H2. unfold nth_error_from_back in H2. unfold nth_error_from_back in H3.
+assert ((S k) < length p).
+{rewrite <- rev_length. apply nth_error_Some. rewrite H3. easy. }
+unfold nth_error_from_back in H0. simpl rev in H0. 
+assert (nth_error (rev p ++ m :: nil) k = nth_error (rev p) k).
+{apply nth_error_app1. rewrite rev_length. lia. }
+assert (nth_error (rev p ++ m :: nil) (S k) = nth_error (rev p) (S k)).
+{apply nth_error_app1. rewrite rev_length. lia. }
+apply H0 with (k:=k). rewrite H5. rewrite H6. auto.
 Qed.
 
-Definition valid_infinite_position
-(E : EventStructure) (f : InfinitePosition E) :=
-forall m n, (exists k, (f k = m -> (exists l, f l = n)))
-/\
-((exists k l, (f k = m /\ f l = n)) -> (not (incompatible E m n))).
-
-Definition move_from (E : EventStructure) (m : (M (P E))) (p q: Position E) :=
-(In m q) /\ (~ In m p) /\ (forall n, In n p -> In n q).
-
-Definition valid_path (E: EventStructure) (p : Path E) :=
-valid_play E ((snd p) ++ (fst p)).
-
-
-Definition valid_walk (E: EventStructure) (w : Walk E) := 
-valid_path E (fst w) /\ valid_path E (snd w) /\
-(forall x,  In x (fst (fst w)) <-> In x (fst (snd w))).
-
-Definition alternating (A : AsynchronousArena) (p : Path (E A)) :=
-forall k m m', 
-((nth_error_from_back (snd p) k = Some m /\ nth_error_from_back (snd p) (S k) = Some m') ->
-negb (polarity A m) = polarity A m').
-
 Definition valid_alternating_path (A : AsynchronousArena) (p : Path (E A)) :=
-valid_path (E A) p /\ alternating A p.
+valid_play (E A) ((snd p) ++ (fst p)) /\ alternating A (snd p).
 
 Fixpoint finite_part A (f : nat -> A) (n : nat) (counter : nat) : list A :=
 match n with
@@ -100,19 +96,12 @@ match n with
 | S m => (f counter) :: (finite_part A f m (S counter))
 end.
 
-Definition valid_infinite_play (E: EventStructure) (f : nat -> (M (P E))) := 
-forall n, valid_play E (finite_part _ f n 0).
-
-Definition alternating_infinite_play (A : AsynchronousArena) 
-(f : nat -> (M (P (E A)))) :=
-forall n, negb (polarity A (f n)) = polarity A (f (S n)).
-
 Definition valid_alternating_infinite_play (A : AsynchronousArena) 
-(f : nat -> (M (P (E A)))) :=
-valid_infinite_play (E A) f /\ alternating_infinite_play A f.
+(f : nat -> (M (P (E A)))) := forall n,
+valid_play (E A) (finite_part _ f n 0) /\ negb (polarity A (f n)) = polarity A (f (S n)).
 
 Definition valid_alternating_walk (A : AsynchronousArena) (w : Walk (E A)) :=
-valid_walk (E A) w /\ alternating A (fst w) /\ alternating A (snd w).
+valid_alternating_path A (fst w) /\ valid_alternating_path A (snd w).
 
 Definition incomparable P m n := (not (leq P m n)) /\ (not (leq P m n)).
 
@@ -135,16 +124,16 @@ Definition strategy_induces_play (G : AsynchronousGame) (sigma : Strategy G) p :
 (sigma (lastn n p)) = nth_error_from_back p n )).
 
 Definition strategy_preserves_validity (G : AsynchronousGame) (sigma : Strategy G) :=
-forall p k m, (strategy_induces_play G sigma p /\ valid_play _ (k :: p) /\
-sigma (k :: p) = Some m) -> valid_play _ (m :: k :: p).
+forall p k m, (strategy_induces_play G sigma p /\ valid_alternating_play _ (k :: p) /\
+sigma (k :: p) = Some m) -> valid_alternating_play _ (m :: k :: p).
 
 Definition strategy_is_total (G : AsynchronousGame) (sigma : Strategy G) :=
-(positive G -> (forall p, valid_play _ p -> even (length p) -> sigma p <> None)) /\
-(negative G -> (forall p, valid_play _ p -> odd (length p) -> sigma p <> None)).
+(positive G -> (forall p, valid_alternating_play _ p -> even (length p) -> sigma p <> None)) /\
+(negative G -> (forall p, valid_alternating_play _ p -> odd (length p) -> sigma p <> None)).
 
 Fact induced_play_length (G : AsynchronousGame) (sigma : Strategy G) :
 strategy_is_total G sigma -> 
-(forall p, strategy_induces_play G sigma p -> valid_play _ p ->
+(forall p, strategy_induces_play G sigma p -> valid_alternating_play _ p ->
 ((positive G -> odd (length p)) /\ (negative G -> even (length p)))).
 Proof. intros. unfold strategy_is_total in H. destruct H. 
 unfold strategy_induces_play in H0. destruct H0.
@@ -177,7 +166,7 @@ Qed.
 
 Fact strategy_closed_under_prefix (G : AsynchronousGame) (sigma : Strategy G) :
 forall x y p, strategy_is_total G sigma ->
-strategy_induces_play G sigma (x :: y :: p) -> valid_play _ (x :: y :: p) ->
+strategy_induces_play G sigma (x :: y :: p) -> valid_alternating_play _ (x :: y :: p) ->
 strategy_induces_play G sigma p.
 Proof. intros. assert (Hk:=H0). unfold strategy_induces_play in H0.
 destruct H0. unfold strategy_induces_play. split.
