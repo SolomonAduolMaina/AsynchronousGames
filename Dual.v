@@ -28,6 +28,52 @@ Definition dual (G: AsynchronousGame)  : AsynchronousGame :=
             action g m h := action G h m g;
          |}.
 
+(*Fact dual_preserves_well_formedness :
+forall G, well_formed_asynchronousgame G ->
+well_formed_asynchronousgame (dual G).
+Proof. intros. unfold well_formed_asynchronousgame. unfold well_formed_asynchronousgame in H.
+split.
++ simpl. unfold well_formed_asynchronous_arena. simpl. destruct H. 
+unfold well_formed_asynchronous_arena in H. split.
+++ apply H.
+++ unfold polarity_first. destruct H. destruct H1. unfold polarity_first in H1.
+split.
++++ intros. simpl. simpl in H3. split.
+++++ intros. apply negb_true_iff in H4.
+assert (finite_payoff_position (A G) nil = 1%Z).
+{apply H1 with (m:=m). auto. auto. } lia.
+++++ intros. apply negb_false_iff in H4.
+assert (finite_payoff_position (A G) nil = (-1)%Z).
+{apply H1 with (m:=m). auto. auto. } lia.
++++ split.
+++++ destruct H2. unfold polarity_second. unfold polarity_second in H2.
+intros. simpl. split.
++++++ intros. apply negb_true_iff in H5. simpl in H4.
+assert (finite_payoff_position (A G) nil = (-1)%Z).
+{apply H2 with (m:=m). auto. auto. } lia.
++++++ intros. apply negb_false_iff in H5. simpl in H4.
+assert (finite_payoff_position (A G) nil = 1%Z).
+{apply H2 with (m:=m). auto. auto. } lia.
+++++ split.
++++++ unfold initial_null. intros. destruct w. simpl in H3.
+destruct p. destruct p0. simpl in H3. destruct H3. subst. simpl.
+assert (finite_payoff_walk (A G) (p, nil, (p0, nil)) = 0%Z).
+{ destruct H2. destruct H3. unfold initial_null in H3. apply H3. simpl. auto. }
+assert ((- finite_payoff_walk (A G) (p, nil, (p0, nil)))%Z = 
+finite_payoff_walk (A G) (p, nil, (p0, nil))).
+{rewrite H3. lia. }
+assert (forall A (a b c : A), a = b /\ b = c -> a = c).
+{intros. destruct H5. subst. auto. }
+apply H5 with (b:=finite_payoff_walk (A G) (p, nil, (p0, nil))).
+auto.
++++++ unfold positive_iff_player_always_starts. simpl. split.
+++++++ intros. apply negb_true_iff. destruct H2. destruct H5.
+unfold positive_iff_player_always_starts in H6.
+apply negb_true_iff in H3. apply H6. auto. auto.
+++++++ intros. apply negb_false_iff. destruct H2. destruct H5.
+unfold positive_iff_player_always_starts in H6.
+apply negb_true_iff in H3. apply H6. auto. auto.
+*)
 (* Definition E_def (A : AsynchronousArena) := E A.
 
 Definition polarity_def (A : AsynchronousArena) :=

@@ -1,5 +1,6 @@
 Require Import List.
 Require Import Lia.
+Require Import Arith.Even.
 
 Inductive empty_type := .
 
@@ -40,6 +41,31 @@ destruct l.
 +++ simpl in H1. lia.
 +++ apply H. apply IHk. simpl in H0. lia.
 Qed.
+
+Fact even_length_list_induction :
+forall A (P : (list A) -> Prop),
+(P nil /\
+(forall x y l, P l -> P (x :: y :: l))) ->
+(forall l, even (length l) -> P l).
+Proof. intros. apply even_equiv in H0. 
+unfold PeanoNat.Nat.Even in H0.  destruct H0. 
+apply even_length_induction with (k := x).
++ auto.
++ auto.
+Qed.
+
+Fact odd_length_list_induction :
+forall A (P : (list A) -> Prop),
+(forall x, P (x :: nil) /\
+(forall x y l, P l -> P (x :: y :: l))) ->
+(forall l, odd (length l) -> P l).
+Proof. intros. apply odd_equiv in H0. 
+unfold PeanoNat.Nat.Odd in H0.  destruct H0. 
+apply odd_length_induction with (k := x).
++ auto.
++ auto.
+Qed.
+
 
 Ltac flatten_all :=
   repeat (let e := fresh "e" in

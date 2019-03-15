@@ -97,7 +97,7 @@ Definition polarity_second (A : AsynchronousArena) :=
 forall m, second_move (P (E A)) m -> 
     ((polarity A m = true -> finite_payoff_position A nil = (1)%Z)
     /\
-    (polarity A m = false -> finite_payoff_position A nil = (1)%Z)).
+    (polarity A m = false -> finite_payoff_position A nil = (-1)%Z)).
 
 Definition initial_null (A : AsynchronousArena) :=
 forall w, (snd (fst w) = nil /\ snd (snd w) = nil) -> 
