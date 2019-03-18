@@ -1,7 +1,7 @@
 Require Import ZArith.
 Require Import Arith.Even.
 Require Import ZArith.Int.
-Require Import Logic.Eqdep_dec.
+Require Import Logic.Eqdep.
 Require Import Logic.FunctionalExtensionality.
 Require Import Bool.Bool.
 Require Import Lia.
@@ -273,9 +273,9 @@ remember ((fun x => match x with
                          (existT _ i (inr (inr  (existT _ (fst i) (inl tt))   )))
                         | existT _ i (inr (inl m)) => 
                          (existT _ i (inr (inr  (existT _ (fst i) (inr m))   )))
-                        | existT _ i (inr (inr (existT _ j (inl tt) )))  => 
+                        | existT _ i (inr (inr (existT _ _ (inl tt) )))  => 
                          (existT _ i (inl tt))
-                        | existT _ i (inr (inr (existT _ j (inr m) ))) =>
+                        | existT _ _ (inr (inr (existT _ j (inr m) ))) =>
                          (existT _ (j,tt) (inr (inl m)))
                     end)
 : M (P (E (AsynchronousGames.A (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1)))))) ->
@@ -474,12 +474,34 @@ assert (strategy_preserves_validity (dual (asynchronous_game_tensor_positive a (
 ++++++ inversion H11.
 ++ assert (exists n, nth_error p n = Some (copy_move k)).
 {apply In_nth_error. auto. }
-destruct H12. destruct (even_odd_dec x).
+destruct H12.
+assert (x < length p).
+{apply nth_error_Some. rewrite H12. easy. }
+apply nth_error_from_back_formula in H13.
+destruct (even_odd_dec x).
 +++ assert (even (length p)).
 {apply induced_play_length with
 (sigma:=copycat). auto. auto. apply validity_closed_under_prefix with (m:=k). auto. unfold negative. subst a.
  simpl. auto. }
 assert (x < length p).
 {apply nth_error_Some. rewrite H12. easy. }
-
-
+assert (H16:=e). assert (H17:=H14). apply even_equiv in H16. apply even_equiv in H17.
+unfold Nat.Even in H16, H17. destruct H16, H17. 
+assert (x1 - x0 > 0). {lia. }
+assert (exists k, x1 - x0 = S k).
+{destruct (x1 - x0).
++ lia.
++ refine (ex_intro _ n _). auto. }
+destruct H19.
+assert (length p - x - 1 = 2 * (x1 - x0) - 1). {lia. }
+assert (2 * (x1 - x0) - 1 = 2 * x2 + 1). {lia. }
+rewrite H21 in H20. rewrite H20 in H13. rewrite H12 in H13.
+assert (odd (2 * x2 + 1)).
+{apply odd_equiv. unfold Nat.Odd. refine (ex_intro _ x2 _). auto. }
+assert (exists a, nth_error_from_back p ((2 * x2 + 1) - 1) = Some a /\
+       nth_error_from_back p (2 * x2 + 1) = Some (copy_move a)).
+{apply H2. auto. apply validity_closed_under_prefix with (m:=k). auto. split.
++ auto.
++ lia. }
+destruct H23. destruct H23. rewrite <- H13 in H24. inversion H24.
+rewrite H19 in H18.

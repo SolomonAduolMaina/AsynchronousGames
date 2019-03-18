@@ -18,6 +18,29 @@ apply nth_error_Some. rewrite rev_length. auto.
 rewrite rev_length in H. apply nth_error_Some. auto.
 Qed.
 
+Fact nth_error_from_back_formula A : forall n (l : list A),
+n < length l ->
+nth_error l n = nth_error_from_back l ((length l) - n - 1).
+Proof. intros. generalize dependent n. induction l.
++ intros. simpl. destruct n; auto.
++ intros. simpl length.
+assert ((S (length l) - n - 1) = (length l) - n). {lia. }
+rewrite H0. destruct n.
+++ simpl. unfold nth_error_from_back. simpl.
+assert (length l - 0 = length l). {lia. } rewrite H1.
+assert (nth_error (rev l ++ a :: nil) (length l) = 
+nth_error (a :: nil) (length l - length (rev l))).
+{apply nth_error_app2. rewrite rev_length. auto. }
+rewrite H2. assert (length l - length (rev l) = 0).
+{rewrite rev_length. lia. }
+rewrite H3. simpl. auto.
+++ simpl. assert (length l - S n = (length l - n - 1)). {lia. }
+rewrite H1. unfold nth_error_from_back. simpl. rewrite IHl.
++++ unfold nth_error_from_back. symmetry. apply nth_error_app1.
+rewrite rev_length. simpl in H. lia.
++++ simpl in H. lia.
+Qed.
+
 Fact nth_error_cons_same A : forall n (l:list A) x a, 
 nth_error_from_back l n = Some a -> nth_error_from_back (x::l) n = Some a.
 Proof. intros. unfold nth_error_from_back in H. unfold nth_error_from_back. 
