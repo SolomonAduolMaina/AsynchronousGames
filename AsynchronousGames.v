@@ -69,7 +69,6 @@ Definition well_formed_partial_order (P : PartialOrder) :=
 reflexive P /\ anti_symmetric P /\ transitive P /\ unit_is_least P /\
 leq_same_component P.
 
-
 Definition symmetric (E : EventStructure) :=
 forall x y, incompatible E x y -> incompatible E y x.
 
@@ -82,10 +81,13 @@ forall x y, leq (P E) y x <-> In y (ideal E x).
 Definition incompatible_closed (E : EventStructure) :=
 forall x y z, (incompatible E x y) /\ (leq (P E) y z) -> incompatible E x z.
 
+Definition compatible_same_component (E : EventStructure) :=
+forall i i' m m', ~(incompatible E (existT _ i m) (existT _ i' m')) -> i = i'.
+
 Definition well_formed_event_structure (E : EventStructure) :=
 well_formed_partial_order (P E) /\
 symmetric E /\ irreflexive E /\ ideal_finite E /\
-incompatible_closed E.
+incompatible_closed E /\ compatible_same_component E.
 
 Definition polarity_first (A : AsynchronousArena) :=
 forall m, initial_move (P (E A)) m -> 

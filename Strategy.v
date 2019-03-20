@@ -48,13 +48,29 @@ rewrite <- H. simpl. apply nth_error_app1. rewrite rev_length. apply nth_error_S
 nth_error_from_back. rewrite H. easy.
 Qed.
 
-Definition valid_play (E : EventStructure) (p : Position E) :=
+Definition Play (E : EventStructure) := list (M (P E)).
+
+Definition valid_play (E : EventStructure) (p : Play E) :=
 NoDup p /\ 
 (forall m n, 
 (forall a, (nth_error_from_back p a = Some n /\ leq (P E) m n /\ m <> n) ->
 exists b, (nth_error_from_back p b = Some m /\ b < a))
 /\
 (In m p /\ In n p ->  not (incompatible E m n))).
+
+Definition get_index {A} {P} (x : (sigT P)) : A :=
+match x with
+| existT _ i _ => i 
+end.
+
+Fact valid_play_same_component (E : EventStructure) (p : Play E) :
+well_formed_event_structure E ->
+valid_play E p ->
+(forall m n, (In m p /\ In n p) -> get_index m = get_index n).
+Proof. intros. assert (not (incompatible E m n)).
+{apply H0. auto. }
+destruct m. destruct n. simpl. apply H in H2. auto.
+Qed.
 
 Definition alternating (A : AsynchronousArena) p :=
 forall k m m', 

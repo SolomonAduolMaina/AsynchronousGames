@@ -166,9 +166,9 @@ Definition asynchronous_game_sum_positive (G H: AsynchronousGame) : Asynchronous
 Definition asynchronous_game_sum (G H: AsynchronousGame) : AsynchronousGame :=
 match positive_or_negative (A G), positive_or_negative (A H) with
 | true, true => asynchronous_game_sum_positive G H
-| true, false => asynchronous_game_sum_positive G (lifting H (1)%Z)
-| false, true => asynchronous_game_sum_positive (lifting G (1)%Z) H
-| false, false => asynchronous_game_sum_positive (lifting G (1)%Z) (lifting H (1)%Z)
+| true, false => asynchronous_game_sum_positive G (lifting H (1)%Z true)
+| false, true => asynchronous_game_sum_positive (lifting G (1)%Z true) H
+| false, false => asynchronous_game_sum_positive (lifting G (1)%Z true) (lifting H (1)%Z true)
 end.
 
 

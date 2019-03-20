@@ -9,10 +9,6 @@ Require Import Bool.Bool.
 Require Import Group.
 Require Import AsynchronousGames.
 
-Definition I_def (P : PartialOrder) := unit.
-
-Definition N_def (P : PartialOrder) := (fun (x : unit) => M P).
-
 Definition leq_def (P : PartialOrder) := 
 (fun (m n : {i : unit & (sum unit (M P))}) => match m,n with
                        | existT _ tt (inl _), _ => True
@@ -70,7 +66,7 @@ match p with
 end.
 
 Definition asynchronous_arena_lifting (A : AsynchronousArena) 
-(p : Z): AsynchronousArena :=
+(p : Z) (sign : bool) : AsynchronousArena :=
         {| 
             E := event_structure_lifting (E A);
             polarity m := match m with
@@ -79,7 +75,7 @@ Definition asynchronous_arena_lifting (A : AsynchronousArena)
                           end;
             finite_payoff_position l :=
               (match l with
-                | nil => (-1)%Z
+                | nil => if sign then (-1)%Z else (1)%Z
                 | existT _ tt (inl tt) :: nil => p
                 | _ => finite_payoff_position A (cast_to_original _ l)
               end);
@@ -102,12 +98,12 @@ Definition asynchronous_arena_lifting (A : AsynchronousArena)
                                          infinite_payoff A g inf)))
                                       | _ => False
                                      end;
-            positive_or_negative := true;
+            positive_or_negative := sign;
          |}.
 
-Definition lifting (G : AsynchronousGame) (p : Z) : AsynchronousGame :=
+Definition lifting (G : AsynchronousGame) (p : Z) (sign : bool) : AsynchronousGame :=
        {| 
-             A := asynchronous_arena_lifting (A G) p;
+             A := asynchronous_arena_lifting (A G) p sign;
              X := X G;
              Y := Y G;
              action g m h := match m with

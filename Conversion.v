@@ -52,7 +52,7 @@ Defined.
 
 Definition TOP : AsynchronousGame := dual ZERO.
 
-Definition ONE : AsynchronousGame := lifting TOP 0%Z.
+Definition ONE : AsynchronousGame := lifting TOP 0%Z true.
 
 Definition BOTTOM : AsynchronousGame := dual ONE.
 

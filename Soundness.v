@@ -266,8 +266,14 @@ remember ({|
                   action := fun (g : G (opposite_group Y))
                               (m : M (P (E (asynchronous_arena_dual A))))
                               (h : G (opposite_group X)) => action h m g |}).
-simpl. destruct (positive_or_negative (AsynchronousGames.A a)) eqn:eqn1.
+simpl. 
+assert (well_formed_asynchronousgame a) as a_well_formed.
+{admit. }
+destruct (positive_or_negative (AsynchronousGames.A a)) eqn:eqn1.
 ++ simpl.
+assert (well_formed_asynchronousgame
+ (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1 true)))) as G_well_formed.
+{admit. }
 remember ((fun x => match x with
                         | existT _ i (inl tt) => 
                          (existT _ i (inr (inr  (existT _ (fst i) (inl tt))   )))
@@ -278,14 +284,96 @@ remember ((fun x => match x with
                         | existT _ _ (inr (inr (existT _ j (inr m) ))) =>
                          (existT _ (j,tt) (inr (inl m)))
                     end)
-: M (P (E (AsynchronousGames.A (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1)))))) ->
-M (P (E (AsynchronousGames.A (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1))))))
+: M (P (E (AsynchronousGames.A (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1 true)))))) ->
+M (P (E (AsynchronousGames.A (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1 true))))))
 ) as copy_move.
+assert (forall i m n,
+~ (incompatible (E (AsynchronousGames.A (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1 true)))))
+ (existT _ i (inr (inr m))) (existT _ i (inr (inr n))) ) -> 
+~(incompatible (E (AsynchronousGames.A a)) m n)) as INCOMP.
+{ intros. unfold not. intros. contradiction H0. simpl.
+apply incomp_tensor_right with (index:=i) (m:=m) (m':=n). simpl. destruct i. destruct i0. simpl. auto. auto. auto. }
+assert (forall a b, (~incompatible _ a b /\ copy_move a = copy_move b) -> a = b) as copy_injective.
+{intros. destruct H0. rewrite Heqcopy_move in H2. destruct a0 eqn:eqna0. destruct x. destruct i0. 
+destruct b eqn:eqnb. destruct x. destruct i1. destruct s0.
++ destruct u. destruct s1.
+++ destruct u. inversion H2. auto.
+++ destruct n.
++++ inversion H2.
++++ destruct n.
+++++ destruct s0.
++++++ destruct u. inversion H2.
++++++ inversion H2.
++ destruct s1.
+++ destruct u. destruct n.
++++ inversion H2.
++++ destruct n.
+++++ destruct s0.
++++++ destruct u. inversion H2.
++++++ inversion H2.
+++ destruct n.
++++ destruct n0. 
+++++ inversion H2. subst i. apply inj_pairT2 in H6.
+subst n. auto.
+++++ destruct n0.
++++++ destruct s0.
+++++++ destruct u. inversion H2.
+++++++ inversion H2.
++++ destruct n.
+++++ destruct n0.
++++++ destruct s0.
+++++++ destruct u. inversion H2.
+++++++ inversion H2.
++++++ destruct s0.
+++++++ destruct u. destruct n. destruct s0.
++++++++ destruct u. inversion H2. subst i. 
+assert (~ incompatible _
+(existT
+           (fun i : I (P (E (AsynchronousGames.A (dual a)))) =>
+            (unit + N (P (E (AsynchronousGames.A (dual a)))) i)%type)
+           x (inl tt))
+(existT
+           (fun i : I (P (E (AsynchronousGames.A (dual a)))) =>
+            (unit + N (P (E (AsynchronousGames.A (dual a)))) i)%type)
+           x0 (inl tt))).
+{simpl. apply INCOMP with (m:=(existT
+           (fun i : I (P (E (AsynchronousGames.A (dual a)))) =>
+            (unit + N (P (E (AsynchronousGames.A (dual a)))) i)%type)
+           x (inl tt)))
+(n:=(existT
+           (fun i : I (P (E (AsynchronousGames.A (dual a)))) =>
+            (unit + N (P (E (AsynchronousGames.A (dual a)))) i)%type)
+           x0 (inl tt))) (i:=(i0,tt)). auto. }
+assert (x=x0).
+{destruct a_well_formed. destruct H4. destruct H4. destruct H7. destruct H8.
+destruct H9. destruct H10. unfold compatible_same_component in H11. apply H11 with
+(m:=inl tt) (m':=inl tt). auto. }
+subst x. auto.
++++++++ inversion H2.
+++++++ destruct n. destruct s0.
++++++++ destruct u. inversion H2.
++++++++ inversion H2. subst x. apply inj_pairT2 in H2. inversion H2. auto. subst n.
+assert ((i,tt)=(i0,tt)).
+{destruct G_well_formed. destruct H3. destruct H3.
+destruct H6. destruct H7. destruct H8. destruct H9. unfold compatible_same_component in H10.
+apply H10 with (i:=(i,tt)) (i':=(i0,tt)) (m:=(inr
+             (inr
+                (existT
+                   (fun i : I (P (E (AsynchronousGames.A (dual a)))) =>
+                    (unit + N (P (E (AsynchronousGames.A (dual a)))) i)%type) x0 
+                   (inr n0)))))
+(m':= (inr
+            (inr
+               (existT
+                  (fun i : I (P (E (AsynchronousGames.A (dual a)))) =>
+                   (unit + N (P (E (AsynchronousGames.A (dual a)))) i)%type) x0 
+                  (inr n0))))). auto. }
+inversion H3. subst i. auto. }
 remember ((fun l =>
 match l with
-| nil => None
+| nil => None 
 | x :: xs => Some (copy_move x)
-end) : Strategy (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1)))) as copycat.
+end) : Strategy (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1 true)))) as copycat.
 refine (ex_intro _ copycat _). split.
 +++ unfold winning.
 assert (strategy_is_total _ copycat).
@@ -346,15 +434,15 @@ destruct H13.
 ++ subst n.
 assert (strategy_is_total (dual
                  (asynchronous_game_tensor_positive a
-                    (lifting (dual a) 1))) copycat -> 
+                    (lifting (dual a) 1 true))) copycat -> 
 (forall p, strategy_induces_play (dual
                  (asynchronous_game_tensor_positive a
-                    (lifting (dual a) 1))) copycat p -> valid_alternating_play _ p ->
+                    (lifting (dual a) 1 true))) copycat p -> valid_alternating_play _ p ->
 ((positive (dual
                  (asynchronous_game_tensor_positive a
-                    (lifting (dual a) 1))) -> odd (length p)) /\ (negative (dual
+                    (lifting (dual a) 1 true))) -> odd (length p)) /\ (negative (dual
                  (asynchronous_game_tensor_positive a
-                    (lifting (dual a) 1))) -> even (length p))))).
+                    (lifting (dual a) 1 true))) -> even (length p))))).
 {apply induced_play_length. }
 assert (even (length l)).
 {apply H13.
@@ -411,10 +499,10 @@ assert (strategy_is_total _ copycat ->
 (forall p, strategy_induces_play _ copycat p -> valid_alternating_play _ p ->
 ((positive (dual
                 (asynchronous_game_tensor_positive a
-                   (lifting (dual a) 1))) -> odd (length p)) /\ 
+                   (lifting (dual a) 1 true))) -> odd (length p)) /\ 
 (negative (dual
                 (asynchronous_game_tensor_positive a
-                   (lifting (dual a) 1))) -> even (length p))))).
+                   (lifting (dual a) 1 true))) -> even (length p))))).
 {apply induced_play_length. }
 apply H8. auto. auto. auto. unfold negative. simpl positive_or_negative.
 auto. auto. auto. auto. }
@@ -460,7 +548,7 @@ unfold positive_iff_player_always_starts in H11.
 simpl positive_or_negative in H11. simpl in eqn1. apply negb_true_iff in eqn1. rewrite eqn1 in H11. apply H11. auto.
 apply H7.
 ++++ auto. }
-assert (strategy_preserves_validity (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1))) copycat).
+assert (strategy_preserves_validity (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1 true))) copycat).
 {unfold strategy_preserves_validity. intros. destruct H8. destruct H9. unfold valid_alternating_play. split.
 - unfold valid_play. split.
 + apply NoDup_cons. unfold not. intros. rewrite Heqcopycat in H10. inversion H10. subst m. destruct H11.
@@ -476,7 +564,7 @@ assert (strategy_preserves_validity (dual (asynchronous_game_tensor_positive a (
 {apply In_nth_error. auto. }
 destruct H12.
 assert (x < length p).
-{apply nth_error_Some. rewrite H12. easy. }
+{apply nth_error_Some. rewrite H12. unfold not. intros. inversion H13. }
 apply nth_error_from_back_formula in H13.
 destruct (even_odd_dec x).
 +++ assert (even (length p)).
@@ -484,7 +572,7 @@ destruct (even_odd_dec x).
 (sigma:=copycat). auto. auto. apply validity_closed_under_prefix with (m:=k). auto. unfold negative. subst a.
  simpl. auto. }
 assert (x < length p).
-{apply nth_error_Some. rewrite H12. easy. }
+{apply nth_error_Some. rewrite H12. unfold not. intros. inversion H15. }
 assert (H16:=e). assert (H17:=H14). apply even_equiv in H16. apply even_equiv in H17.
 unfold Nat.Even in H16, H17. destruct H16, H17. 
 assert (x1 - x0 > 0). {lia. }
@@ -505,3 +593,18 @@ assert (exists a, nth_error_from_back p ((2 * x2 + 1) - 1) = Some a /\
 + lia. }
 destruct H23. destruct H23. rewrite <- H13 in H24. inversion H24.
 rewrite H19 in H18.
+assert (In x3 (rev p)).
+{unfold nth_error_from_back in H23. apply nth_error_In with (n:=(2 * x2 + 1 - 1)). auto. }
+apply in_rev in H25.
+assert (In x3 (k :: p)).
+{right. auto. }
+assert (k = x3).
+{apply copy_injective. split.
++ unfold valid_alternating_play in H9. destruct H9. unfold valid_play in H9. destruct H9. apply H29. split.
+++ left. auto.
+++ auto.
++ auto. } subst k. unfold valid_alternating_play in H9. destruct H9. unfold valid_play in H9. destruct H9.
+inversion H9. subst x4. subst l. contradiction H32.
++++
+
+ }

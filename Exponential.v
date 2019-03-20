@@ -179,8 +179,8 @@ Definition asynchronous_game_exponential_positive (G: AsynchronousGame)
 
 Definition exponential (G : AsynchronousGame) : AsynchronousGame := 
 match positive_or_negative (A G) with
-| true => asynchronous_game_exponential_positive G
-| false => asynchronous_game_exponential_positive (lifting G (0)%Z)
+| true => asynchronous_game_exponential_positive (lifting (lifting G (0)%Z false) (0)%Z true)
+| false => asynchronous_game_exponential_positive (lifting G (0)%Z true)
 end.
 (*
 Proof. 
