@@ -47,7 +47,7 @@ assert (x nil <> None).
 - unfold valid_alternating_play. split.
 + apply NoDup_nil.
 + intros. destruct m. destruct x0.
-- unfold alternating. intros. unfold nth_error_from_back in H3.
+- unfold alternating_play. intros. unfold nth_error_from_back in H3.
 simpl in H3. destruct H3. inversion H4.
 - simpl. apply even_O. }
 destruct (x nil).
@@ -212,7 +212,7 @@ subst. destruct s.
 ++++ subst. simpl. auto.
 ++++ contradiction H3.
 +++ contradiction H2.
-- unfold alternating. intros. unfold nth_error_from_back in H2. destruct k.
+- unfold alternating_play. intros. unfold nth_error_from_back in H2. destruct k.
 + simpl in H2. destruct H2. inversion H3.
 + simpl in H2. destruct H2. inversion H3. }
 destruct H0.
@@ -605,6 +605,196 @@ assert (k = x3).
 ++ auto.
 + auto. } subst k. unfold valid_alternating_play in H9. destruct H9. unfold valid_play in H9. destruct H9.
 inversion H9. subst x4. subst l. contradiction H32.
-+++
-
- }
++++ rewrite H12 in H13.
+assert (even (length p)).
+{apply induced_play_length with
+(sigma:=copycat). auto. auto. apply validity_closed_under_prefix with (m:=k). auto. unfold negative. subst a.
+ simpl. auto. }
+assert (x < length p).
+{apply nth_error_Some. rewrite H12. unfold not. intros. inversion H15. }
+apply even_equiv in H14. unfold Nat.Even in H14. destruct H14. apply odd_equiv in o. unfold Nat.Odd in o.
+destruct o. subst x. rewrite H14 in H13.
+assert (2 * x0 - (2 * x1 + 1) - 1 = 2 * (x0 - x1 - 1)).
+{lia. }
+rewrite H16 in H13.
+assert (exists q, nth_error_from_back p 0 = Some q).
+{destruct (nth_error_from_back p 0) eqn:eqn2.
++ refine (ex_intro _ m _). auto.
++ apply nth_error_None in eqn2. rewrite rev_length in eqn2. lia. }
+destruct H17.
+assert (initial_move _ x).
+{apply valid_starting_player with (p:=p).
+assert (valid_alternating_play _ p).
+{apply validity_closed_under_prefix with (m:=k). auto. }
+apply H18. auto. }
+assert (H19:=G_well_formed). destruct H19. destruct H19. destruct H21. destruct H22. destruct H23.
+unfold positive_iff_player_always_starts in H24. simpl positive_or_negative in H24.
+assert (polarity _ x = false).
+{apply H24. auto. auto. }
+assert ((forall k m n, nth_error_from_back p 0 = Some m ->
+nth_error_from_back p (2 * k) = Some n ->
+polarity _ m = polarity _ n)).
+{apply alternating_polarity.
+assert (valid_alternating_play _ p).
+{apply validity_closed_under_prefix with (m:=k). auto. }
+apply H26. }
+assert (polarity _ x = polarity _ (copy_move k)).
+{apply H26 with (k:=(x0 - x1 - 1)). auto. auto. }
+rewrite H25 in H27. symmetry in H27.
+assert ((forall a m n, nth_error_from_back (k::p) 0 = Some m ->
+nth_error_from_back (k::p) (2 * a) = Some n ->
+polarity _ m = polarity _ n)).
+{apply alternating_polarity. apply H9. }
+assert (polarity _ x = polarity _ k).
+{apply H28 with (a0:=x0).
++ unfold nth_error_from_back. simpl rev. rewrite nth_error_app1.
+++ unfold nth_error_from_back in H17. simpl rev in H17. auto.
+++ rewrite rev_length. 
+assert (0 < 2 * x1 + 1). {lia. }
+assert (2 * x1 + 1 < length p). {lia. }
+assert (forall a b c, a < b /\ b < c -> a < c).
+{intros. lia. }
+apply H31 with (b:=  2 * x1 + 1). auto.
++ unfold nth_error_from_back. simpl rev.
+assert (nth_error (rev p ++ k :: nil) (2 * x0) = 
+nth_error (k::nil) ((2 * x0) - length (rev p))).
+{apply nth_error_app2. rewrite rev_length. lia. }
+rewrite rev_length in H29. rewrite H14 in H29. 
+assert (2 * x0 - 2 * x0 = 0). {lia. }
+rewrite H30 in H29. simpl (nth_error (k :: nil) 0) in H29.
+auto. }
+rewrite H25 in H29. symmetry in H29. rewrite <- H27 in H29.
+assert (polarity
+        (AsynchronousGames.A
+           (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1 true)))) k =
+      negb (polarity
+        (AsynchronousGames.A
+           (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1 true))))
+        (copy_move k))).
+{apply H7. }
+rewrite H29 in H30.
+destruct (polarity
+        (AsynchronousGames.A
+           (dual
+              (asynchronous_game_tensor_positive a
+                 (lifting (dual a) 1 true)))) (copy_move k)); inversion H30.
+++ unfold valid_alternating_play in H9. destruct H9. apply H9.
++ rewrite Heqcopycat in H10. inversion H10. subst m. admit.
+- rewrite Heqcopycat in H10. inversion H10. subst m. unfold alternating_play. intros.
+destruct p.
++ unfold nth_error_from_back in H11. simpl in H11. destruct H11. destruct k0.
+++ simpl in H11. simpl in H12. inversion H11. inversion H12. subst k.
+assert ((polarity
+     (AsynchronousGames.A
+        (dual
+           (asynchronous_game_tensor_positive a (lifting (dual a) 1 true))))
+     m) =
+negb (polarity
+  (AsynchronousGames.A
+     (dual (asynchronous_game_tensor_positive a (lifting (dual a) 1 true))))
+  (copy_move m))).
+{apply H7. } rewrite H13. rewrite negb_involutive. auto.
+++ simpl in H12. destruct k0; inversion H12.
++ destruct (le_lt_dec k0 (length (k :: m0 :: p) - 2)).
+simpl in l. unfold valid_alternating_play in H9. destruct H9. unfold alternating_play in H12.
+unfold nth_error_from_back in H11. simpl rev in H11.
+assert (nth_error (((rev p ++ m0 :: nil) ++ k :: nil) ++ copy_move k :: nil) k0 = 
+nth_error ((rev p ++ m0 :: nil) ++ k :: nil) k0).
+{apply nth_error_app1. rewrite app_length. rewrite app_length. rewrite rev_length. simpl. lia. }
+destruct H11. 
+assert (nth_error (((rev p ++ m0 :: nil) ++ k :: nil) ++ copy_move k :: nil) (S k0) = 
+nth_error ((rev p ++ m0 :: nil) ++ k :: nil) (S k0)).
+{apply nth_error_app1. rewrite app_length. rewrite app_length. rewrite rev_length. simpl. lia. }
+assert (forall A (a b c : A), a = b /\ b = c -> a = c).
+{intros. destruct H16. subst a0. subst b. auto. }
+assert (nth_error ((rev p ++ m0 :: nil) ++ k :: nil) (S k0) = Some m').
+{apply H16 with (b:=(nth_error (((rev p ++ m0 :: nil) ++ k :: nil) ++ copy_move k :: nil) (S k0) )).
+auto. }
+assert (nth_error ((rev p ++ m0 :: nil) ++ k :: nil) k0 = Some m).
+{apply H16 with (b:=(nth_error
+        (((rev p ++ m0 :: nil) ++ k :: nil) ++
+         copy_move k :: nil) k0)). auto. }
+unfold nth_error_from_back in H12. apply H12 with (k0:=k0). simpl rev. auto.
+++ simpl in l. unfold nth_error_from_back in H11. simpl rev in H11. destruct H11.
+assert (S k0 < length (((rev p ++ m0 :: nil) ++ k :: nil) ++
+         copy_move k :: nil)).
+{apply nth_error_Some. unfold not. intros.
+assert (forall A (a b c : A), a = b /\ b = c -> a = c).
+{intros. destruct H14. subst a0. subst b. auto. }
+assert (Some m' = None).
+{apply H14 with (b:=nth_error
+        (((rev p ++ m0 :: nil) ++ k :: nil) ++
+         copy_move k :: nil) (S k0)). auto. }
+inversion H15. }
+rewrite app_length in H13. rewrite app_length in H13.
+rewrite app_length in H13. rewrite rev_length in H13.
+simpl in H13.
+assert (length p < k0 < S (S (length p))). { split.
++ assert (forall a b, a - 0 < b -> a < b).
+{intros. lia. }
+apply H14. auto.
++ assert (forall a b, S a < b + 1 + 1 + 1 -> a < S(S b)).
+{intros. lia. }
+apply H14. auto. }
+assert (k0 = S (length p)). {lia. } subst k0.
+assert (nth_error
+        (((rev p ++ m0 :: nil) ++ k :: nil) ++
+         copy_move k :: nil) (S (S (length p))) = 
+nth_error (copy_move k :: nil) 
+(S (S (length p)) - (length((rev p ++ m0 :: nil) ++ k :: nil)))).
+{apply nth_error_app2. rewrite app_length. rewrite app_length.
+rewrite rev_length. simpl. lia. }
+rewrite app_length in H15. rewrite app_length in H15.
+rewrite rev_length in H15. simpl length in H15.
+assert ((S (S (length p)) - (length p + 1 + 1)) = 0). {lia. }
+assert (nth_error (copy_move k :: nil)
+        (S (S (length p)) - (length p + 1 + 1)) = Some (copy_move k)).
+{rewrite H16. simpl. auto. }
+assert (forall A (a b c : A), a = b /\ b = c -> a = c).
+{intros. destruct H18. subst a0. subst b. auto. }
+assert (nth_error
+        (((rev p ++ m0 :: nil) ++ k :: nil) ++
+         copy_move k :: nil) (S (S (length p))) = 
+Some (copy_move k)).
+{apply H18 with (b:=nth_error (copy_move k :: nil)
+        (S (S (length p)) - (length p + 1 + 1))). auto. }
+assert (Some m' = Some (copy_move k)).
+{apply H18 with (b:=nth_error
+        (((rev p ++ m0 :: nil) ++ k :: nil) ++
+         copy_move k :: nil) (S (S (length p)))). auto. }
+inversion H20. subst m'.
+assert (nth_error
+        (((rev p ++ m0 :: nil) ++ k :: nil) ++
+         copy_move k :: nil) (S (length p)) = 
+      nth_error
+        (((rev p ++ m0 :: nil) ++ k :: nil)) (S (length p))).
+{apply nth_error_app1. rewrite app_length. rewrite app_length.
+rewrite rev_length. simpl. lia. }
+assert (nth_error ((rev p ++ m0 :: nil) ++ k :: nil)
+        (S (length p)) = 
+nth_error (k :: nil)
+        (S (length p) - length ( ((rev p ++ m0 :: nil))))).
+{apply nth_error_app2. rewrite app_length. rewrite rev_length.
+simpl. lia. }
+assert (nth_error (k :: nil)
+        (S (length p) - length (rev p ++ m0 :: nil)) = Some k).
+{assert ((S (length p) - length (rev p ++ m0 :: nil)) = 0).
+{rewrite app_length. rewrite rev_length. simpl length. lia. }
+rewrite H23. simpl. auto. }
+assert (nth_error ((rev p ++ m0 :: nil) ++ k :: nil)
+        (S (length p)) = Some k).
+{apply H18 with (b:=nth_error (k :: nil)
+        (S (length p) - length (rev p ++ m0 :: nil))). auto. }
+assert (nth_error
+        (((rev p ++ m0 :: nil) ++ k :: nil) ++
+         copy_move k :: nil) (S (length p)) = Some k).
+{apply H18 with (b:=nth_error ((rev p ++ m0 :: nil) ++ k :: nil)
+        (S (length p))). auto. }
+assert (Some m = Some k).
+{apply H18 with (b:=nth_error
+        (((rev p ++ m0 :: nil) ++ k :: nil) ++
+         copy_move k :: nil) (S (length p))). auto. }
+inversion H26. subst m.
+assert (forall a b, a = negb b -> negb a = b).
+{intros. subst a0. rewrite negb_involutive. auto. }
+apply H27. apply H7. }

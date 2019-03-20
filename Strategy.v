@@ -4,6 +4,8 @@ Require Import ZArith.
 Require Import Arith.Even.
 Require Import Util.
 Require Import AsynchronousGames.
+Require Import Logic.Classical.
+Require Import Bool.Bool.
 
 Definition lastn {A} n (l : list A) := rev (firstn n (rev l)).
 
@@ -72,13 +74,110 @@ Proof. intros. assert (not (incompatible E m n)).
 destruct m. destruct n. simpl. apply H in H2. auto.
 Qed.
 
-Definition alternating (A : AsynchronousArena) p :=
+Definition alternating_play (A : AsynchronousArena) p :=
 forall k m m', 
 ((nth_error_from_back p k = Some m /\ nth_error_from_back p (S k) = Some m') ->
 negb (polarity A m) = polarity A m').
 
 Definition valid_alternating_play (A : AsynchronousArena) p :=
-valid_play (E A) p /\ alternating A p.
+valid_play (E A) p /\ alternating_play A p.
+
+(* Use of excluded middle could be done away with here *)
+Fact valid_starting_player E :
+forall p m, valid_play E p ->
+nth_error_from_back p 0 = Some m ->
+initial_move (P E) m.
+Proof.  intros. 
+destruct (nth_error_from_back p 0) eqn:eqn1.
+++ inversion H0. subst. unfold initial_move. intros.
+assert ((n=m) \/ (n<>m)).
+{apply classic. }
+destruct H2.
+++++ auto.
+++++ unfold valid_play in H.
+assert ((forall a : nat,
+      nth_error_from_back p a = Some m /\
+      leq (P E) n m /\ n <> m ->
+      exists b : nat,
+        nth_error_from_back p b = Some n /\ b < a)).
+{apply H. }
+assert (exists b : nat,
+       nth_error_from_back p b = Some n /\ b < 0).
+{apply H3. auto. } destruct H4. destruct H4. lia.
+++ inversion H0.
+Qed.
+
+Fact alternating_polarity A :
+forall p, alternating_play A p ->
+((forall k m n, nth_error_from_back p 0 = Some m ->
+nth_error_from_back p (2 * k) = Some n ->
+polarity _ m = polarity _ n)
+/\
+(forall k m n, nth_error_from_back p 1 = Some m ->
+nth_error_from_back p (2 * k + 1) = Some n ->
+polarity _ m = polarity _ n)).
+Proof. intros. split. 
++ induction k.
+++ intros. simpl in H1. rewrite H0 in H1. inversion H1. auto.
+++ intros. 
+assert ((2 * (S k)) < length (rev p)).
+{apply nth_error_Some. unfold nth_error_from_back in H1. rewrite H1. easy. }
+assert (2 * k < length (rev p)). {lia. }
+assert (nth_error_from_back p (2 * k) <> None).
+{unfold nth_error_from_back. apply nth_error_Some. auto. }
+assert (exists q, nth_error_from_back p (2 * k) = Some q).
+{destruct (nth_error_from_back p (2 * k)).
++ refine (ex_intro _ m0 _). auto.
++ contradiction H4. auto. }
+assert (S(2 * k) < length (rev p)). {lia. }
+assert (nth_error_from_back p (S(2 * k)) <> None).
+{unfold nth_error_from_back. apply nth_error_Some. auto. }
+assert (exists q, nth_error_from_back p (S(2 * k)) = Some q).
+{destruct (nth_error_from_back p (S(2 * k))).
++ refine (ex_intro _ m0 _). auto.
++ contradiction H7. auto. }
+destruct H5, H8.
+assert (S (S(2*k)) = 2* (S k)). {lia. }
+rewrite <- H9 in H1.
+assert (polarity A m = polarity A x).
+{apply IHk. auto. auto. }
+assert (negb (polarity A x) = polarity A x0).
+{unfold alternating_play in H. apply H with (k:=2*k). auto. }
+assert (negb (polarity A x0) = polarity A n).
+{unfold alternating_play in H. apply H with (k:=S(2*k)). auto. }
+rewrite H10. rewrite <- H11 in H12. rewrite negb_involutive in H12. auto.
++ induction k.
+++ intros. simpl in H1. rewrite H0 in H1. inversion H1. auto.
+++ intros. 
+assert ((2 * (S k) + 1) < length (rev p)).
+{apply nth_error_Some. unfold nth_error_from_back in H1. rewrite H1. easy. }
+assert (2 * k  + 1 < length (rev p)). {lia. }
+assert (nth_error_from_back p (2 * k + 1) <> None).
+{unfold nth_error_from_back. apply nth_error_Some. auto. }
+assert (exists q, nth_error_from_back p (2 * k + 1) = Some q).
+{destruct (nth_error_from_back p (2 * k + 1)).
++ refine (ex_intro _ m0 _). auto.
++ contradiction H4. auto. }
+assert (S(2 * k) + 1 < length (rev p)). {lia. }
+assert (nth_error_from_back p (S(2 * k) + 1) <> None).
+{unfold nth_error_from_back. apply nth_error_Some. auto. }
+assert (exists q, nth_error_from_back p (S(2 * k) + 1) = Some q).
+{destruct (nth_error_from_back p (S(2 * k) + 1)).
++ refine (ex_intro _ m0 _). auto.
++ contradiction H7. auto. }
+destruct H5, H8.
+assert (polarity A m = polarity A x).
+{apply IHk. auto. auto. }
+assert (S (2 * k) + 1 = S(2 * k + 1)). {lia. }
+rewrite  H10 in H8.
+assert (negb (polarity A x) = polarity A x0).
+{unfold alternating_play in H. apply H with (k:=2*k+1). auto. }
+assert ((2 * S k + 1) = S (S (2 * k + 1))). {lia. }
+rewrite H12 in H1.
+assert (negb (polarity A x0) = polarity A n).
+{unfold alternating_play in H. apply H with (k:=(S (2 * k + 1))). auto. }
+rewrite H9. rewrite <- H11 in H13. rewrite negb_involutive in H13. auto.
+Qed.
 
 Fact validity_closed_under_prefix (A : AsynchronousArena) :
 forall m p, valid_alternating_play A (m :: p) -> valid_alternating_play A p.
@@ -114,7 +213,7 @@ unfold nth_error_from_back. rewrite <- H10. auto.
 assert (In m0 (m :: p) /\ In n (m :: p)).
 {split; apply in_cons; auto. }
 apply H1. auto.
-- intros. unfold alternating. unfold alternating in H0. intros.
+- intros. unfold alternating_play. unfold alternating_play in H0. intros.
 destruct H2. unfold nth_error_from_back in H2. unfold nth_error_from_back in H3.
 assert ((S k) < length p).
 {rewrite <- rev_length. apply nth_error_Some. rewrite H3. easy. }
@@ -127,7 +226,7 @@ apply H0 with (k:=k). rewrite H5. rewrite H6. auto.
 Qed.
 
 Definition valid_alternating_path (A : AsynchronousArena) (p : Path (E A)) :=
-valid_play (E A) ((snd p) ++ (fst p)) /\ alternating A (snd p).
+valid_play (E A) ((snd p) ++ (fst p)) /\ alternating_play A (snd p).
 
 Fixpoint finite_part A (f : nat -> A) (n : nat) (counter : nat) : list A :=
 match n with
