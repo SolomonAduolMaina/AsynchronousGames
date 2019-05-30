@@ -13,7 +13,7 @@ Inductive term : Type :=
   | app : term -> term -> term
   | lam : string -> type -> term -> term
   | ifzero : term -> term -> term -> term
-  | fics : string -> type -> term -> term
+  | fics : type -> term -> term
   | num : nat -> term
   | yunit : term
 
@@ -49,8 +49,8 @@ Fixpoint subst (x : string) (s : term) (t : term) : term :=
       yunit
   | ifzero e1 e2 e3 =>
       ifzero ([x:=s] e1) ([x:=s] e2) ([x:=s] e3)
-  | fics y T e =>
-      fics y T (if string_dec x y then e else ([x:=s] e))
+  | fics T e =>
+      fics T ([x:=s] e)
   | new_ref e =>
       new_ref ([x:=s] e)
   | ref n =>
@@ -164,9 +164,9 @@ Inductive step : pool -> pool -> Prop :=
         n <> 0 ->
         step (thread_count, ref_count, threads, store, (ifzero (num n) e2 e3))
              (thread_count, ref_count, threads, store, e3)
-  | ST_fix : forall thread_count ref_count threads store x T e,
-        step (thread_count, ref_count, threads, store, (fics x T e))
-             (thread_count, ref_count, threads, store, ([x:=(fics x T e)] e)).
+  | ST_fix : forall thread_count ref_count threads store T e,
+        step (thread_count, ref_count, threads, store, (fics T e))
+             (thread_count, ref_count, threads, store, app e (fics T e)).
 
 
 
