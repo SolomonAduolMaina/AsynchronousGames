@@ -70,105 +70,79 @@ where "'[' x ':=' s ']' t" := (subst x s t).
 Notation "x * y" := (prod x y).
 Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z).
 
-(* A pool (thread_count, ref_count, l, l', e) is a 5-tuple where
-    - thread_count : nat is used to generate thread ids
+(* A pool (l, ref_count, l', e) is a 4-tuple where
+    - l : (list term) is the list of currently running child threads
     - ref_count : nat is used to generate ref ids
-    - l : (nat -> (option term)) is a function denoting running threads
-    - l' : (nat -> (option nat)) is a function denoting the reference store
-    - e : term is the reducing term *)
+    - store : (nat -> (option nat)) is a function denoting the reference store
+    - e : term is the parent thread *)
 
-Definition pool :=
-nat * nat * (nat -> (option term)) * (nat -> (option nat)) * term.
+Definition pool := (list term) * nat * (nat -> (option nat)) * term.
 
 Inductive step : pool -> pool -> Prop :=
-  | ST_thread : forall thread_count thread_count' ref_count ref_count' 
-                threads threads' threads'' store store' id e1 e1' e,
-        threads id = Some e1 ->
-        step (thread_count, ref_count, threads, store, e1) 
-             (thread_count', ref_count', threads', store', e1') ->
-        threads'' = (fun n => if Nat.eqb n id then Some e1' else threads' n) ->
-        step (thread_count, ref_count, threads, store, e)
-             (thread_count', ref_count', threads'', store', e)
-  | ST_fork : forall thread_count ref_count threads threads' store e e',
-        threads' = (fun n => if Nat.eqb n thread_count then Some e else threads n) ->
-        step (thread_count, ref_count, threads, store, fork e e')
-             (thread_count + 1, ref_count, threads', store, e')
-  | ST_join : forall thread_count ref_count threads store e,
-        (forall n, (threads n = None) \/ (exists v, value v /\ threads n = Some v)) ->
-        step (thread_count, ref_count, threads, store, join e)
-             (thread_count, ref_count, threads, store, e)
-  | ST_App1 : forall thread_count thread_count' 
-                     ref_count ref_count' threads threads' store store' e1 e1' e,
-        step (thread_count, ref_count, threads, store, e1)
-             (thread_count', ref_count', threads', store', e1') ->
-        step (thread_count, ref_count, threads, store, (app e1 e))
-             (thread_count', ref_count', threads', store', (app e1' e))
-  | ST_App2 : forall thread_count thread_count' 
-                     ref_count ref_count' threads threads' store store' e1 e1' v,
+  | ST_thread : forall ts ts' l ref_count ref_count' store store' e1 e1' e,
+        step (ts ++ ts', ref_count, store, e1) (l, ref_count', store', e1') ->
+        step (ts ++ (e1 :: nil) ++ ts', ref_count, store, e)
+             (e1' :: l, ref_count', store', e)
+  | ST_fork : forall threads ref_count store e e',
+        step (threads, ref_count, store, fork e e')
+             (e :: threads, ref_count, store, e')
+  | ST_join : forall ref_count threads store e,
+        (forall e, In e threads -> value e) ->
+        step (threads, ref_count, store, join e) (threads, ref_count, store, e)
+  | ST_App1 : forall threads threads' ref_count ref_count' store store' e1 e1' e,
+        step (threads, ref_count, store, e1) (threads', ref_count', store', e1') ->
+        step (threads, ref_count, store, app e1 e)
+             (threads', ref_count', store', app e1' e)
+  | ST_App2 : forall threads threads' ref_count ref_count' store store' e1 e1' v,
         value v ->
-        step (thread_count, ref_count, threads, store, e1)
-             (thread_count', ref_count', threads', store', e1') ->
-        step (thread_count, ref_count, threads, store, (app v e1))
-             (thread_count', ref_count', threads', store', (app v e1'))
-  | ST_App3 : forall thread_count ref_count threads store x T e v,
+        step (threads, ref_count, store, e1) (threads', ref_count', store', e1') ->
+        step (threads, ref_count, store, (app v e1))
+             (threads', ref_count', store', (app v e1'))
+  | ST_App3 : forall threads ref_count store x T e v,
         value v ->
-        step (thread_count, ref_count, threads, store, (app (lam x T e) v))
-             (thread_count, ref_count, threads, store, ([x:=v]e))
-  | ST_newref1 : forall thread_count thread_count' 
-                        ref_count ref_count' threads threads' store store' e e',
-        step (thread_count, ref_count, threads, store, e)
-             (thread_count', ref_count', threads', store', e') ->
-        step (thread_count, ref_count, threads, store, (new_ref e))
-             (thread_count', ref_count', threads', store', (new_ref e'))
-  | ST_newref2 : forall thread_count ref_count threads store store' n,
+        step (threads, ref_count, store, (app (lam x T e) v))
+             (threads, ref_count, store, ([x:=v]e))
+  | ST_newref1 : forall threads threads' ref_count ref_count' store store' e e',
+        step (threads, ref_count, store, e) (threads', ref_count', store', e') ->
+        step (threads, ref_count, store, (new_ref e))
+             (threads', ref_count', store', (new_ref e'))
+  | ST_newref2 : forall threads ref_count store store' n,
         store' = (fun x => if Nat.eqb ref_count x then Some n else store x) -> 
-        step (thread_count, ref_count, threads, store, (new_ref (num n)))
-             (thread_count, ref_count + 1, threads, store', (ref ref_count))
-  | ST_assign1 : forall thread_count thread_count' 
-                        ref_count ref_count' threads threads' store store' e1 e1' e,
-        step (thread_count, ref_count, threads, store, e)
-             (thread_count', ref_count', threads', store', e1') ->
-        step (thread_count, ref_count, threads, store, (assign e1 e))
-             (thread_count', ref_count', threads', store', (assign e1' e))
-  | ST_assign2 : forall thread_count thread_count' 
-                        ref_count ref_count' threads threads' store store' e1 e1' v,
+        step (threads, ref_count, store, (new_ref (num n)))
+             (threads, ref_count + 1, store', (ref ref_count))
+  | ST_assign1 : forall threads threads'  ref_count ref_count' store store' e1 e1' e,
+        step (threads, ref_count, store, e) (threads', ref_count', store', e1') ->
+        step (threads, ref_count, store, (assign e1 e))
+             (threads', ref_count', store', (assign e1' e))
+  | ST_assign2 : forall threads threads' ref_count ref_count' store store' e1 e1' v,
         value v ->
-        step (thread_count, ref_count, threads, store, e1)
-             (thread_count', ref_count', threads', store', e1') ->
-        step (thread_count, ref_count, threads, store, (assign v e1))
-             (thread_count', ref_count', threads', store', (assign v e1'))
-  | ST_assign3 : forall thread_count ref_count threads store store' x n,
+        step (threads, ref_count, store, e1) (threads', ref_count', store', e1') ->
+        step (threads, ref_count, store, (assign v e1))
+             (threads', ref_count', store', (assign v e1'))
+  | ST_assign3 : forall threads ref_count store store' x n,
         store' = (fun y => if Nat.eqb x y then Some n else store y) -> 
-        step (thread_count, ref_count, threads, store, (assign (ref x) (num n)))
-             (thread_count, ref_count, threads, store', yunit)
-  | ST_deref1 : forall thread_count thread_count' 
-                       ref_count ref_count' threads threads' store store' e e',
-        step (thread_count, ref_count, threads, store, e)
-             (thread_count', ref_count', threads', store', e') ->
-        step (thread_count, ref_count, threads, store, (deref e))
-             (thread_count', ref_count', threads', store', (deref e'))
-  | ST_deref2 : forall thread_count ref_count threads store x n,
+        step (threads, ref_count, store, (assign (ref x) (num n)))
+             (threads, ref_count, store', yunit)
+  | ST_deref1 : forall threads threads' ref_count ref_count' store store' e e',
+        step (threads, ref_count, store, e) (threads', ref_count', store', e') ->
+        step (threads, ref_count, store, (deref e))
+             (threads', ref_count', store', (deref e'))
+  | ST_deref2 : forall ref_count threads store x n,
         store x = Some n ->
-        step (thread_count, ref_count, threads, store, (deref (ref x)))
-             (thread_count, ref_count, threads, store, (num n))
-  | ST_ifzero1 : forall thread_count thread_count' 
-                        ref_count ref_count' threads threads' store store' e1 e1' e2 e3,
-        step (thread_count, ref_count, threads, store, e1)
-             (thread_count', ref_count', threads', store', e1') ->
-        step (thread_count, ref_count, threads, store, (ifzero e1 e2 e3))
-             (thread_count', ref_count', threads', store', (ifzero e1' e2 e3))
-  | ST_ifzero2 : forall thread_count ref_count threads store e2 e3,
-        step (thread_count, ref_count, threads, store, (ifzero (num 0) e2 e3))
-             (thread_count, ref_count, threads, store, e2)
-  | ST_ifzero3 : forall thread_count ref_count threads store e2 e3 n,
+        step (threads, ref_count, store, (deref (ref x)))
+             (threads, ref_count, store, (num n))
+  | ST_ifzero1 : forall threads threads' ref_count ref_count' store store' e1 e1' e2 e3,
+        step (threads, ref_count, store, e1) (threads', ref_count', store', e1') ->
+        step (threads, ref_count, store, (ifzero e1 e2 e3))
+             (threads', ref_count', store', (ifzero e1' e2 e3))
+  | ST_ifzero2 : forall threads ref_count store e2 e3,
+        step (threads, ref_count, store, (ifzero (num 0) e2 e3))
+             (threads, ref_count, store, e2)
+  | ST_ifzero3 : forall threads ref_count store e2 e3 n,
         n <> 0 ->
-        step (thread_count, ref_count, threads, store, (ifzero (num n) e2 e3))
-             (thread_count, ref_count, threads, store, e3)
-  | ST_fix : forall thread_count ref_count threads store T e,
-        step (thread_count, ref_count, threads, store, (fics T e))
-             (thread_count, ref_count, threads, store, app e (fics T e)).
-
-
-
-
+        step (threads, ref_count, store, (ifzero (num n) e2 e3))
+             (threads, ref_count, store, e3)
+  | ST_fix : forall threads ref_count store T e,
+        step (threads, ref_count, store, (fics T e))
+             (threads, ref_count, store, app e (fics T e)).
 
