@@ -90,13 +90,13 @@ Fixpoint subtree_ids (t : tree) : (list nat) :=
     - threads : tree is the tree of evaluating threads
     - thread_count : nat is used to generate thread ids
     - ref_count : nat is used to generate ref ids
-    - local : (nat -> (list (nat * nat))) denotes local stores
+    - local : (nat -> (nat -> (option nat))) denotes local stores
     - write : list (nat * (nat * nat)) denotes the write buffer
     - read_req : list (nat * nat) denotes the read-request buffer
     - read_res : list (nat * (nat * nat)) denotes the read-response buffer
     - global : (nat -> (option nat)) denotes the global store *)
 
-Definition TSO_machine := tree * nat * nat * (nat -> (list (nat * nat))) * 
+Definition TSO_machine := tree * nat * nat * (nat -> (nat -> (option nat))) * 
 (list (nat * (nat * nat))) * (list (nat * nat)) * (list (nat * (nat * nat))) * (nat -> (option nat)).
 
 Inductive step : TSO_machine -> TSO_machine -> Prop := 
@@ -115,7 +115,7 @@ Inductive step : TSO_machine -> TSO_machine -> Prop :=
               threads' = Node (e, n) (l ++ l') ->
               tree_value t ->
               (forall m, In m (subtree_ids t) -> 
-                         ((local m = nil) /\ 
+                         ((forall k, (local m) k = None) /\ 
                           (forall a b, (In (a,b) write \/ In (a,b) read_res) -> a <> m) /\
                           (forall a b, In (a,b) read_req -> a <> m))) ->
               step (threads, thread_count, ref_count, local, write, read_req, read_res, global)
@@ -124,40 +124,33 @@ Inductive step : TSO_machine -> TSO_machine -> Prop :=
                  step (Node (e, n) nil, thread_count, ref_count, local, write, read_req, read_res, global)
                       (Leaf (e, n), thread_count, ref_count, local, write, read_req, read_res, global)
   | ST_flush : forall threads thread_count ref_count local local' write read_req read_res global global' 
-               n loc val l l',
-               local n = l ++ ((loc, val) :: nil) ++ l' ->
-               (forall m, (m = n -> local' m = l ++ l') /\ (m <> n -> local' m = local m)) ->
-               (forall m, (m = loc -> global' m = Some val) /\ (m <> n -> global' m = global m)) ->
+               thread loc val,
+               local thread loc = Some val ->
+               local' = (fun m k => 
+                         if andb (Nat.eqb m thread) (Nat.eqb k loc) then None else local m k) ->
+               global' = (fun m => if Nat.eqb m loc then Some val else global m) ->
                step (threads, thread_count, ref_count, local, write, read_req, read_res, global)
                     (threads, thread_count, ref_count, local', write, read_req, read_res, global')
   | ST_respond1 : forall thread threads thread_count ref_count local write read_req read_req'
                          read_res read_res' global loc val,
                read_req = read_req' ++ ((thread, loc) :: nil) ->
-               In (loc, val) (local thread) ->
+               local thread loc = Some val ->
                read_res' = (thread, (loc, val)) :: read_res ->
                step (threads, thread_count, ref_count, local, write, read_req, read_res, global)
                     (threads, thread_count, ref_count, local, write, read_req', read_res', global)
   | ST_respond2 : forall thread threads thread_count ref_count local write read_req read_req'
                          read_res read_res' global loc val,
                read_req = read_req' ++ ((thread, loc) :: nil) ->
-               (forall val, ~ In (loc, val) (local thread)) ->
+               local thread loc = None ->
                global loc = Some val ->
                read_res' = (thread, (loc, val)) :: read_res ->
                step (threads, thread_count, ref_count, local, write, read_req, read_res, global)
                     (threads, thread_count, ref_count, local, write, read_req', read_res', global)
-  | ST_write1 : forall thread threads thread_count ref_count local local'
+  | ST_write : forall thread threads thread_count ref_count local local'
                        write write' read_req read_res global loc val,
                write = write' ++ ((thread, (loc, val)) :: nil) ->
-               (forall loc' val, In (loc', val) (local thread) -> loc <> loc') ->
-               (forall m, (m = thread -> local' m = (loc,val) :: (local m)) /\ (m <> thread -> local' m = local m)) ->
-               step (threads, thread_count, ref_count, local, write, read_req, read_res, global)
-                    (threads, thread_count, ref_count, local', write', read_req, read_res, global)
-  | ST_write2 : forall thread threads thread_count ref_count local local'
-                       write write' read_req read_res global loc val val' l l',
-               write = write' ++ ((thread, (loc, val)) :: nil) ->
-               local thread = l ++ ((loc, val') :: nil) ++ l' ->
-               (forall loc' val, (In (loc', val) l \/ In (loc', val) l') -> loc <> loc') ->
-               (forall m, (m = thread -> local' m = l ++ ((loc, val) :: nil) ++ l') /\ (m <> thread -> local' m = local m)) ->
+               local' = (fun m k => 
+                         if andb (Nat.eqb m thread) (Nat.eqb k loc) then Some val else local m k) ->
                step (threads, thread_count, ref_count, local, write, read_req, read_res, global)
                     (threads, thread_count, ref_count, local', write', read_req, read_res, global)
   | ST_forka : forall threads threads' thread_count thread_count' ref_count local
