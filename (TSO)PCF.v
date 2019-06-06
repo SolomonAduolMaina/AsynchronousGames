@@ -160,7 +160,7 @@ Inductive step : TSO_machine -> TSO_machine -> Prop :=
                (forall m, (m = thread -> local' m = l ++ ((loc, val) :: nil) ++ l') /\ (m <> thread -> local' m = local m)) ->
                step (threads, thread_count, ref_count, local, write, read_req, read_res, global)
                     (threads, thread_count, ref_count, local', write', read_req, read_res, global)
-  | ST_fork1 : forall threads threads' thread_count thread_count' ref_count local
+  | ST_forka : forall threads threads' thread_count thread_count' ref_count local
                        write read_req read_res global l l' e n children f,
         threads = Node (fork children e, n) l ->
         f = (fun e' r => (S (fst r), ((Leaf (e', fst r)) :: (snd r)))) ->
@@ -168,7 +168,7 @@ Inductive step : TSO_machine -> TSO_machine -> Prop :=
         threads' = Node (e, n) l' ->
         step (threads, thread_count, ref_count, local, write, read_req, read_res, global)
              (threads', thread_count', ref_count, local, write, read_req, read_res, global)
-  | ST_fork2 : forall threads threads' thread_count thread_count' ref_count local
+  | ST_forkb : forall threads threads' thread_count thread_count' ref_count local
                        write read_req read_res global l' e n children f,
         threads = Leaf (fork children e, n) ->
         f = (fun e' r => (S (fst r), ((Leaf (e', fst r)) :: (snd r)))) ->
