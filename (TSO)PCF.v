@@ -170,10 +170,10 @@ Inductive step : single_thread_in -> single_thread_out -> Prop :=
              (e', l, ref_count', write_req, read_req) ->
         step (deref e, ref_count, read_res)
              (deref e', l, ref_count', write_req, read_req)
-  | ST_deref2a : forall ref_count loc,
+  | ST_deref2 : forall ref_count loc,
         step (deref (ref loc), ref_count, None)
              (deref (ref loc), nil, ref_count, None, Some loc)
-  | ST_deref3a : forall ref_count loc val,
+  | ST_deref3 : forall ref_count loc val,
         step (deref (ref loc), ref_count, Some (loc, val))
              (num val, nil, ref_count, None, None).
 
@@ -238,7 +238,7 @@ Inductive STEP : TSO_machine -> TSO_machine -> Prop :=
                STEP (Node (e, n) (l ++ (t :: nil) ++ l'), thread_count, ref_count, mem)
                     (Node (e, n) (l ++ (t' :: nil) ++ l'), thread_count', ref_count', mem')
   | ST_head1a : forall e ref_count e' l ref_count' write_request read_request write
-                       thread read local res global l' mem mem' thread_count
+                       thread read local local' res global l' mem mem' thread_count
                        thread_count' f write' read',
                 step (e, ref_count, None) (e', l, ref_count', write_request, read_request) ->
                 write' = (match write_request with
@@ -249,14 +249,17 @@ Inductive STEP : TSO_machine -> TSO_machine -> Prop :=
                                | None => read
                                | Some loc => (thread, loc) :: read
                          end) ->
-                mem = (local, write, read, res, global) ->
-                mem' = (local, write', read', res, global) ->
                 f = (fun e' r => (S (fst r), ((Leaf (e', fst r)) :: (snd r)))) ->
                 (thread_count', l') = fold_right f (thread_count, nil) l ->
+                local' = (fun k => 
+                         if andb (Nat.ltb k thread_count') (Nat.leb thread_count k) then
+                         local thread else local k) ->
+                mem = (local, write, read, res, global) ->
+                mem' = (local', write', read', res, global) ->
                 STEP (Leaf (e, thread), thread_count, ref_count, mem)
                      (Node (e', thread) l', thread_count', ref_count', mem')
   | ST_head1b : forall e ref_count e' l ref_count' write_request read_request write
-                       thread read local res global l' mem mem' thread_count
+                       thread read local local' res global l' mem mem' thread_count
                        thread_count' f write' read' children,
                 step (e, ref_count, None) (e', l, ref_count', write_request, read_request) ->
                 write' = (match write_request with
@@ -267,10 +270,13 @@ Inductive STEP : TSO_machine -> TSO_machine -> Prop :=
                                | None => read
                                | Some loc => (thread, loc) :: read
                          end) ->
-                mem = (local, write, read, res, global) ->
-                mem' = (local, write', read', res, global) ->
                 f = (fun e' r => (S (fst r), ((Leaf (e', fst r)) :: (snd r)))) ->
                 (thread_count', l') = fold_right f (thread_count, children) l ->
+                local' = (fun k => 
+                         if andb (Nat.ltb k thread_count') (Nat.leb thread_count k) then
+                         local thread else local k) ->
+                mem = (local, write, read, res, global) ->
+                mem' = (local', write', read', res, global) ->
                 STEP (Node (e, thread) children, thread_count, ref_count, mem)
                      (Node (e', thread) l', thread_count', ref_count', mem')
   | ST_head2a : forall e ref_count e' write loc val
