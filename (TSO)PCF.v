@@ -32,40 +32,12 @@ Inductive value : term -> Prop :=
 
 Reserved Notation "'[' x ':=' s ']' t" (at level 20).
 
-Fixpoint fvs (t : term) : (list string) :=
-  match t with
-  | var x =>
-      x :: nil
-  | lam y T e =>
-      filter (fun x => if string_dec x y then true else false) (fvs e)
-  | app t1 t2 =>
-      (fvs t1) ++ (fvs t2)
-  | num n =>
-      nil
-  | yunit =>
-      nil
-  | ifzero e1 e2 e3 =>
-      (fvs e1) ++ (fvs e2) ++ (fvs e3)
-  | fics T e =>
-      (fvs e)
-  | new y e =>
-      filter (fun x => if string_dec x y then true else false) (fvs e)
-  | assign e1 e2 =>
-      (fvs e1) ++ (fvs e2)
-  | deref e =>
-      (fvs e)
-  | fork l e =>
-       (fold_right (fun x y => x ++ y) nil (map (fun e => fvs e) l) ) ++  (fvs e)
-  end.
-
 Fixpoint subst (x : string) (s : term) (t : term) : term :=
   match t with
   | var x' =>
       if string_dec x x' then s else t
   | lam y T e =>
-      let e' := if string_dec x y then e else
-                if in_dec string_dec y (fvs e) then e else [x:=s] e in
-      lam y T e'
+      lam y T (if string_dec x y then e else [x:=s] e)
   | app t1 t2 =>
       app ([x:=s] t1) ([x:=s] t2)
   | num n =>
@@ -77,9 +49,7 @@ Fixpoint subst (x : string) (s : term) (t : term) : term :=
   | fics T e =>
       fics T ([x:=s] e)
   | new y e =>
-      let e' := if string_dec x y then e else
-                if in_dec string_dec y (fvs e) then e else [x:=s] e in
-      new y e'
+      new y (if string_dec x y then e else [x:=s] e)
   | assign e1 e2 =>
       assign ([x:=s] e1) ([x:=s] e2)
   | deref e =>
