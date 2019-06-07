@@ -18,8 +18,7 @@ Inductive term : Type :=
   | yunit : term
 
 (* (Nat) References. *)
-  | ref : nat -> term
-  | new_ref : term -> term
+  | new: string -> term -> term
   | assign : term -> term -> term
   | deref : term -> term
 
@@ -29,17 +28,44 @@ Inductive term : Type :=
 Inductive value : term -> Prop :=
   | v_lam : forall x tau e, value (lam x tau e)
   | v_num : forall n, value (num n)
-  | v_yunit : value yunit
-  | v_ref : forall n, value (ref n).
+  | v_yunit : value yunit.
 
 Reserved Notation "'[' x ':=' s ']' t" (at level 20).
+
+Fixpoint fvs (t : term) : (list string) :=
+  match t with
+  | var x =>
+      x :: nil
+  | lam y T e =>
+      filter (fun x => if string_dec x y then true else false) (fvs e)
+  | app t1 t2 =>
+      (fvs t1) ++ (fvs t2)
+  | num n =>
+      nil
+  | yunit =>
+      nil
+  | ifzero e1 e2 e3 =>
+      (fvs e1) ++ (fvs e2) ++ (fvs e3)
+  | fics T e =>
+      (fvs e)
+  | new y e =>
+      filter (fun x => if string_dec x y then true else false) (fvs e)
+  | assign e1 e2 =>
+      (fvs e1) ++ (fvs e2)
+  | deref e =>
+      (fvs e)
+  | fork l e =>
+       (fold_right (fun x y => x ++ y) nil (map (fun e => fvs e) l) ) ++  (fvs e)
+  end.
 
 Fixpoint subst (x : string) (s : term) (t : term) : term :=
   match t with
   | var x' =>
       if string_dec x x' then s else t
   | lam y T e =>
-      lam y T (if string_dec x y then e else ([x:=s] e))
+      let e' := if string_dec x y then e else
+                if in_dec string_dec y (fvs e) then e else [x:=s] e in
+      lam y T e'
   | app t1 t2 =>
       app ([x:=s] t1) ([x:=s] t2)
   | num n =>
@@ -50,10 +76,10 @@ Fixpoint subst (x : string) (s : term) (t : term) : term :=
       ifzero ([x:=s] e1) ([x:=s] e2) ([x:=s] e3)
   | fics T e =>
       fics T ([x:=s] e)
-  | new_ref e =>
-      new_ref ([x:=s] e)
-  | ref n =>
-      ref n
+  | new y e =>
+      let e' := if string_dec x y then e else
+                if in_dec string_dec y (fvs e) then e else [x:=s] e in
+      new y e'
   | assign e1 e2 =>
       assign ([x:=s] e1) ([x:=s] e2)
   | deref e =>
@@ -87,22 +113,22 @@ Fixpoint subtree_ids (t : tree) : (list nat) :=
 
 (* A single_thread_in is a 3-tuple (term, ref_count, read_res) where
     - term : tree is the evaluating term
-    - ref_count : nat is used to generate ref ids
-    - read_res : option (nat * nat) denotes a read response 
+    - ref_count : string is used to generate ref ids
+    - read_res : option (string * nat) denotes a read response 
 
   A single_thread_out is a 5-tuple 
    (term, children, ref_count, write_req, read_req) where
     - term : tree is the evaluating term
     - children : list term is a list of newly spawned child threads
-    - ref_count : nat is used to generate ref ids
-    - write_req : option (nat * nat) denotes a write request
-    - read_req : option nat denotes a read request
+    - ref_count : string is used to generate ref ids
+    - write_req : option (string * nat) denotes a write request
+    - read_req : option string denotes a read request
 *)
 
-Definition single_thread_in := term * nat * (option (nat * nat)).
+Definition single_thread_in := term * string * (option (string * nat)).
 
 Definition single_thread_out := 
-term * (list term) * nat * (option (nat * nat)) * (option nat).
+term * (list term) * string * (option (string * nat)) * (option string).
 
 Inductive step : single_thread_in -> single_thread_out -> Prop :=
   | ST_fork : forall ref_count e children,
@@ -123,15 +149,9 @@ Inductive step : single_thread_in -> single_thread_out -> Prop :=
         value v ->
         step (app (lam x T e) v, ref_count, None)
              ([x:=v]e, nil, ref_count, None, None)
-  | ST_newref1 : forall ref_count ref_count'
-                         write_req read_req read_res e e' l,
-        step (e, ref_count, read_res)
-             (e', l, ref_count', write_req, read_req) ->
-        step (new_ref e, ref_count, read_res)
-             (new_ref e', l, ref_count', write_req, read_req)
-  | ST_newref2 : forall ref_count n,
-        step (new_ref (num n), ref_count, None)
-             (ref ref_count, nil, ref_count + 1, Some (ref_count, n), None)
+  | ST_new : forall ref_count e x,
+        step (new x e, ref_count, None)
+             ([x:=var ref_count]e, nil, (append ref_count "x"), Some (ref_count, 0), None)
   | ST_assign1 : forall ref_count ref_count' write_req read_req read_res
                      e1 e1' e l ,
         step (e1, ref_count, read_res)
@@ -146,7 +166,7 @@ Inductive step : single_thread_in -> single_thread_out -> Prop :=
         step (assign v e, ref_count, read_res)
              (assign v e', l, ref_count', write_req, read_req)
   | ST_assign3 : forall ref_count x n,
-        step (assign (ref x) (num n), ref_count, None)
+        step (assign (var x) (num n), ref_count, None)
              (yunit, nil, ref_count, Some (x, n), None)
   | ST_fix : forall ref_count T e,
         step (fics T e, ref_count, None)
@@ -171,31 +191,35 @@ Inductive step : single_thread_in -> single_thread_out -> Prop :=
         step (deref e, ref_count, read_res)
              (deref e', l, ref_count', write_req, read_req)
   | ST_deref2 : forall ref_count loc,
-        step (deref (ref loc), ref_count, None)
-             (deref (ref loc), nil, ref_count, None, Some loc)
+        step (deref (var loc), ref_count, None)
+             (deref (var loc), nil, ref_count, None, Some loc)
   | ST_deref3 : forall ref_count loc val,
-        step (deref (ref loc), ref_count, Some (loc, val))
+        step (deref (var loc), ref_count, Some (loc, val))
              (num val, nil, ref_count, None, None).
 
 (*  A memory_model is a 5-tuple 
    (local, write_req, read_req, read_res, global) where
-    - local : nat -> (nat -> (option nat)) denotes the local stores
-    - write_req : list (nat * (nat * nat)) denotes the write-request buffer
-    - read_req : list (nat * nat) denotes the read-request buffer
-    - read_res : list (nat * (nat * nat)) denotes the read-response buffer
-    - global : nat -> (option nat)
+    - local : nat -> (string -> (option nat)) denotes the local stores
+    - write_req : list (nat * (string * nat)) denotes the write-request buffer
+    - read_req : list (nat * string) denotes the read-request buffer
+    - read_res : list (nat * (string * nat)) denotes the read-response buffer
+    - global : string -> (option nat)
 *)
 
-Definition memory_model := (nat -> (nat -> (option nat))) * (list (nat * (nat * nat))) * 
-(list (nat * nat)) * (list (nat * (nat * nat))) * (nat -> (option nat)).
+Definition memory_model := (nat -> (string -> (option nat))) * (list (nat * (string * nat))) * 
+(list (nat * string)) * (list (nat * (string * nat))) * (string -> (option nat)).
 
 Inductive mem_step : memory_model -> memory_model -> Prop := 
   | ST_flush : forall local local' write_req read_req read_res global global' 
                thread loc val,
                local thread loc = Some val ->
                local' = (fun m k => 
-                         if andb (Nat.eqb m thread) (Nat.eqb k loc) then None else local m k) ->
-               global' = (fun m => if Nat.eqb m loc then Some val else global m) ->
+                         if negb (Nat.eqb m thread) then local m k else
+                         (match (string_dec k loc) with
+                               | left _ => None 
+                               | right _ => local m k
+                          end)) ->
+               global' = (fun m => if string_dec m loc then Some val else global m) ->
                mem_step (local, write_req, read_req, read_res, global)
                         (local', write_req, read_req, read_res, global')
   | ST_respond1 : forall thread local write_req read_req read_req'
@@ -217,7 +241,11 @@ Inductive mem_step : memory_model -> memory_model -> Prop :=
                        write_req write_req' read_req read_res global loc val,
                write_req = write_req' ++ ((thread, (loc, val)) :: nil) ->
                local' = (fun m k => 
-                         if andb (Nat.eqb m thread) (Nat.eqb k loc) then Some val else local m k) ->
+                         if negb (Nat.eqb m thread) then local m k else
+                         (match (string_dec k loc) with
+                               | left _ => Some val 
+                               | right _ => local m k
+                          end)) ->
                mem_step (local, write_req, read_req, read_res, global)
                         (local', write_req', read_req, read_res, global).
 
@@ -225,10 +253,10 @@ Inductive mem_step : memory_model -> memory_model -> Prop :=
    (threads, thread_count, ref_count, mem) where
     - threads : tree is the tree of evaluating threads
     - thread_count : nat is used to generate thread ids
-    - ref_count : nat is used to generate ref ids
+    - ref_count : string is used to generate ref ids
     - mem : memory_model is the memory_model *)
 
-Definition TSO_machine := tree * nat * nat * memory_model.
+Definition TSO_machine := tree * nat * string * memory_model.
 
 Inductive STEP : TSO_machine -> TSO_machine -> Prop := 
   | ST_child : forall thread_count thread_count' ref_count ref_count' mem mem'
