@@ -141,56 +141,24 @@ Inductive mem_step : memory_model -> (thread_id * mem_event) -> memory_model -> 
                global' = update_global (snd mem) loc (Some 0) ->
                mem_step mem (thread, (Allocate loc)) (local', global').
 
-Inductive thread_tree :=
-    | Leaf (a : (term * nat))
-    | Node (a : (term * nat)) (l : list thread_tree).
-
-Inductive thread_tree_value : (thread_tree -> Prop) :=
-    | leaf_value : forall e n, value e -> thread_tree_value (Leaf (e, n))
-    | node_value : forall e n l, 
-                   value e -> 
-                   (forall e', In e' l -> thread_tree_value e') ->
-                   thread_tree_value (Node (e, n) l).
-
-Fixpoint subtree_ids (t : thread_tree) : (list nat) :=
-    match t with
-      | Leaf (_, n) => (n :: nil)
-      | Node _ l => fold_right (fun x y => x ++ y) nil (map subtree_ids l)
-    end.
-
-Definition TSO_machine := thread_tree * nat * memory_model.
+Definition TSO_machine := (term * thread_id) * memory_model.
 
 Inductive STEP : TSO_machine -> TSO_machine -> Prop :=
-  | ST_synchronize1 : forall e e' mem event mem' thread thread_count,
+  | ST_synchronize : forall e e' n mem event mem',
                 step e event e' ->
-                mem_step mem (thread, event) mem' ->
-                STEP (Leaf (e, thread), thread_count, mem)
-                     (Leaf (e', thread), thread_count, mem')
-  | ST_synchronize2 : forall e e' mem event mem' thread l thread_count,
-                step e event e' ->
-                mem_step mem (thread, event) mem' ->
-                STEP (Node (e, thread) l, thread_count, mem)
-                     (Node (e', thread) l, thread_count, mem')
-  | ST_flush : forall local' global' thread_count thread loc val thread_tree mem,
+                mem_step mem (n, event) mem' ->
+                STEP ((e, n), mem) ((e', n), mem')
+  | ST_flush : forall n local' global' thread loc val e mem,
                (fst mem) thread loc = Some val ->
                local' = update_local (fst mem) thread loc None ->
                global' = update_global (snd mem) loc (Some val) ->
-               STEP (thread_tree, thread_count, mem) (thread_tree, thread_count, (local', global'))
-  | ST_child : forall mem mem' e n l l' t t' thread_count thread_count',
-               STEP (t, thread_count, mem) (t', thread_count', mem') ->
-               STEP (Node (e, n) (l ++ (t :: nil) ++ l'), thread_count, mem)
-                    (Node (e, n) (l ++ (t' :: nil) ++ l'), thread_count', mem')
-  | ST_fork1 : forall mem e e' thread thread_count,
-               STEP (Leaf (fork e e', thread), thread_count, mem)
-                    (Node (e', thread) ((Leaf (e, thread_count)) :: nil), S thread_count, mem)
-  | ST_fork2 : forall mem e e' l thread thread_count,
-               STEP (Node (fork e e', thread) l, thread_count, mem)
-                    (Node (e', thread) ((Leaf (e, thread_count)) :: l), S thread_count, mem)
-  | ST_reshape : forall thread_count mem e n,
-                 STEP (Node (e, n) nil, thread_count, mem)
-                      (Leaf (e, n), thread_count, mem)
-  | ST_thread_done : forall thread_count mem e n l l' t,
-              thread_tree_value t ->
-              (forall thread loc, In thread (subtree_ids t) -> (fst mem) thread loc = None) ->
-              STEP (Node (e, n) (l ++ (t :: nil) ++ l'), thread_count, mem)
-                   (Node (e, n) (l ++ l'), thread_count, mem).
+               STEP ((e, n), mem) ((e, n), (local', global'))
+  | ST_fork1 : forall mem mem' e e' e1 n,
+               STEP ((e, n), mem) ((e', n), mem') ->
+               STEP ((fork e e1, n) , mem') ((fork e' e1, n), mem)
+  | ST_fork2 : forall mem mem' e e' e1 n,
+               STEP ((e, S n), mem) ((e', S n), mem') ->
+               STEP ((fork e1 e, n) , mem') ((fork e1 e', n), mem)
+  | ST_fork3 : forall mem e v n,
+               value v ->
+               STEP ((fork e v, n) , mem) ((e, n), mem).
