@@ -5,7 +5,8 @@ Inductive type : Type :=
   | Nat : type
   | Unit : type
   | Ref : type -> type
-  | Arrow : type -> type -> type.
+  | Arrow : type -> type -> type
+  | Product : type -> type -> type.
 
 Inductive term : Type :=
 (* PCF *)
@@ -16,6 +17,9 @@ Inductive term : Type :=
   | fics : type -> term -> term
   | num : nat -> term
   | yunit : term
+  | paire : term -> term -> term
+  | first : term -> term
+  | second : term -> term
 
 (* (General) References. *)
   | ref : type -> nat -> term
@@ -30,7 +34,11 @@ Inductive value : term -> Prop :=
   | v_lam : forall x tau e, value (lam x tau e)
   | v_num : forall n, value (num n)
   | v_yunit : value yunit
-  | v_ref : forall tau n, value (ref tau n).
+  | v_ref : forall tau n, value (ref tau n)
+  | V_pair : forall v1 v2,
+             value v1 ->
+             value v2 ->
+             value (paire v1 v2).
 
 Reserved Notation "'[' x ':=' s ']' t" (at level 20).
 
@@ -60,6 +68,12 @@ Fixpoint subst (x : string) (s : term) (t : term) : term :=
       deref ([x:=s] e)
   | fork e e' =>
       fork ([x:=s] e) ([x:=s] e')
+  | paire e e' =>
+      paire ([x:=s] e) ([x:=s] e')
+  | first e =>
+      first ([x:=s] e)
+  | second e =>
+      second ([x:=s] e)
   end
 
 where "'[' x ':=' s ']' t" := (subst x s t).
@@ -74,9 +88,30 @@ Definition update_store (store : memory_model) loc tau val :=
 (fun m => if Nat.eqb m loc then Some (tau, val) else (store m)).
 
 Inductive step : (term * memory_model) -> (term * memory_model) -> Prop :=
+  | ST_Paire1 : forall e1 e1' e M M',
+        step (e1, M) (e1', M') ->
+        step (paire e1 e, M) (paire e1' e, M')
+  | ST_Paire2 : forall e e' M M' v,
+        value v ->
+        step (e, M) (e', M') ->
+        step (paire v e, M) (paire v e', M')
+  | ST_first1 : forall e1 e1' M M',
+        step (e1, M) (e1', M') ->
+        step (first e1, M) (first e1', M')
+  | ST_first2 : forall v1 v2 M,
+        value v1 ->
+        value v2 ->
+        step (first (paire v1 v2), M) (v1, M)
+  | ST_second1 : forall e1 e1' M M',
+        step (e1, M) (e1', M') ->
+        step (second e1, M) (second e1', M')
+  | ST_second2 : forall v1 v2 M,
+        value v1 ->
+        value v2 ->
+        step (second (paire v1 v2), M) (v2, M)
   | ST_App1 : forall e1 e1' e M M',
         step (e1, M) (e1', M') ->
-        step (app e1 e, M) (app e1' e, M)
+        step (app e1 e, M) (app e1' e, M')
   | ST_App2 : forall e e' M M' v,
         value v ->
         step (e, M) (e', M') ->
