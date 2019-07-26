@@ -95,11 +95,12 @@ match e with
   | TSO.assign e e' => 
     let e := translate_term e k in
     let e' := translate_term e' k in
-    seq (set_local (first e) (num k) e') (flush_many e)
+    seq (flush_many e) (seq (set_local (first e) (num k) e') (flush_many e))
   | TSO.deref e => 
     let e := translate_term e k in
-    ifzero (first (app (deref (first e)) (num k)))
+    seq (flush_many e)
+        (ifzero (first (app (deref (first e)) (num k)))
            (deref (second e))
-           (local_read (first e) (num k))
+           (local_read (first e) (num k)))
 end.
 
