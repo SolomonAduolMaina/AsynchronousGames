@@ -1,163 +1,89 @@
-Require Import Strings.String.
+Require Import List.
+Require Import ZArith.
+Require Import IMP.
 
-Inductive type : Type :=
-  | Nat : type
-  | Unit : type
-  | NatRef : type
-  | Arrow : type -> type -> type.
+Definition thread_id := bool.
+Definition buffer_size := nat.
+Definition local_buffers := thread_id -> list (nat * Z). (* address , value *)
+Definition global_store := nat -> (option Z).
+Definition memory_model := buffer_size * local_buffers * global_store.
 
-Inductive term : Type :=
-(* PCF *)
-  | var : string -> term
-  | app : term -> term -> term
-  | lam : string -> type -> term -> term
-  | ifzero : term -> term -> term -> term
-  | fics : type -> term -> term
-  | num : nat -> term
-  | yunit : term
+Definition queue (id : thread_id) (val : nat * Z) (local : local_buffers) : local_buffers :=
+(fun b => if Bool.eqb b id then (local id) ++ (val :: nil) else local id).
 
-(* (Nat) References. *)
-  | ref : nat -> term
-  | new_ref : term
-  | assign : term -> term -> term
-  | deref : term -> term
+Definition allocate (start : nat) (finish : nat) (init : list Z) (g : global_store) : global_store :=
+(fun n => if andb (Nat.leb start n) (Nat.leb n finish) then Some (nth (n - start) init (0%Z)) else g 0).
 
-(* Threads *)
-  | fork : term -> term -> term.
+Fixpoint contains_buffered_write (address : nat)  (l : list (nat * Z)) :=
+  match l with
+    | nil => false
+    | (a, _) :: xs => orb (Nat.eqb a address) (contains_buffered_write address xs)
+  end.
 
-Inductive value : term -> Prop :=
-  | v_lam : forall x tau e, value (lam x tau e)
-  | v_num : forall n, value (num n)
-  | v_yunit : value yunit
-  | v_ref : forall n, value (ref n).
+Definition update_global (val : nat * Z) (g : global_store) : global_store :=
+(fun n => if Nat.eqb n (fst val) then Some (snd val) else g n).
 
-Reserved Notation "'[' x ':=' s ']' t" (at level 20).
+Inductive memstep : memory_model -> (thread_id * mem_event) -> memory_model -> Prop :=
+  | ST_tau_step : forall mem thread, memstep mem (thread, Tau) mem
+  | ST_local_read :
+               forall buffer local global thread xs ys value location offset,
+               local thread = xs ++ ((location + offset, value) :: nil) ++ ys ->
+               contains_buffered_write (location + offset) xs = false ->
+               memstep (buffer, local, global)
+                       (thread, Read location offset value)
+                       (buffer, local, global)
+  | ST_global_read :
+               forall buffer local global thread value location offset,
+               contains_buffered_write (location + offset) (local thread) = false ->
+               global (location + offset) = Some value ->
+               memstep (buffer, local, global)
+                       (thread, Read location offset value)
+                       (buffer, local, global)
+  | ST_write : forall buffer local local' global offset value location thread,
+               length (local thread) < buffer ->
+               local' = queue thread (location + offset, value) local ->
+               memstep (buffer, local, global)
+                       (thread, Write location offset value)
+                       (buffer, local', global)
+  | ST_allocate_pointer : forall buffer local global global' init location thread size,
+               (forall n, location <= n < location + size -> global n = None) ->
+               length init <= size ->
+               global' = allocate location (location + size - 1) init global ->
+               memstep (buffer, local, global)
+                       (thread, Allocate location size init)
+                       (buffer, local, global').
 
-Fixpoint subst (x : string) (s : term) (t : term) : term :=
-  match t with
-  | var x' =>
-      if string_dec x x' then s else t
-  | lam y T e =>
-      lam y T (if string_dec x y then e else [x:=s] e)
-  | app t1 t2 =>
-      app ([x:=s] t1) ([x:=s] t2)
-  | num n =>
-      num n
-  | ref n =>
-      ref n
-  | yunit =>
-      yunit
-  | ifzero e1 e2 e3 =>
-      ifzero ([x:=s] e1) ([x:=s] e2) ([x:=s] e3)
-  | fics T e =>
-      fics T ([x:=s] e)
-  | new_ref =>
-      new_ref
-  | assign e1 e2 =>
-      assign ([x:=s] e1) ([x:=s] e2)
-  | deref e =>
-      deref ([x:=s] e)
-  | fork e e' =>
-      fork ([x:=s] e) ([x:=s] e')
-  end
+(* A program is a 4-tuple (buf_size, init, s1, s2)
+  1. buf_size : nat denoting the size of the store buffers,
+  2. init : (list (nat * (list Z))) denoting sizes of variables with respective inital values,
+  3. s1 : term denotes the program running on the first thread,
+  4. s2 : term denotes the program running on the second thread.
+*)
+Definition program := nat * (list (nat * (list Z))) * term * term.
 
-where "'[' x ':=' s ']' t" := (subst x s t).
+Definition TSO_machine := program * memory_model.
 
-Notation "x * y" := (prod x y).
-Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z).
+Inductive pstep : TSO_machine -> TSO_machine -> Prop :=
+  | ST_init_allocate : forall buffer xs n s1 s2 mem mem' size id init,
+                      memstep mem (true, Allocate n size init) mem'->
+                      id = length ((size, init) :: xs) ->
+                      pstep ((buffer, (size, init) :: xs, s1, s2), mem)
+                            ((buffer, xs, [id:=ref n size]s1, [id:=ref n size]s2), mem')
+  | ST_synchronize1 : forall s1 event s1' mem mem' buffer s2,
+                      step s1 event s1' ->
+                      memstep mem (true, event) mem' ->
+                      pstep ((buffer, nil, s1, s2), mem)
+                            ((buffer, nil, s1', s2), mem')
+  | ST_synchronize2 : forall s1 event s2' mem mem' buffer s2,
+                      step s2 event s2' ->
+                      memstep mem (false, event) mem' ->
+                      pstep ((buffer, nil, s1, s2), mem)
+                            ((buffer, nil, s1, s2'), mem')
+  | ST_flush : forall local local' thread address value xs global global' program buffer,
+               local thread = ((address, value) :: xs) ->
+               local' thread = xs ->
+               local' (negb thread) = local (negb thread) ->
+               global' = update_global (address, value) global ->
+               pstep (program, (buffer, local, global))
+                     (program, (buffer,local', global')).
 
-Inductive mem_event : Type :=
-    | Read (loc : nat) (val : nat)
-    | Write (loc : nat) (val : nat)
-    | Allocate (loc : nat)
-    | Tau.
-
-Inductive step : term -> mem_event -> term -> Prop :=
-  | ST_App1 : forall e1 e1' e event,
-        step e1 event e1' ->
-        step (app e1 e) event (app e1' e)
-  | ST_App2 : forall e e' event v,
-        value v ->
-        step e event e' ->
-        step (app v e) event (app v e')
-  | ST_App3a : forall e v x T,
-        value v ->
-        step (app (lam x T e) v) Tau ([x:=v]e)
-  | ST_new : forall n,
-        step (new_ref) (Allocate n) (ref n)
-  | ST_assign1 : forall e1 e1' e event,
-        step e1 event e1' ->
-        step (assign e1 e) event (assign e1' e)
-  | ST_assign2 : forall e e' event v,
-        value v ->
-        step e event e' ->
-        step (assign v e) event (assign v e')
-  | ST_assign3 : forall loc n,
-        step (assign (ref loc) (num n)) (Write loc n) yunit
-  | ST_fix : forall T e,
-        step (fics T e) Tau (app e (fics T e))
-  | ST_ifzero1 : forall e1 e1' e2 e3 event,
-        step e1 event e1' ->
-        step (ifzero e1 e2 e3) event (ifzero e1' e2 e3)
-  | ST_ifzero2 : forall e e',
-        step (ifzero (num 0) e e') Tau e
-  | ST_ifzero3 : forall e e' n,
-        n <> 0 ->
-        step (ifzero (num n) e e') Tau e'
-  | ST_deref1 : forall e event e',
-        step e event e' ->
-        step (deref e) event (deref e')
-  | ST_deref2 : forall val loc,
-        step (deref (ref loc)) (Read loc val) (num val).
-
-Definition thread_id := nat.
-Definition location  := nat.
-Definition local_store := (thread_id -> (location -> (option nat))).
-Definition global_store := (location -> (option nat)).
-Definition memory_model := local_store * global_store.
-
-Definition update_local (local : local_store) thread loc val :=
-(fun m k => if andb (Nat.eqb m thread) (Nat.eqb k loc) then val else local m k).
-
-Definition update_global (global : global_store) loc val :=
-(fun m => if Nat.eqb m loc then val else global m).
-
-Inductive mem_step : memory_model -> (thread_id * mem_event) -> memory_model -> Prop := 
-  | ST_read1 : forall thread val mem loc,
-               (fst mem) thread loc = Some val ->
-               mem_step mem (thread, Read loc val) mem
-  | ST_read2 : forall thread val mem loc,
-               (fst mem) thread loc = None ->
-               (snd mem) loc = Some val ->
-               mem_step mem (thread, Read loc val) mem
-  | ST_write : forall thread val mem loc local',
-               local' = update_local (fst mem) thread loc (Some val) ->
-               mem_step mem (thread, (Write loc val)) (local', snd mem)
-  | ST_allocate : forall thread mem loc local' global',
-               (fst mem) thread loc = None ->
-               (snd mem) loc = None ->
-               local' = update_local (fst mem) thread loc (Some 0) ->
-               global' = update_global (snd mem) loc (Some 0) ->
-               mem_step mem (thread, (Allocate loc)) (local', global').
-
-Definition TSO_machine := term * memory_model.
-
-Inductive STEP : TSO_machine -> thread_id -> TSO_machine -> Prop :=
-  | ST_synchronize : forall e e' n mem event mem',
-                step e event e' ->
-                mem_step mem (n, event) mem' ->
-                STEP (e, mem) n (e', mem')
-  | ST_flush : forall n local' global' thread loc val e mem,
-               (fst mem) thread loc = Some val ->
-               local' = update_local (fst mem) thread loc None ->
-               global' = update_global (snd mem) loc (Some val) ->
-               STEP (e, mem) n (e, (local', global'))
-  | ST_fork1 : forall mem mem' e e' e1 n,
-               STEP (e, mem) n (e', mem') ->
-               STEP (fork e e1 , mem) n (fork e' e1, mem')
-  | ST_fork2 : forall mem mem' e e' e1 n,
-               STEP (e, mem) (S n) (e', mem') ->
-               STEP (fork e1 e, mem) n (fork e1 e', mem')
-  | ST_fork3 : forall mem e v n,
-               value v ->
-               STEP (fork e v , mem) n (e, mem).

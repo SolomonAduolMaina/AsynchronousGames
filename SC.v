@@ -1,196 +1,59 @@
 Require Import Strings.String.
+Require Import List.
+Require Import ZArith.
+Require Import IMP.
 
-Inductive type : Type :=
-  | Nat : type
-  | Unit : type
-  | Ref : type -> type
-  | Arrow : type -> type -> type
-  | Product : type -> type -> type.
+Definition memory_model := nat -> (option Z).
 
-Inductive term : Type :=
-(* PCF *)
-  | var : string -> term
-  | app : term -> term -> term
-  | lam : string -> type -> term -> term
-  | ifzero : term -> term -> term -> term
-  | fics : type -> term -> term
-  | num : nat -> term
-  | yunit : term
-  | paire : term -> term -> term
-  | first : term -> term
-  | second : term -> term
-  | seq : term -> term -> term
-  | plus : term -> term -> term
-  | minus : term -> term -> term
+Definition allocate (start : nat) (finish : nat) (init : list Z) (g : memory_model) : memory_model :=
+(fun n => if andb (Nat.leb start n) (Nat.leb n finish) then Some (nth (n - start) init (0%Z)) else g 0).
 
-(* (General) References. *)
-  | ref : type -> nat -> term
-  | new_ref : type -> term -> term
-  | assign : term -> term -> term
-  | deref : term -> term
+Definition update_model (val : nat * Z) (g : memory_model) : memory_model :=
+(fun n => if Nat.eqb n (fst val) then Some (snd val) else g n).
 
-(* Threads *)
-  | fork : term -> term -> term.
+Inductive memstep : memory_model -> mem_event -> memory_model -> Prop :=
+  | ST_tau_step : forall mem, memstep mem Tau mem
+  | ST_read :  forall model value location offset,
+               model (location + offset) = Some value ->
+               memstep model (Read location offset value) model
+  | ST_write : forall model model' offset value location,
+               model' = update_model (location + offset, value) model ->
+               memstep model (Write location offset value) model'
+  | ST_allocate_pointer : forall model model' init location size,
+               (forall n, location <= n < location + size -> model n = None) ->
+               length init <= size ->
+               model' = allocate location (location + size - 1) init model ->
+               memstep model (Allocate location size init) model'.
 
-Inductive value : term -> Prop :=
-  | v_lam : forall x tau e, value (lam x tau e)
-  | v_num : forall n, value (num n)
-  | v_yunit : value yunit
-  | v_ref : forall tau n, value (ref tau n)
-  | V_pair : forall v1 v2,
-             value v1 ->
-             value v2 ->
-             value (paire v1 v2).
+(* A program is a 4-tuple (init, s1, s2, s3)
+  1. init : (list (nat * (list Z))) denoting sizes of variables with respective inital values,
+  2. s1 : term denotes the program running on the first thread,
+  3. s2 : term denotes the program running on the second thread.
+  4. s3 : term denotes the program running on the third thread.
+*)
+Definition program := (list (nat * (list Z))) * term * term * term.
 
-Reserved Notation "'[' x ':=' s ']' t" (at level 20).
+Definition SC_machine := program * memory_model.
 
-Fixpoint subst (x : string) (s : term) (t : term) : term :=
-  match t with
-  | var x' =>
-      if string_dec x x' then s else t
-  | lam y T e =>
-      lam y T (if string_dec x y then e else [x:=s] e)
-  | app t1 t2 =>
-      app ([x:=s] t1) ([x:=s] t2)
-  | num n =>
-      num n
-  | ref tau n =>
-      ref tau n
-  | yunit =>
-      yunit
-  | ifzero e1 e2 e3 =>
-      ifzero ([x:=s] e1) ([x:=s] e2) ([x:=s] e3)
-  | fics T e =>
-      fics T ([x:=s] e)
-  | new_ref tau e =>
-      new_ref tau ([x:=s] e)
-  | assign e1 e2 =>
-      assign ([x:=s] e1) ([x:=s] e2)
-  | deref e =>
-      deref ([x:=s] e)
-  | fork e e' =>
-      fork ([x:=s] e) ([x:=s] e')
-  | paire e e' =>
-      paire ([x:=s] e) ([x:=s] e')
-  | first e =>
-      first ([x:=s] e)
-  | second e =>
-      second ([x:=s] e)
-  | seq e e' =>
-      seq ([x:=s] e) ([x:=s] e')
-  | plus e e' =>
-      plus ([x:=s] e) ([x:=s] e')
-  | minus e e' =>
-      minus ([x:=s] e) ([x:=s] e')
-  end
-
-where "'[' x ':=' s ']' t" := (subst x s t).
-
-Notation "x * y" := (prod x y).
-Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z).
-
-Definition location  := nat.
-Definition memory_model := (location -> (option (type * term))).
-
-Definition update_store (store : memory_model) loc tau val :=
-(fun m => if Nat.eqb m loc then Some (tau, val) else (store m)).
-
-Inductive step : (term * memory_model) -> (term * memory_model) -> Prop :=
-  | ST_seq1: forall e1 e1' e M M',
-        step (e1, M) (e1', M') ->
-        step (seq e1 e, M) (seq e1' e, M')
-  | ST_seq2: forall e M,
-        step (seq yunit e, M) (e, M)
-  | ST_Paire1 : forall e1 e1' e M M',
-        step (e1, M) (e1', M') ->
-        step (paire e1 e, M) (paire e1' e, M')
-  | ST_Paire2 : forall e e' M M' v,
-        value v ->
-        step (e, M) (e', M') ->
-        step (paire v e, M) (paire v e', M')
-  | ST_first1 : forall e1 e1' M M',
-        step (e1, M) (e1', M') ->
-        step (first e1, M) (first e1', M')
-  | ST_first2 : forall v1 v2 M,
-        value v1 ->
-        value v2 ->
-        step (first (paire v1 v2), M) (v1, M)
-  | ST_second1 : forall e1 e1' M M',
-        step (e1, M) (e1', M') ->
-        step (second e1, M) (second e1', M')
-  | ST_second2 : forall v1 v2 M,
-        value v1 ->
-        value v2 ->
-        step (second (paire v1 v2), M) (v2, M)
-  | ST_App1 : forall e1 e1' e M M',
-        step (e1, M) (e1', M') ->
-        step (app e1 e, M) (app e1' e, M')
-  | ST_App2 : forall e e' M M' v,
-        value v ->
-        step (e, M) (e', M') ->
-        step (app v e, M) (app v e', M')
-  | ST_App3 : forall e v x T M,
-        value v ->
-        step (app (lam x T e) v, M) ([x:=v]e, M)
-  | ST_Plus1 : forall e1 e1' e M M',
-        step (e1, M) (e1', M') ->
-        step (plus e1 e, M) (plus e1' e, M')
-  | ST_Plus2 : forall e e' M M' v,
-        value v ->
-        step (e, M) (e', M') ->
-        step (plus v e, M) (plus v e', M')
-  | ST_Plus3 : forall n m M,
-        step (plus (num m) (num n), M) (num (m + n), M)
-  | ST_Minus1 : forall e1 e1' e M M',
-        step (e1, M) (e1', M') ->
-        step (minus e1 e, M) (minus e1' e, M')
-  | ST_Minus2 : forall e e' M M' v,
-        value v ->
-        step (e, M) (e', M') ->
-        step (minus v e, M) (minus v e', M')
-  | ST_Minuss3 : forall n m M,
-        step (minus (num m) (num n), M) (num (m - n), M)
-  | ST_new1 : forall tau e e' M M',
-        step (e, M) (e', M') ->
-        step (new_ref tau e, M) (new_ref tau e', M')
-  | ST_new2 : forall loc tau val M M' ,
-        value val ->
-        M loc = None ->
-        M' = update_store M loc tau val ->
-        step (new_ref tau val, M) (ref tau loc, M')
-  | ST_assign1 : forall e1 e1' e M M',
-        step (e1, M) (e1', M') ->
-        step (assign e1 e, M) (assign e1' e, M')
-  | ST_assign2 : forall e e' M M' v,
-        value v ->
-        step (e, M) (e', M') ->
-        step (assign v e, M) (assign v e', M')
-  | ST_assign3 : forall loc tau val M,
-        step (assign (ref tau loc) val, M) 
-             (yunit, update_store M loc tau val)
-  | ST_fix : forall T e M,
-        step (fics T e, M) (app e (fics T e), M)
-  | ST_ifzero1 : forall e1 e1' e2 e3 M M',
-        step (e1, M) (e1', M') ->
-        step (ifzero e1 e2 e3, M) (ifzero e1' e2 e3, M')
-  | ST_ifzero2 : forall e e' M,
-        step (ifzero (num 0) e e', M) (e, M)
-  | ST_ifzero3 : forall e e' n M,
-        n <> 0 ->
-        step (ifzero (num n) e e', M) (e', M)
-  | ST_deref1 : forall e e' M M',
-        step (e, M) (e', M') ->
-        step (deref e, M) (deref e', M')
-  | ST_deref2 : forall val tau loc M,
-        M loc = Some (tau, val) ->
-        step (deref (ref tau loc), M) (val, M)
-  | ST_fork1 : forall e e' e1 M M',
-        step (e, M) (e', M') ->
-        step (fork e e1, M) (fork e' e1, M')
-  | ST_fork2 : forall e e' e1 M M',
-        step (e, M) (e', M') ->
-        step (fork e1 e, M) (fork e1 e', M')
-  | ST_fork3 : forall e val M,
-        value val ->
-        step (fork e val, M) (e, M).
+Inductive pstep : SC_machine -> SC_machine -> Prop :=
+  | ST_init_allocate_pointer : forall xs n s1 s2 s3 mem mem' size id init,
+                      memstep mem (Allocate n size init) mem' ->
+                      id = length ((size, init) :: xs) ->
+                      pstep (((size, init) :: xs, s1, s2, s3), mem)
+                            ((xs, [id:=ref n size]s1, [id:=ref n size]s2, [id:=ref n size]s3), mem')
+  | ST_synchronize1 : forall s1 event s1' mem mem' s2 s3,
+                      step s1 event s1' ->
+                      memstep mem event mem' ->
+                      pstep ((nil, s1, s2, s3), mem)
+                            ((nil, s1', s2, s3), mem')
+  | ST_synchronize2 : forall s1 event s2' mem mem' s2 s3,
+                      step s2 event s2' ->
+                      memstep mem event mem' ->
+                      pstep ((nil, s1, s2, s3), mem)
+                            ((nil, s1, s2', s3), mem')
+  | ST_synchronize3 : forall s1 event s3' mem mem' s2 s3,
+                      step s3 event s3' ->
+                      memstep mem event mem' ->
+                      pstep ((nil, s1, s2, s3), mem)
+                            ((nil, s1, s2, s3'), mem').
 
