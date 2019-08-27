@@ -110,36 +110,29 @@ Definition write_code (virtual : term) (offset : term) (value : term) (thread : 
 Definition nd_flush (thread : bool) (sizes : list nat) (buf_size : nat) : term :=
   let base := length sizes in
   (SPECIAL base) ::= ONE ;;
-  WHILE (and (!(SPECIAL base) == ONE) (not (!(SIZE thread base) == ZERO))) DO 
-    flush thread sizes buf_size
-  DONE.
+  WHILE (!(SPECIAL base) == ONE) DO (flush thread sizes buf_size) DONE.
 
-Definition flush_all (thread : bool) (sizes : list nat) (buf_size : nat) : term :=
-  WHILE (not (!(SIZE thread (length sizes)) == ZERO)) DO 
-    flush thread sizes buf_size
-  DONE.
-
-Fixpoint translate (s : term) (sizes : list nat) (buf_size : nat) (thread : bool) : term :=
+Fixpoint translate (s : term) (sizes : list nat) (buf_size : nat) (thread : bool) (f : nat -> nat): term :=
 match s with
   | var k => (paire (var k) (real_to_virtual (var k) sizes))
-  | ref n m => ref n m
+  | ref n m => (ref (f n) m)
   | num n => (num n)
-  | plus e1 e2 => (nd_flush thread sizes buf_size) ;; (plus (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
-  | modulo e1 e2 => (nd_flush thread sizes buf_size) ;; (modulo (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
+  | plus e1 e2 => (nd_flush thread sizes buf_size) ;; (plus (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
+  | modulo e1 e2 => (nd_flush thread sizes buf_size) ;; (modulo (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
   | tru => tru
   | fls => fls
-  | less_than e1 e2 => (nd_flush thread sizes buf_size) ;; (less_than (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
-  | not e => (nd_flush thread sizes buf_size) ;; (not (translate e sizes buf_size thread))
-  | and e1 e2 => (nd_flush thread sizes buf_size) ;; (and (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
-  | yunit => yunit
-  | seq e1 e2 => (nd_flush thread sizes buf_size) ;; ((translate e1 sizes buf_size thread) ;; (translate e2 sizes buf_size thread))
-  | ifterm e1 e2 e3 => (nd_flush thread sizes buf_size) ;; (ifterm (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread) (translate e3 sizes buf_size thread))
-  | while e1 e2 => (nd_flush thread sizes buf_size) ;; (while (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
-  | paire e1 e2 => (nd_flush thread sizes buf_size) ;; (paire (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
-  | first e => (nd_flush thread sizes buf_size) ;; (first (translate e sizes buf_size thread))
-  | second e => (nd_flush thread sizes buf_size) ;; (second (translate e sizes buf_size thread))
-  | read e1 e2 => (nd_flush thread sizes buf_size) ;; (read_code thread (first e1) (translate e2 sizes buf_size thread) sizes buf_size)
-  | write e1 e2 e3 => (nd_flush thread sizes buf_size) ;; (write_code (second e1) (translate e2 sizes buf_size thread) (translate e3 sizes buf_size thread) thread sizes buf_size)
+  | less_than e1 e2 => (nd_flush thread sizes buf_size) ;; (less_than (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
+  | not e => (nd_flush thread sizes buf_size) ;; (not (translate e sizes buf_size thread f))
+  | and e1 e2 => (nd_flush thread sizes buf_size) ;; (and (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
+  | yunit => (nd_flush thread sizes buf_size) ;; yunit
+  | seq e1 e2 => (nd_flush thread sizes buf_size) ;; ((translate e1 sizes buf_size thread f) ;; (translate e2 sizes buf_size thread f))
+  | ifterm e1 e2 e3 => (nd_flush thread sizes buf_size) ;; (ifterm (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f) (translate e3 sizes buf_size thread f))
+  | while e1 e2 => (nd_flush thread sizes buf_size) ;; (while (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
+  | paire e1 e2 => (nd_flush thread sizes buf_size) ;; (paire (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
+  | first e => (nd_flush thread sizes buf_size) ;; (first (translate e sizes buf_size thread f))
+  | second e => (nd_flush thread sizes buf_size) ;; (second (translate e sizes buf_size thread f))
+  | read e1 e2 => (nd_flush thread sizes buf_size) ;; (read_code thread (first e1) (translate e2 sizes buf_size thread f) sizes buf_size)
+  | write e1 e2 e3 => (nd_flush thread sizes buf_size) ;; (write_code (second e1) (translate e2 sizes buf_size thread f) (translate e3 sizes buf_size thread f) thread sizes buf_size)
 end.
 
 Fixpoint fst_list {A B} (l : list (A * B)) : list A :=
@@ -168,7 +161,7 @@ Definition translate_vars (init : list (nat * (list Z))) (buf_size : nat) : list
   (buf_size,nil) :: (* BUFFER_1A *)
   init.
 
-Definition translate_program (p : TSO.program) : SC.program :=
+Definition translate_program (p : TSO.program) (f : nat -> nat) : SC.program :=
   let buf_size := fst (fst (fst p)) in
   let init := snd (fst (fst p))  in
   let s1 := snd (fst p) in
@@ -176,8 +169,7 @@ Definition translate_program (p : TSO.program) : SC.program :=
   let sizes := fst_list (rev init) in
   let base := length sizes in
   (translate_vars init buf_size,
-   seq (translate s1 sizes buf_size true) (flush_all true sizes buf_size),
-   seq (translate s1 sizes buf_size false) (flush_all false sizes buf_size),
+   translate s1 sizes buf_size true f,
+   translate s1 sizes buf_size false f,
    while tru ((SPECIAL base) ::= ZERO)).
-
 

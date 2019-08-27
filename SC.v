@@ -36,11 +36,11 @@ Definition program := (list (nat * (list Z))) * term * term * term.
 Definition SC_machine := program * memory_model.
 
 Inductive pstep : SC_machine -> SC_machine -> Prop :=
-  | ST_init_allocate_pointer : forall xs s1 s2 s3 mem mem' size id init,
+  | ST_init_allocate_pointer : forall xs n s1 s2 s3 mem mem' size id init,
+                      memstep mem (Allocate n size init) mem' ->
                       id = length ((size, init) :: xs) ->
-                      memstep mem (Allocate id size init) mem' ->
                       pstep (((size, init) :: xs, s1, s2, s3), mem)
-                            ((xs, [id:=ref id size]s1, [id:=ref id size]s2, [id:=ref id size]s3), mem')
+                            ((xs, [id:=ref n size]s1, [id:=ref n size]s2, [id:=ref n size]s3), mem')
   | ST_synchronize1 : forall s1 event s1' mem mem' s2 s3,
                       step s1 event s1' ->
                       memstep mem event mem' ->
@@ -56,4 +56,3 @@ Inductive pstep : SC_machine -> SC_machine -> Prop :=
                       memstep mem event mem' ->
                       pstep ((nil, s1, s2, s3), mem)
                             ((nil, s1, s2, s3'), mem').
-

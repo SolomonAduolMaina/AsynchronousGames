@@ -64,11 +64,11 @@ Definition program := nat * (list (nat * (list Z))) * term * term.
 Definition TSO_machine := program * memory_model.
 
 Inductive pstep : TSO_machine -> TSO_machine -> Prop :=
-  | ST_init_allocate : forall buffer xs s1 s2 mem mem' size id init,
+  | ST_init_allocate : forall buffer xs n s1 s2 mem mem' size id init,
+                      memstep mem (true, Allocate n size init) mem'->
                       id = length ((size, init) :: xs) ->
-                      memstep mem (true, Allocate id size init) mem'->
                       pstep ((buffer, (size, init) :: xs, s1, s2), mem)
-                            ((buffer, xs, [id:=ref id size]s1, [id:=ref id size]s2), mem')
+                            ((buffer, xs, [id:=ref n size]s1, [id:=ref n size]s2), mem')
   | ST_synchronize1 : forall s1 event s1' mem mem' buffer s2,
                       step s1 event s1' ->
                       memstep mem (true, event) mem' ->
@@ -86,4 +86,3 @@ Inductive pstep : TSO_machine -> TSO_machine -> Prop :=
                global' = update_global (address, value) global ->
                pstep (program, (buffer, local, global))
                      (program, (buffer,local', global')).
-
