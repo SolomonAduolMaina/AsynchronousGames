@@ -110,13 +110,20 @@ Definition write_code (virtual : term) (offset : term) (value : term) (thread : 
 Definition nd_flush (thread : bool) (sizes : list nat) (buf_size : nat) : term :=
   let base := length sizes in
   (SPECIAL base) ::= ONE ;;
-  WHILE (!(SPECIAL base) == ONE) DO (flush thread sizes buf_size) DONE.
+  WHILE (and (!(SPECIAL base) == ONE) (not (!(SIZE thread base) == ZERO))) DO 
+    flush thread sizes buf_size
+  DONE.
+
+Definition flush_all (thread : bool) (sizes : list nat) (buf_size : nat) : term :=
+  WHILE (not (!(SIZE thread (length sizes)) == ZERO)) DO 
+    flush thread sizes buf_size
+  DONE.
 
 Fixpoint translate (s : term) (sizes : list nat) (buf_size : nat) (thread : bool) (f : nat -> nat): term :=
 match s with
-  | var k => (paire (var k) (real_to_virtual (var k) sizes))
-  | ref n m => (ref (f n) m)
-  | num n => (num n)
+  | var k => paire (var k) (real_to_virtual (var k) sizes)
+  | ref n m => ref (f n) m
+  | num n => num n
   | plus e1 e2 => (nd_flush thread sizes buf_size) ;; (plus (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
   | modulo e1 e2 => (nd_flush thread sizes buf_size) ;; (modulo (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
   | tru => tru
@@ -124,7 +131,7 @@ match s with
   | less_than e1 e2 => (nd_flush thread sizes buf_size) ;; (less_than (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
   | not e => (nd_flush thread sizes buf_size) ;; (not (translate e sizes buf_size thread f))
   | and e1 e2 => (nd_flush thread sizes buf_size) ;; (and (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
-  | yunit => (nd_flush thread sizes buf_size) ;; yunit
+  | yunit => yunit
   | seq e1 e2 => (nd_flush thread sizes buf_size) ;; ((translate e1 sizes buf_size thread f) ;; (translate e2 sizes buf_size thread f))
   | ifterm e1 e2 e3 => (nd_flush thread sizes buf_size) ;; (ifterm (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f) (translate e3 sizes buf_size thread f))
   | while e1 e2 => (nd_flush thread sizes buf_size) ;; (while (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
@@ -169,7 +176,7 @@ Definition translate_program (p : TSO.program) (f : nat -> nat) : SC.program :=
   let sizes := fst_list (rev init) in
   let base := length sizes in
   (translate_vars init buf_size,
-   translate s1 sizes buf_size true f,
-   translate s1 sizes buf_size false f,
+   seq (translate s1 sizes buf_size true f) (flush_all true sizes buf_size),
+   seq (translate s1 sizes buf_size false f) (flush_all false sizes buf_size),
    while tru ((SPECIAL base) ::= ZERO)).
 
