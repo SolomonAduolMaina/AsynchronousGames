@@ -180,3 +180,58 @@ Definition translate_program (p : TSO.program) (f : nat -> nat) : SC.program :=
    seq (translate s1 sizes buf_size false f) (flush_all false sizes buf_size),
    while tru ((SPECIAL base) ::= ZERO)).
 
+Definition psteps (p : SC_machine) (q : SC_machine) :=
+  exists l,
+  (length l >= 2 /\ hd_error l = Some p /\ hd_error (rev l) = Some q /\
+  (forall n a b, nth_error l n = Some a /\ nth_error l (S n) = Some b -> pstep a b)).
+
+Definition injective {A B} (f : A -> B) :=
+  forall a a', f a = f a' -> a = a'.
+
+Definition bisimilar (p : TSO_machine) (q : SC_machine) : Prop :=
+  let TSO_term := fst p in
+  let TSO_memory := snd p in
+  let SC_term := fst q in
+  let SCGS := snd q in
+  let buf_size := fst (fst (fst TSO_term)) in
+  let local := snd (fst TSO_memory) in
+  let TSOGS := snd TSO_memory in
+  let init' := fst (fst (fst SC_term)) in
+  exists f (g : nat -> nat), 
+    injective g /\ (* Some more needs to be said of g? Perhaps injective suffices... *)
+    (
+      (translate_program TSO_term f = SC_term) /\
+      (forall n m, TSOGS n = Some m -> SCGS (f n) = Some m) /\
+      (init' = nil -> 
+          (exists BUFFER_1A BUFFER_1B FRONT_1 REAR_1 SIZE_1 BUFFER_2A BUFFER_2B FRONT_2 REAR_2 SIZE_2,
+              (forall add val n, (nth_error (local true) n = Some (add, val)) ->
+                  exists keys values front rear size,
+                      (SCGS BUFFER_1A = Some keys /\
+                       SCGS BUFFER_1B = Some values /\
+                       SCGS FRONT_1 = Some front /\
+                       SCGS REAR_1 = Some rear /\
+                       SCGS SIZE_1 = Some size /\
+                       (Z.to_nat (Z.sub front rear)) = length (local true) /\
+                       (Z.to_nat (Z.sub front rear)) = (Z.to_nat size) /\
+                       SCGS (((Z.to_nat keys) + (Z.to_nat front) + n) mod buf_size) = Some (Z.of_nat (g n)) /\
+                       SCGS (((Z.to_nat values) + (Z.to_nat front) + n) mod buf_size) = Some val
+                      )
+              ) /\
+              (forall add val n, (nth_error (local true) n = Some (add, val)) ->
+                  exists keys values front rear size,
+                      (SCGS BUFFER_2A = Some keys /\
+                       SCGS BUFFER_2B = Some values /\
+                       SCGS FRONT_2 = Some front /\
+                       SCGS REAR_2 = Some rear /\
+                       SCGS SIZE_2 = Some size /\
+                       (Z.to_nat (Z.sub front rear)) = length (local true) /\
+                       (Z.to_nat (Z.sub front rear)) = (Z.to_nat size) /\
+                       SCGS (((Z.to_nat keys) + (Z.to_nat front) + n) mod buf_size) = Some (Z.of_nat (g n)) /\
+                       SCGS (((Z.to_nat values) + (Z.to_nat front) + n) mod buf_size) = Some val
+                      )
+              )
+          )
+      )
+    ).
+
+
