@@ -4,19 +4,7 @@ Require Import IMP.
 Require Import TSO.
 Require Import SC.
 Require Import ZArith.
-
-Fixpoint take {A} (n : nat) (l : list A)  :=
-  match l, n with
-    | _, 0 => nil
-    | nil, _ => nil
-    | x :: xs, S n => x :: (take n xs)
-  end.
-
-Fixpoint sum (l : list nat) :=
-  match l with
-    | nil => 0
-    | x :: xs => x + (sum xs)
-  end.
+Require Import Util.
 
 Definition BUFFER_1A (base : nat) : term := var (base + 1).
 Definition BUFFER_1B (base : nat) : term := var (base + 2).
@@ -56,25 +44,12 @@ Definition FOUND (thread : bool) (base : nat) :=
 Definition RESULT (thread : bool) (base : nat) :=
   if thread then RESULT_1 base else RESULT_2 base.
 
-Fixpoint virtual_to_real (index : nat) (virtual : nat) (sizes : list nat) : (nat * nat) :=
-  match index with
-    | 0 => (0, virtual)
-    | S n => let base := sum (take n sizes) in
-             if base <=? virtual then (base, virtual - base) else virtual_to_real n virtual sizes
-  end.
-
-Definition real_to_virtual (real : term) (sizes : list nat) : term := 
-  match real with
-    | var real => num (Z.of_nat (sum (take (real - 1) sizes)))
-    | _ => num (0%Z)
-  end.
-
 Definition read_code (thread : bool) (real : term) (offset : term) (sizes : list nat) (buf_size : nat) : term :=
   let base := length sizes in
   LOOP thread base ::= ZERO ;;
   FOUND thread base ::= ZERO ;;
   (WHILE !(LOOP thread base) << (num (Z.of_nat buf_size)) DO
-    (CASE ((BUFFER_A thread base) [!(LOOP thread base)] == (plus (real_to_virtual real sizes) offset) ) THEN
+    (CASE ((BUFFER_A thread base) [!(LOOP thread base)] == (plus (reference real) offset) ) THEN
       RESULT thread base ::= (BUFFER_B thread base)[!(LOOP thread base)] ;;
       FOUND thread base ::= ONE
     ELSE
@@ -83,9 +58,16 @@ Definition read_code (thread : bool) (real : term) (offset : term) (sizes : list
   DONE);;
   CASE (!(FOUND thread base) == ONE) THEN !(RESULT thread base) ELSE (!real) END.
 
-Definition flush_write (virtual : term) (value : term) (sizes : list nat) : term :=
-  match virtual with
-    | num m  => let (base, offset) := virtual_to_real (length sizes) (Z.to_nat m) sizes in
+Fixpoint base_and_offset (index : nat) (address : nat) (sizes : list nat) : (nat * nat) :=
+  match index with
+    | 0 => (0, address)
+    | S n => let base := sum (take n sizes) in
+             if base <=? address then (base, address - base) else base_and_offset n address sizes
+  end.
+
+Definition flush_write (address : term) (value : term) (sizes : list nat) : term :=
+  match address with
+    | num m  => let (base, offset) := base_and_offset (length sizes) (Z.to_nat m) sizes in
                      write (var base) (num (Z.of_nat offset)) value
     | _ => yunit
   end.
@@ -99,11 +81,11 @@ Definition flush (thread : bool) (sizes : list nat) (buf_size : nat) : term :=
     (SIZE thread base) ::= plus (!(SIZE thread base)) MINUS_ONE
   END.
 
-Definition write_code (virtual : term) (offset : term) (value : term) (thread : bool) (sizes : list nat) (buf_size : nat) : term :=
+Definition write_code (address : term) (offset : term) (value : term) (thread : bool) (sizes : list nat) (buf_size : nat) : term :=
   let base := length sizes in
   CASE ((SIZE thread base) == (num (Z.of_nat buf_size))) THEN (flush thread sizes buf_size) ELSE yunit END ;;
   (REAR thread base) ::= modulo (plus (!(REAR thread base)) ONE) (num (Z.of_nat buf_size));;
-  (BUFFER_A thread base)[!(REAR thread base)] ::= plus virtual offset;;
+  (BUFFER_A thread base)[!(REAR thread base)] ::= plus (reference address) offset;;
   (BUFFER_B thread base)[!(REAR thread base)] ::= value;;
   (SIZE thread base) ::= plus (!(SIZE thread base)) ONE.
 
@@ -119,74 +101,63 @@ Definition flush_all (thread : bool) (sizes : list nat) (buf_size : nat) : term 
     flush thread sizes buf_size
   DONE.
 
-Fixpoint translate (s : term) (sizes : list nat) (buf_size : nat) (thread : bool) (f : nat -> nat): term :=
+Fixpoint translate (s : term) (sizes : list nat) (buf_size : nat) (thread : bool): term :=
 match s with
-  | var k => paire (var k) (real_to_virtual (var k) sizes)
-  | ref n m => ref (f n) m
+  | var k => var k
+  | ref n m => ref n m
   | num n => num n
-  | plus e1 e2 => (nd_flush thread sizes buf_size) ;; (plus (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
-  | modulo e1 e2 => (nd_flush thread sizes buf_size) ;; (modulo (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
+  | plus e1 e2 => (nd_flush thread sizes buf_size) ;; (plus (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
+  | modulo e1 e2 => (nd_flush thread sizes buf_size) ;; (modulo (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
   | tru => tru
   | fls => fls
-  | less_than e1 e2 => (nd_flush thread sizes buf_size) ;; (less_than (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
-  | not e => (nd_flush thread sizes buf_size) ;; (not (translate e sizes buf_size thread f))
-  | and e1 e2 => (nd_flush thread sizes buf_size) ;; (and (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
+  | less_than e1 e2 => (nd_flush thread sizes buf_size) ;; (less_than (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
+  | not e => (nd_flush thread sizes buf_size) ;; (not (translate e sizes buf_size thread))
+  | and e1 e2 => (nd_flush thread sizes buf_size) ;; (and (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
   | yunit => yunit
-  | seq e1 e2 => (nd_flush thread sizes buf_size) ;; ((translate e1 sizes buf_size thread f) ;; (translate e2 sizes buf_size thread f))
-  | ifterm e1 e2 e3 => (nd_flush thread sizes buf_size) ;; (ifterm (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f) (translate e3 sizes buf_size thread f))
-  | while e1 e2 => (nd_flush thread sizes buf_size) ;; (while (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
-  | paire e1 e2 => (nd_flush thread sizes buf_size) ;; (paire (translate e1 sizes buf_size thread f) (translate e2 sizes buf_size thread f))
-  | first e => (nd_flush thread sizes buf_size) ;; (first (translate e sizes buf_size thread f))
-  | second e => (nd_flush thread sizes buf_size) ;; (second (translate e sizes buf_size thread f))
-  | read e1 e2 => (nd_flush thread sizes buf_size) ;; (read_code thread (first e1) (translate e2 sizes buf_size thread f) sizes buf_size)
-  | write e1 e2 e3 => (nd_flush thread sizes buf_size) ;; (write_code (second e1) (translate e2 sizes buf_size thread f) (translate e3 sizes buf_size thread f) thread sizes buf_size)
+  | seq e1 e2 => (nd_flush thread sizes buf_size) ;; ((translate e1 sizes buf_size thread) ;; (translate e2 sizes buf_size thread))
+  | ifterm e1 e2 e3 => (nd_flush thread sizes buf_size) ;; (ifterm (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread) (translate e3 sizes buf_size thread))
+  | reference e => (nd_flush thread sizes buf_size) ;; (reference (translate e sizes buf_size thread))
+  | while e1 e2 => (nd_flush thread sizes buf_size) ;; (while (translate e1 sizes buf_size thread) (translate e2 sizes buf_size thread))
+  | read e1 e2 => (nd_flush thread sizes buf_size) ;; (read_code thread e1 (translate e2 sizes buf_size thread) sizes buf_size)
+  | write e1 e2 e3 => (nd_flush thread sizes buf_size) ;; (write_code e1 (translate e2 sizes buf_size thread) (translate e3 sizes buf_size thread) thread sizes buf_size)
 end.
 
-Fixpoint fst_list {A B} (l : list (A * B)) : list A :=
-  match l with
-    | nil => nil
-    | (a, _) :: xs => a :: (fst_list xs)
-  end.
-
 Definition translate_vars (init : list (nat * (list Z))) (buf_size : nat) : list (nat * (list Z)) :=
-  (1,nil) :: (* SPECIAL *)
-  (1,nil) :: (* RESULT_2 *)
-  (1,nil) :: (* FOUND_2 *)
-  (1,nil) :: (* LOOP_2 *)
-  (1, (Z.of_nat (buf_size - 1)) :: nil) :: (* REAR_2 *)
-  (1,nil) :: (* FRONT_2 *)
-  (1,nil) :: (* SIZE_2 *)
-  (buf_size,nil) :: (* BUFFER_2B *)
-  (buf_size,nil) :: (* BUFFER_2A *)
-  (1,nil) :: (* RESULT_1 *)
-  (1,nil) :: (* FOUND_1 *)
-  (1,nil) :: (* LOOP_1 *)
-  (1, (Z.of_nat (buf_size - 1)) :: nil) :: (* REAR_1 *)
-  (1,nil) :: (* FRONT_1 *)
-  (1,nil) :: (* SIZE_1 *)
-  (buf_size,nil) :: (* BUFFER_1B *)
+  init ++
   (buf_size,nil) :: (* BUFFER_1A *)
-  init.
+  (buf_size,nil) :: (* BUFFER_1B *)
+  (1,nil) :: (* SIZE_1 *)
+  (1,nil) :: (* FRONT_1 *)
+  (1, (Z.of_nat (buf_size - 1)) :: nil) :: (* REAR_1 *)
+  (1,nil) :: (* LOOP_1 *)
+  (1,nil) :: (* FOUND_1 *)
+  (1,nil) :: (* RESULT_1 *)
+  (buf_size,nil) :: (* BUFFER_2A *)
+  (buf_size,nil) :: (* BUFFER_2B *)
+  (1,nil) :: (* SIZE_2 *)
+  (1,nil) :: (* FRONT_2 *)
+  (1, (Z.of_nat (buf_size - 1)) :: nil) :: (* REAR_2 *)
+  (1,nil) :: (* LOOP_2 *)
+  (1,nil) :: (* FOUND_2 *)
+  (1,nil) :: (* RESULT_2 *)
+  (1,nil) :: nil. (* SPECIAL *)
 
-Definition translate_program (p : TSO.program) (f : nat -> nat) : SC.program :=
+Definition translate_program (p : TSO.program) : SC.program :=
   let buf_size := fst (fst (fst p)) in
   let init := snd (fst (fst p))  in
   let s1 := snd (fst p) in
   let s2 := snd p in
-  let sizes := fst_list (rev init) in
+  let sizes := fst_list init in
   let base := length sizes in
   (translate_vars init buf_size,
-   seq (translate s1 sizes buf_size true f) (flush_all true sizes buf_size),
-   seq (translate s1 sizes buf_size false f) (flush_all false sizes buf_size),
+   seq (translate s1 sizes buf_size true) (flush_all true sizes buf_size),
+   seq (translate s1 sizes buf_size false) (flush_all false sizes buf_size),
    while tru ((SPECIAL base) ::= ZERO)).
 
 Definition psteps (p : SC_machine) (q : SC_machine) :=
   exists l,
   (length l >= 2 /\ hd_error l = Some p /\ hd_error (rev l) = Some q /\
   (forall n a b, nth_error l n = Some a /\ nth_error l (S n) = Some b -> pstep a b)).
-
-Definition injective {A B} (f : A -> B) :=
-  forall a a', f a = f a' -> a = a'.
 
 Definition bisimilar (p : TSO_machine) (q : SC_machine) : Prop :=
   let TSO_term := fst p in
@@ -197,41 +168,37 @@ Definition bisimilar (p : TSO_machine) (q : SC_machine) : Prop :=
   let local := snd (fst TSO_memory) in
   let TSOGS := snd TSO_memory in
   let init' := fst (fst (fst SC_term)) in
-  exists f (g : nat -> nat), 
-    injective g /\ (* Some more needs to be said of g? Perhaps injective suffices... *)
-    (
-      (translate_program TSO_term f = SC_term) /\
-      (forall n m, TSOGS n = Some m -> SCGS (f n) = Some m) /\
-      (init' = nil -> 
-          (exists BUFFER_1A BUFFER_1B FRONT_1 REAR_1 SIZE_1 BUFFER_2A BUFFER_2B FRONT_2 REAR_2 SIZE_2,
-              (forall add val n, (nth_error (local true) n = Some (add, val)) ->
-                  exists keys values front rear size,
-                      (SCGS BUFFER_1A = Some keys /\
-                       SCGS BUFFER_1B = Some values /\
-                       SCGS FRONT_1 = Some front /\
-                       SCGS REAR_1 = Some rear /\
-                       SCGS SIZE_1 = Some size /\
-                       (Z.to_nat (Z.sub front rear)) = length (local true) /\
-                       (Z.to_nat (Z.sub front rear)) = (Z.to_nat size) /\
-                       SCGS (((Z.to_nat keys) + (Z.to_nat front) + n) mod buf_size) = Some (Z.of_nat (g n)) /\
-                       SCGS (((Z.to_nat values) + (Z.to_nat front) + n) mod buf_size) = Some val
-                      )
-              ) /\
-              (forall add val n, (nth_error (local true) n = Some (add, val)) ->
-                  exists keys values front rear size,
-                      (SCGS BUFFER_2A = Some keys /\
-                       SCGS BUFFER_2B = Some values /\
-                       SCGS FRONT_2 = Some front /\
-                       SCGS REAR_2 = Some rear /\
-                       SCGS SIZE_2 = Some size /\
-                       (Z.to_nat (Z.sub front rear)) = length (local true) /\
-                       (Z.to_nat (Z.sub front rear)) = (Z.to_nat size) /\
-                       SCGS (((Z.to_nat keys) + (Z.to_nat front) + n) mod buf_size) = Some (Z.of_nat (g n)) /\
-                       SCGS (((Z.to_nat values) + (Z.to_nat front) + n) mod buf_size) = Some val
-                      )
-              )
+  (translate_program TSO_term = SC_term) /\
+  (forall n m, TSOGS n = Some m -> SCGS n = Some m) /\
+  (init' = nil -> 
+      (exists BUFFER_1A BUFFER_1B FRONT_1 REAR_1 SIZE_1 BUFFER_2A BUFFER_2B FRONT_2 REAR_2 SIZE_2,
+          (forall add val n, (nth_error (local true) n = Some (add, val)) ->
+              exists keys values front rear size,
+                  (SCGS BUFFER_1A = Some keys /\
+                   SCGS BUFFER_1B = Some values /\
+                   SCGS FRONT_1 = Some front /\
+                   SCGS REAR_1 = Some rear /\
+                   SCGS SIZE_1 = Some size /\
+                   (Z.to_nat (Z.sub front rear)) = length (local true) /\
+                   (Z.to_nat (Z.sub front rear)) = (Z.to_nat size) /\
+                   SCGS ((Z.to_nat keys) + (((Z.to_nat front) + n) mod buf_size)) = Some (Z.of_nat add) /\
+                   SCGS ((Z.to_nat values) + (((Z.to_nat front) + n) mod buf_size)) = Some val
+                  )
+          ) /\
+          (forall add val n, (nth_error (local true) n = Some (add, val)) ->
+              exists keys values front rear size,
+                  (SCGS BUFFER_2A = Some keys /\
+                   SCGS BUFFER_2B = Some values /\
+                   SCGS FRONT_2 = Some front /\
+                   SCGS REAR_2 = Some rear /\
+                   SCGS SIZE_2 = Some size /\
+                   (Z.to_nat (Z.sub front rear)) = length (local true) /\
+                   (Z.to_nat (Z.sub front rear)) = (Z.to_nat size) /\
+                   SCGS ((Z.to_nat keys) + (((Z.to_nat front) + n) mod buf_size)) = Some (Z.of_nat add) /\
+                   SCGS ((Z.to_nat values) + (((Z.to_nat front) + n) mod buf_size)) = Some val
+                  )
           )
       )
-    ).
+  ).
 
 

@@ -1,12 +1,12 @@
 Require Import List.
 Require Import ZArith.
+Require Import Util.
 
-(* IMP with products and pointers *)
+(* IMP with fixed width arrays *)
 Inductive term : Type :=
   | var : nat -> term
   | ref : nat -> nat -> term (* second number indicates size of allocation *)
   | num : Z -> term
-  | read : term -> term -> term (* p[offset] *)
   | plus : term -> term -> term
   | modulo : term -> term -> term
   | tru : term
@@ -15,13 +15,12 @@ Inductive term : Type :=
   | not : term -> term
   | and : term -> term -> term
   | yunit : term
+  | read : term -> term -> term (* p[offset] *)
   | write : term -> term -> term -> term (* p[offset] := n *)
+  | reference : term -> term (* &p *)
   | seq : term -> term -> term
   | ifterm : term -> term -> term -> term
-  | while : term -> term -> term
-  | paire : term -> term -> term
-  | first : term -> term
-  | second : term -> term.
+  | while : term -> term -> term.
 
 Definition or (s : term) (t : term) := not (and (not s) (not t)).
 
@@ -34,6 +33,8 @@ Notation "x << y" :=
   (less_than x y) (at level 60) : imp_scope.
 Notation "'!' x" :=
   (read x (num (0%Z))) (at level 60) : imp_scope.
+Notation "'&' x" :=
+  (reference x) (at level 60) : imp_scope.
 Notation "p '[' offset ']'" :=
   (read p offset) (at level 60) : imp_scope.
 Notation "x '::=' a" :=
@@ -50,11 +51,7 @@ Notation "'CASE' c1 'THEN' c2 'ELSE' c3 'END'" :=
 Inductive value : term -> Prop :=
   | val_unit : value yunit
   | val_ref : forall n m, value (ref n m)
-  | val_num : forall n, value (num n)
-  | val_pair : forall x y,
-                 value x ->
-                 value y ->
-                 value (paire x y).
+  | val_num : forall n, value (num n).
 
 Notation "x * y" := (prod x y).
 Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z).
@@ -95,12 +92,8 @@ Fixpoint subst (x : nat) (s : term) (t : term) : term :=
     ifterm ([x:=s] e1) ([x:=s] e2) ([x:=s] e3)
   | while e1 e2 =>
     while ([x:=s] e1) ([x:=s] e2)
-  | paire e1 e2 =>
-    paire ([x:=s] e1) ([x:=s] e2)
-  | first e =>
-    first ([x:=s] e)
-  | second e =>
-    second ([x:=s] e)
+  | reference e =>
+    reference ([x:=s] e)
   end
 
 where "'[' x ':=' s ']' t" := (subst x s t).
@@ -112,6 +105,11 @@ Inductive mem_event : Type :=
     | Tau.
 
 Inductive step : term -> mem_event -> term -> Prop :=
+  | step_reference1 : forall e e' event,
+                  step e event e' ->
+                  step (reference e) event (reference e')
+  | step_reference2 : forall n m,
+                    step (reference (ref n m)) Tau (num (Z.of_nat n))
   | step_read1 : forall e1 e1' event n size,
                   step e1 event e1' ->
                   step (read (ref n size) e1) event (read (ref n size) e1')
@@ -194,26 +192,5 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_while : forall b c,
                   step (while b c)
                         Tau
-                        (ifterm b (seq c (while b c)) yunit)
-  | step_prod1 : forall e1 e1' e2 event,
-                  step e1 event e1' ->
-                  step (paire e1 e2) event (paire e1' e2)
-  | step_prod2: forall e1 e1' e2 event,
-                  step e1 event e1' ->
-                  value e2 ->
-                  step (paire e2 e1) event (paire e2 e1')
-  | step_fst1 : forall e1 e1' event,
-                  step e1 event e1' ->
-                  step (first e1) event (first e1')
-  | step_fst2 : forall e1 e2,
-                value e1 ->
-                value e2 ->
-                step (first (paire e1 e2)) Tau e1
-  | step_snd1 : forall e1 e1' event,
-                  step e1 event e1' ->
-                  step (second e1) event (second e1')
-  | step_snd2 : forall e1 e2,
-                value e1 ->
-                value e2 ->
-                step (second (paire e1 e2)) Tau e2.
+                        (ifterm b (seq c (while b c)) yunit).
 

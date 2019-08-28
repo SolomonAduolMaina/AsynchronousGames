@@ -1,6 +1,7 @@
 Require Import List.
 Require Import ZArith.
 Require Import IMP.
+Require Import Util.
 
 Definition thread_id := bool.
 Definition buffer_size := nat.
@@ -45,7 +46,7 @@ Inductive memstep : memory_model -> (thread_id * mem_event) -> memory_model -> P
                memstep (buffer, local, global)
                        (thread, Write location offset value)
                        (buffer, local', global)
-  | ST_allocate_pointer : forall buffer local global global' init location thread size,
+  | ST_allocate_array : forall buffer local global global' init location thread size,
                (forall n, location <= n < location + size -> global n = None) ->
                length init <= size ->
                global' = allocate location (location + size - 1) init global ->
@@ -65,9 +66,10 @@ Definition TSO_machine := program * memory_model.
 
 Inductive pstep : TSO_machine -> TSO_machine -> Prop :=
   | ST_init_allocate : forall buffer xs n s1 s2 mem mem' size id init,
+                      id = length xs ->
+                      n = sum (fst_list xs) ->
                       memstep mem (true, Allocate n size init) mem'->
-                      id = length ((size, init) :: xs) ->
-                      pstep ((buffer, (size, init) :: xs, s1, s2), mem)
+                      pstep ((buffer, xs ++ ((size, init) :: nil), s1, s2), mem)
                             ((buffer, xs, [id:=ref n size]s1, [id:=ref n size]s2), mem')
   | ST_synchronize1 : forall s1 event s1' mem mem' buffer s2,
                       step s1 event s1' ->
