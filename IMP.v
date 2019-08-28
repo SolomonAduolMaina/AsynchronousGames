@@ -5,9 +5,10 @@ Require Import Util.
 (* IMP with fixed width arrays *)
 Inductive term : Type :=
   | var : nat -> term
-  | ref : nat -> nat -> term (* second number indicates size of allocation *)
+  | ref : nat -> term
   | num : Z -> term
   | plus : term -> term -> term
+  | minus : term -> term -> term
   | modulo : term -> term -> term
   | tru : term
   | fls : term
@@ -18,6 +19,7 @@ Inductive term : Type :=
   | read : term -> term -> term (* p[offset] *)
   | write : term -> term -> term -> term (* p[offset] := n *)
   | reference : term -> term (* &p *)
+  | cast : term -> term (* ( int* ) n*)
   | seq : term -> term -> term
   | ifterm : term -> term -> term -> term
   | while : term -> term -> term.
@@ -50,7 +52,7 @@ Notation "'CASE' c1 'THEN' c2 'ELSE' c3 'END'" :=
 
 Inductive value : term -> Prop :=
   | val_unit : value yunit
-  | val_ref : forall n m, value (ref n m)
+  | val_ref : forall n, value (ref n)
   | val_num : forall n, value (num n).
 
 Notation "x * y" := (prod x y).
@@ -62,14 +64,16 @@ Fixpoint subst (x : nat) (s : term) (t : term) : term :=
   match t with
   | var x' =>
       if Nat.eqb x x' then s else t
-  | ref n m =>
-      ref n m
+  | ref n =>
+      ref n
   | num n =>
       num n
   | read e1 e2 =>
     read ([x:=s] e1) ([x:=s] e2)
   | plus e1 e2 =>
     plus ([x:=s] e1) ([x:=s] e2)
+  | minus e1 e2 =>
+    minus ([x:=s] e1) ([x:=s] e2)
   | modulo e1 e2 =>
     modulo ([x:=s] e1) ([x:=s] e2)
   | tru =>
@@ -94,6 +98,8 @@ Fixpoint subst (x : nat) (s : term) (t : term) : term :=
     while ([x:=s] e1) ([x:=s] e2)
   | reference e =>
     reference ([x:=s] e)
+  | cast e =>
+    cast ([x:=s] e)
   end
 
 where "'[' x ':=' s ']' t" := (subst x s t).
@@ -108,28 +114,36 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_reference1 : forall e e' event,
                   step e event e' ->
                   step (reference e) event (reference e')
-  | step_reference2 : forall n m,
-                    step (reference (ref n m)) Tau (num (Z.of_nat n))
-  | step_read1 : forall e1 e1' event n size,
+  | step_reference2 : forall n,
+                    step (reference (ref n)) Tau (num (Z.of_nat n))
+  | step_cast1 : forall e e' event,
+                  step e event e' ->
+                  step (cast e) event (cast e')
+  | step_cast2 : forall n,
+                    step (cast (num n)) Tau (ref (Z.to_nat n))
+  | step_read1 : forall e1 e1' e2 event,
                   step e1 event e1' ->
-                  step (read (ref n size) e1) event (read (ref n size) e1')
-  | step_read2 : forall offset value n size,
-                ((Z.leb 0 offset) = true /\ (Z.ltb offset (Z.of_nat size)) = true) ->
-                step (read (ref n size) (num offset))
+                  step (read e1 e2) event (read e1' e2)
+  | step_read2 : forall e1 e1' event n,
+                  step e1 event e1' ->
+                  step (read (ref n) e1) event (read (ref n) e1')
+  | step_read3 : forall offset value n,
+                step (read (ref n) (num offset))
                      (Read n (Z.to_nat offset) value)
                      (num value)
-  | step_write1 : forall e1 e1' e2 event n m,
+  | step_write1 : forall e1 e1' e2 e3 event ,
                   step e1 event e1' ->
-                  step (write (ref n m) e1 e2) event (write (ref n m) e1' e2)
-  | step_write2 : forall e1 e1' event n offset size,
-                  ((Z.leb 0 offset) = true /\ (Z.ltb offset (Z.of_nat size)) = true) ->
+                  step (write e1 e2 e3) event (write e1' e2 e3)
+  | step_write2 : forall e1 e1' e2 event n,
                   step e1 event e1' ->
-                  step (write (ref n size) (num offset) e1)
+                  step (write (ref n) e1 e2) event (write (ref n) e1' e2)
+  | step_write3 : forall e1 e1' event n offset,
+                  step e1 event e1' ->
+                  step (write (ref n) (num offset) e1)
                        event
-                       (write (ref n size) (num offset) e1')
-  | step_write3 : forall val n offset size,
-                  (Z.ltb offset (Z.of_nat size) = true )->
-                  step (write (ref n size) (num offset) (num val)) 
+                       (write (ref n) (num offset) e1')
+  | step_write4 : forall val n offset,
+                  step (write (ref n) (num offset) (num val)) 
                        (Write n (Z.to_nat offset) val)
                         yunit
   | step_plus1 : forall e1 e1' event e2,
@@ -140,6 +154,14 @@ Inductive step : term -> mem_event -> term -> Prop :=
                   step (plus (num n) e1) event (plus (num n) e1')
   | step_plus3 : forall m n,
                   step (plus (num m) (num n)) Tau (num (m + n))
+  | step_minus1 : forall e1 e1' event e2,
+                  step e1 event e1' ->
+                  step (minus e1 e2) event (minus e1' e2)
+  | step_minus2 : forall e1 e1' n event,
+                  step e1 event e1' ->
+                  step (minus (num n) e1) event (minus (num n) e1')
+  | step_minus3 : forall m n,
+                  step (minus (num m) (num n)) Tau (num (m - n))
   | step_mod1 : forall e1 e1' e2 event,
                   step e1 event e1' ->
                   step (modulo e1 e2) event (modulo e1' e2)

@@ -4,27 +4,39 @@ Require Import ZArith.
 Require Import IMP.
 Require Import Util.
 
-Definition memory_model := nat -> (option Z).
+Definition size_mapping := nat -> (option nat).
+Definition global_store := nat -> (option Z).
+Definition memory_model := size_mapping * global_store.
 
-Definition allocate (start : nat) (finish : nat) (init : list Z) (g : memory_model) : memory_model :=
+Definition allocate (start : nat) (finish : nat) (init : list Z) (g : global_store) : global_store :=
 (fun n => if andb (Nat.leb start n) (Nat.leb n finish) then Some (nth (n - start) init (0%Z)) else g 0).
 
-Definition update_model (val : nat * Z) (g : memory_model) : memory_model :=
+Definition update_global (val : nat * Z) (g : global_store) : global_store :=
 (fun n => if Nat.eqb n (fst val) then Some (snd val) else g n).
+
+Definition update_sizes (location : nat) (size : nat) (g : size_mapping) : size_mapping :=
+(fun n => if Nat.eqb n location then Some size else g n).
 
 Inductive memstep : memory_model -> mem_event -> memory_model -> Prop :=
   | ST_tau_step : forall mem, memstep mem Tau mem
-  | ST_read :  forall model value location offset,
-               model (location + offset) = Some value ->
-               memstep model (Read location offset value) model
-  | ST_write : forall model model' offset value location,
-               model' = update_model (location + offset, value) model ->
-               memstep model (Write location offset value) model'
-  | ST_allocate_array : forall model model' init location size,
-               (forall n, location <= n < location + size -> model n = None) ->
+  | ST_read :  forall global value location offset sizes size,
+               sizes location = Some size ->
+               offset < size ->
+               global (location + offset) = Some value ->
+               memstep (sizes, global) (Read location offset value) (sizes, global)
+  | ST_write : forall global global' offset value location sizes size,
+               sizes location = Some size ->
+               offset < size ->
+               global' = update_global (location + offset, value) global ->
+               memstep (sizes, global) (Write location offset value) (sizes, global')
+  | ST_allocate_array : forall global global' init location size sizes sizes',
+               (forall n, location <= n < location + size -> global n = None) ->
+               size > 0 ->
                length init <= size ->
-               model' = allocate location (location + size - 1) init model ->
-               memstep model (Allocate location size init) model'.
+               sizes location = None ->
+               sizes' = update_sizes location size sizes ->
+               global' = allocate location (location + size - 1) init global ->
+               memstep (sizes, global) (Allocate location size init) (sizes', global').
 
 (* A program is a 4-tuple (init, s1, s2, s3)
   1. init : (list (nat * (list Z))) denoting sizes of variables with respective inital values,
@@ -42,7 +54,7 @@ Inductive pstep : SC_machine -> SC_machine -> Prop :=
                       n = sum (fst_list xs) ->
                       memstep mem (Allocate n size init) mem' ->
                       pstep ((xs ++ ((size, init) :: nil), s1, s2, s3), mem)
-                            ((xs, [id:=ref n size]s1, [id:=ref n size]s2, [id:=ref n size]s3), mem')
+                            ((xs, [id:=ref n]s1, [id:=ref n]s2, [id:=ref n]s3), mem')
   | ST_synchronize1 : forall s1 event s1' mem mem' s2 s3,
                       step s1 event s1' ->
                       memstep mem event mem' ->
