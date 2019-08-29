@@ -5,7 +5,6 @@ Require Import Util.
 (* IMP with fixed width arrays *)
 Inductive term : Type :=
   | var : nat -> term
-  | ref : nat -> term
   | num : Z -> term
   | plus : term -> term -> term
   | minus : term -> term -> term
@@ -52,83 +51,35 @@ Notation "'CASE' c1 'THEN' c2 'ELSE' c3 'END'" :=
 
 Inductive value : term -> Prop :=
   | val_unit : value yunit
-  | val_ref : forall n, value (ref n)
   | val_num : forall n, value (num n).
-
-Notation "x * y" := (prod x y).
-Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z).
-
-Reserved Notation "'[' x ':=' s ']' t" (at level 20).
-
-Fixpoint subst (x : nat) (s : term) (t : term) : term :=
-  match t with
-  | var x' =>
-      if Nat.eqb x x' then s else t
-  | ref n =>
-      ref n
-  | num n =>
-      num n
-  | read e1 e2 =>
-    read ([x:=s] e1) ([x:=s] e2)
-  | plus e1 e2 =>
-    plus ([x:=s] e1) ([x:=s] e2)
-  | minus e1 e2 =>
-    minus ([x:=s] e1) ([x:=s] e2)
-  | modulo e1 e2 =>
-    modulo ([x:=s] e1) ([x:=s] e2)
-  | tru =>
-    tru
-  | fls =>
-    fls
-  | less_than e1 e2 =>
-    less_than ([x:=s] e1) ([x:=s] e2)
-  | not e =>
-    not ([x:=s] e)
-  | and e1 e2 =>
-    and ([x:=s] e1) ([x:=s] e2)
-  | yunit =>
-    yunit
-  | write e1 e2 e3 =>
-    write ([x:=s] e1) ([x:=s] e2) ([x:=s] e3)
-  | seq e1 e2 =>
-    seq ([x:=s] e1) ([x:=s] e2)
-  | ifterm e1 e2 e3 =>
-    ifterm ([x:=s] e1) ([x:=s] e2) ([x:=s] e3)
-  | while e1 e2 =>
-    while ([x:=s] e1) ([x:=s] e2)
-  | reference e =>
-    reference ([x:=s] e)
-  | cast e =>
-    cast ([x:=s] e)
-  end
-
-where "'[' x ':=' s ']' t" := (subst x s t).
 
 Inductive mem_event : Type :=
     | Read (loc : nat) (offset : nat) (value : Z)
     | Write (loc : nat) (offset : nat) (value : Z)
     | Allocate (loc : nat) (size : nat) (init : list Z)
+    | Reference (loc : nat) (value : nat)
+    | Cast (n : nat) (loc : nat)
     | Tau.
 
 Inductive step : term -> mem_event -> term -> Prop :=
   | step_reference1 : forall e e' event,
                   step e event e' ->
                   step (reference e) event (reference e')
-  | step_reference2 : forall n,
-                    step (reference (ref n)) Tau (num (Z.of_nat n))
+  | step_reference2 : forall x n,
+                    step (reference (var x)) (Reference x n) (num (Z.of_nat n))
   | step_cast1 : forall e e' event,
                   step e event e' ->
                   step (cast e) event (cast e')
-  | step_cast2 : forall n,
-                    step (cast (num n)) Tau (ref (Z.to_nat n))
+  | step_cast2 : forall x n,
+                    step (cast (num n)) (Cast (Z.to_nat n) x) (var x)
   | step_read1 : forall e1 e1' e2 event,
                   step e1 event e1' ->
                   step (read e1 e2) event (read e1' e2)
   | step_read2 : forall e1 e1' event n,
                   step e1 event e1' ->
-                  step (read (ref n) e1) event (read (ref n) e1')
+                  step (read (var n) e1) event (read (var n) e1')
   | step_read3 : forall offset value n,
-                step (read (ref n) (num offset))
+                step (read (var n) (num offset))
                      (Read n (Z.to_nat offset) value)
                      (num value)
   | step_write1 : forall e1 e1' e2 e3 event ,
@@ -136,14 +87,14 @@ Inductive step : term -> mem_event -> term -> Prop :=
                   step (write e1 e2 e3) event (write e1' e2 e3)
   | step_write2 : forall e1 e1' e2 event n,
                   step e1 event e1' ->
-                  step (write (ref n) e1 e2) event (write (ref n) e1' e2)
+                  step (write (var n) e1 e2) event (write (var n) e1' e2)
   | step_write3 : forall e1 e1' event n offset,
                   step e1 event e1' ->
-                  step (write (ref n) (num offset) e1)
+                  step (write (var n) (num offset) e1)
                        event
-                       (write (ref n) (num offset) e1')
+                       (write (var n) (num offset) e1')
   | step_write4 : forall val n offset,
-                  step (write (ref n) (num offset) (num val)) 
+                  step (write (var n) (num offset) (num val)) 
                        (Write n (Z.to_nat offset) val)
                         yunit
   | step_plus1 : forall e1 e1' event e2,

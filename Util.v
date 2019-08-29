@@ -1,5 +1,8 @@
 Require Import List.
 
+Notation "x * y" := (prod x y).
+Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z).
+
 Fixpoint take {A} (n : nat) (l : list A)  :=
   match l, n with
     | _, 0 => nil
