@@ -2,7 +2,6 @@ Require Import List.
 Require Import IMP.
 Require Import TSO.
 Require Import SC.
-Require Import ZArith.
 Require Import Util.
 
 Definition BUFFER_1A_CONST := 0.
@@ -64,17 +63,17 @@ Definition FOUND (thread : bool) (base : nat) :=
 Definition RESULT (thread : bool) (base : nat) :=
   if thread then RESULT_1 base else RESULT_2 base.
 
-Definition ZERO : term := num (0%Z).
-Definition ONE : term  := num (1%Z).
+Definition ZERO : term := num 0.
+Definition ONE : term  := num 0.
 
-Definition translate_vars (init : list (nat * (list Z))) (buf_size : nat) : list (nat * (list Z)) :=
+Definition translate_vars (init : list (nat * (list nat))) (buf_size : nat) : list (nat * (list nat)) :=
   init ++
   (buf_size,nil) :: (* BUFFER_1A *)
   (buf_size,nil) :: (* BUFFER_1B *)
   (buf_size,nil) :: (* BUFFER_1C *)
   (1,nil) :: (* SIZE_1 *)
   (1,nil) :: (* FRONT_1 *)
-  (1, (Z.of_nat (buf_size - 1)) :: nil) :: (* REAR_1 *)
+  (1, (buf_size - 1) :: nil) :: (* REAR_1 *)
   (1,nil) :: (* LOOP_1 *)
   (1,nil) :: (* FOUND_1 *)
   (1,nil) :: (* RESULT_1 *)
@@ -83,7 +82,7 @@ Definition translate_vars (init : list (nat * (list Z))) (buf_size : nat) : list
   (buf_size,nil) :: (* BUFFER_2C *)
   (1,nil) :: (* SIZE_2 *)
   (1,nil) :: (* FRONT_2 *)
-  (1, (Z.of_nat (buf_size - 1)) :: nil) :: (* REAR_2 *)
+  (1, (buf_size - 1) :: nil) :: (* REAR_2 *)
   (1,nil) :: (* LOOP_2 *)
   (1,nil) :: (* FOUND_2 *)
   (1,nil) :: (* RESULT_2 *)
@@ -92,7 +91,7 @@ Definition translate_vars (init : list (nat * (list Z))) (buf_size : nat) : list
 Definition read_code (thread : bool) (base : nat) (buf_size : nat) (location : term) (offset : term)  : term :=
   LOOP thread base ::= ZERO ;;
   FOUND thread base ::= ZERO ;;
-  (WHILE !(LOOP thread base ) << (num (Z.of_nat buf_size)) DO
+  (WHILE !(LOOP thread base ) << (num buf_size) DO
     (CASE (and ( (BUFFER_A thread base ) [!(LOOP thread base)] == location ) ( (BUFFER_B thread base) [!(LOOP thread base)] == offset )) THEN
       RESULT thread base ::= (BUFFER_C thread base)[!(LOOP thread base)] ;;
       FOUND thread base ::= ONE
@@ -106,13 +105,13 @@ Definition flush (thread : bool) (base : nat) (buf_size : nat) : term :=
   CASE (!(SIZE thread base ) == ZERO) THEN yunit
   ELSE
     (write (cast ((BUFFER_A thread base )[!(FRONT thread base)])) ((BUFFER_B thread base)[!(FRONT thread base)]) ((BUFFER_C thread base)[!(FRONT thread base)]));;
-    (FRONT thread base) ::= modulo (plus (!(FRONT thread base)) ONE) (num (Z.of_nat buf_size)) ;;
+    (FRONT thread base) ::= modulo (plus (!(FRONT thread base)) ONE) (num buf_size) ;;
     (SIZE thread base) ::= minus (!(SIZE thread base)) ONE
   END.
 
 Definition write_code (thread : bool) (base : nat) (buf_size : nat) (location : term) (offset : term) (value : term) : term :=
-  CASE (!(SIZE thread base) == (num (Z.of_nat buf_size))) THEN (flush thread buf_size base) ELSE yunit END ;;
-  (REAR thread base) ::= modulo (plus (!(REAR thread base)) ONE) (num (Z.of_nat buf_size));;
+  CASE (!(SIZE thread base) == (num buf_size)) THEN (flush thread buf_size base) ELSE yunit END ;;
+  (REAR thread base) ::= modulo (plus (!(REAR thread base)) ONE) (num buf_size);;
   (BUFFER_A thread base)[!(REAR thread base)] ::= reference location;;
   (BUFFER_B thread base)[!(REAR thread base)] ::= offset;;
   (BUFFER_C thread base)[!(REAR thread base)] ::= value;;
@@ -168,7 +167,8 @@ Definition psteps (p : SC_machine) (q : SC_machine) :=
   (length l >= 2 /\ hd_error l = Some p /\ hd_error (rev l) = Some q /\
   (forall n a b, nth_error l n = Some a /\ nth_error l (S n) = Some b -> pstep a b)).
 
-Definition bisimilar (p : TSO_machine) (q : SC_machine) : Prop :=
+
+Definition bisimilar (p : TSO_machine) (q : SC_machine) (f : nat -> nat) : Prop :=
   let TSO_program := fst p in
   let TSO_memory := snd p in
   let SC_program := fst q in
@@ -182,44 +182,43 @@ Definition bisimilar (p : TSO_machine) (q : SC_machine) : Prop :=
   let init := snd (fst (fst TSO_program)) in
   let B := length init in
   let init' := fst (fst (fst SC_program)) in
-  exists f,
-    (translate_program TSO_program = SC_program) /\
-    (forall n m k, TSO_mapping n = Some (m, k) -> SC_mapping n = Some (f m, k)) /\
-    (forall n m, TSOGS n = Some m -> SCGS (f n) = Some m) /\
-    (init' = nil ->
-        (exists BUFFER_1A_CONST BUFFER_1B_CONST BUFFER_1C_CONST FRONT_1_CONST REAR_1_CONST SIZE_1_CONST
-                BUFFER_2A_CONST BUFFER_2B_CONST BUFFER_2C_CONST FRONT_2_CONST REAR_2_CONST SIZE_2_CONST,
-            (forall base offset value n, (nth_error (local true) n = Some (base, offset, value)) ->
-                exists BASES OFFSETS VALUES FRONT REAR SIZE front rear size,
-                    (SC_mapping (B + BUFFER_1A_CONST) = Some (BASES, buf_size) /\
-                     SC_mapping (B + BUFFER_1B_CONST) = Some (OFFSETS, buf_size) /\
-                     SC_mapping (B + BUFFER_1C_CONST) = Some (VALUES, buf_size) /\
-                     SC_mapping (B + FRONT_1_CONST) = Some (FRONT, buf_size) /\ SCGS FRONT = Some front /\
-                     SC_mapping (B + REAR_1_CONST) = Some (REAR, buf_size) /\ SCGS REAR = Some rear /\
-                     SC_mapping (B + SIZE_1_CONST) = Some (SIZE, buf_size) /\ SCGS SIZE = Some size /\
-                     ((Z.to_nat front) + (Z.to_nat size) - (Z.to_nat rear) - 1) mod buf_size = buf_size mod buf_size /\
-                     SCGS SIZE = Some (Z.of_nat (length (local true))) /\
-                     SCGS (BASES + (((Z.to_nat front) + n) mod buf_size)) = Some (Z.of_nat base) /\
-                     SCGS (OFFSETS + (((Z.to_nat front) + n) mod buf_size)) = Some (Z.of_nat offset) /\
-                     SCGS (VALUES + (((Z.to_nat front) + n) mod buf_size)) = Some value
-                    )
-            ) /\
-            (forall base offset value n, (nth_error (local true) n = Some (base, offset, value)) ->
-                exists BASES OFFSETS VALUES FRONT REAR SIZE front rear size,
-                    (SC_mapping (B + BUFFER_2A_CONST) = Some (BASES, buf_size) /\
-                     SC_mapping (B + BUFFER_2B_CONST) = Some (OFFSETS, buf_size) /\
-                     SC_mapping (B + BUFFER_2C_CONST) = Some (VALUES, buf_size) /\
-                     SC_mapping (B + FRONT_2_CONST) = Some (FRONT, buf_size) /\ SCGS FRONT = Some front /\
-                     SC_mapping (B + REAR_2_CONST) = Some (REAR, buf_size) /\ SCGS REAR = Some rear /\
-                     SC_mapping (B + SIZE_2_CONST) = Some (SIZE, buf_size) /\ SCGS SIZE = Some size /\
-                     ((Z.to_nat front) + (Z.to_nat size) - (Z.to_nat rear) - 1) mod buf_size = buf_size mod buf_size /\
-                     SCGS SIZE = Some (Z.of_nat (length (local true))) /\
-                     SCGS (BASES + (((Z.to_nat front) + n) mod buf_size)) = Some (Z.of_nat base) /\
-                     SCGS (OFFSETS + (((Z.to_nat front) + n) mod buf_size)) = Some (Z.of_nat offset) /\
-                     SCGS (VALUES + (((Z.to_nat front) + n) mod buf_size)) = Some value
-                    )
-            )
-        )
-    ).
+  (translate_program TSO_program = SC_program) /\
+  (forall n m k, TSO_mapping n = Some (m, k) -> SC_mapping n = Some (f m, k)) /\
+  (forall n m, TSOGS n = Some m -> SCGS (f n) = Some m) /\
+  (init' = nil ->
+      (exists BUFFER_1A_CONST BUFFER_1B_CONST BUFFER_1C_CONST FRONT_1_CONST REAR_1_CONST SIZE_1_CONST
+              BUFFER_2A_CONST BUFFER_2B_CONST BUFFER_2C_CONST FRONT_2_CONST REAR_2_CONST SIZE_2_CONST,
+          (forall base offset value n, (nth_error (local true) n = Some (base, offset, value)) ->
+              exists BASES OFFSETS VALUES FRONT REAR SIZE front rear size,
+                  (SC_mapping (B + BUFFER_1A_CONST) = Some (BASES, buf_size) /\
+                   SC_mapping (B + BUFFER_1B_CONST) = Some (OFFSETS, buf_size) /\
+                   SC_mapping (B + BUFFER_1C_CONST) = Some (VALUES, buf_size) /\
+                   SC_mapping (B + FRONT_1_CONST) = Some (FRONT, buf_size) /\ SCGS FRONT = Some front /\
+                   SC_mapping (B + REAR_1_CONST) = Some (REAR, buf_size) /\ SCGS REAR = Some rear /\
+                   SC_mapping (B + SIZE_1_CONST) = Some (SIZE, buf_size) /\ SCGS SIZE = Some size /\
+                   Nat.modulo (front + size - rear - 1) buf_size = 0 /\
+                   SCGS SIZE = Some (length (local true)) /\
+                   SCGS (BASES + (Nat.modulo (front + n) buf_size)) = Some base /\
+                   SCGS (OFFSETS + (Nat.modulo (front + n) buf_size)) = Some offset /\
+                   SCGS (VALUES + (Nat.modulo (front + n) buf_size)) = Some value
+                  )
+          ) /\
+          (forall base offset value n, (nth_error (local true) n = Some (base, offset, value)) ->
+              exists BASES OFFSETS VALUES FRONT REAR SIZE front rear size,
+                  (SC_mapping (B + BUFFER_2A_CONST) = Some (BASES, buf_size) /\
+                   SC_mapping (B + BUFFER_2B_CONST) = Some (OFFSETS, buf_size) /\
+                   SC_mapping (B + BUFFER_2C_CONST) = Some (VALUES, buf_size) /\
+                   SC_mapping (B + FRONT_2_CONST) = Some (FRONT, buf_size) /\ SCGS FRONT = Some front /\
+                   SC_mapping (B + REAR_2_CONST) = Some (REAR, buf_size) /\ SCGS REAR = Some rear /\
+                   SC_mapping (B + SIZE_2_CONST) = Some (SIZE, buf_size) /\ SCGS SIZE = Some size /\
+                   Nat.modulo (front + size - rear - 1) buf_size = 0 /\
+                   SCGS SIZE = Some (length (local true)) /\
+                   SCGS (BASES + (Nat.modulo (front + n) buf_size)) = Some base /\
+                   SCGS (OFFSETS + (Nat.modulo (front + n) buf_size)) = Some offset /\
+                   SCGS (VALUES + (Nat.modulo (front + n) buf_size)) = Some value
+                  )
+          )
+      )
+  ).
 
 

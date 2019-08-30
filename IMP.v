@@ -1,11 +1,10 @@
 Require Import List.
-Require Import ZArith.
 Require Import Util.
 
 (* IMP with fixed width arrays *)
 Inductive term : Type :=
   | var : nat -> term
-  | num : Z -> term
+  | num : nat -> term
   | plus : term -> term -> term
   | minus : term -> term -> term
   | modulo : term -> term -> term
@@ -33,13 +32,13 @@ Notation "x == y" :=
 Notation "x << y" :=
   (less_than x y) (at level 60) : imp_scope.
 Notation "'!' x" :=
-  (read x (num (0%Z))) (at level 60) : imp_scope.
+  (read x (num 0)) (at level 60) : imp_scope.
 Notation "'&' x" :=
   (reference x) (at level 60) : imp_scope.
 Notation "p '[' offset ']'" :=
   (read p offset) (at level 60) : imp_scope.
 Notation "x '::=' a" :=
-  (write x (num (0%Z)) a) (at level 60) : imp_scope.
+  (write x (num 0) a) (at level 60) : imp_scope.
 Notation "x '[' offset ']' '::=' a" :=
   (write x offset a) (at level 60) : imp_scope.
 Notation "c1 ;; c2" :=
@@ -54,9 +53,9 @@ Inductive value : term -> Prop :=
   | val_num : forall n, value (num n).
 
 Inductive mem_event : Type :=
-    | Read (loc : nat) (offset : nat) (value : Z)
-    | Write (loc : nat) (offset : nat) (value : Z)
-    | Allocate (loc : nat) (size : nat) (init : list Z)
+    | Read (loc : nat) (offset : nat) (value : nat)
+    | Write (loc : nat) (offset : nat) (value : nat)
+    | Allocate (loc : nat) (size : nat) (init : list nat)
     | Reference (loc : nat) (value : nat)
     | Cast (n : nat) (loc : nat)
     | Tau.
@@ -66,12 +65,12 @@ Inductive step : term -> mem_event -> term -> Prop :=
                   step e event e' ->
                   step (reference e) event (reference e')
   | step_reference2 : forall x n,
-                    step (reference (var x)) (Reference x n) (num (Z.of_nat n))
+                    step (reference (var x)) (Reference x n) (num n)
   | step_cast1 : forall e e' event,
                   step e event e' ->
                   step (cast e) event (cast e')
   | step_cast2 : forall x n,
-                    step (cast (num n)) (Cast (Z.to_nat n) x) (var x)
+                    step (cast (num n)) (Cast n x) (var x)
   | step_read1 : forall e1 e1' e2 event,
                   step e1 event e1' ->
                   step (read e1 e2) event (read e1' e2)
@@ -80,7 +79,7 @@ Inductive step : term -> mem_event -> term -> Prop :=
                   step (read (var n) e1) event (read (var n) e1')
   | step_read3 : forall offset value n,
                 step (read (var n) (num offset))
-                     (Read n (Z.to_nat offset) value)
+                     (Read n offset value)
                      (num value)
   | step_write1 : forall e1 e1' e2 e3 event ,
                   step e1 event e1' ->
@@ -95,7 +94,7 @@ Inductive step : term -> mem_event -> term -> Prop :=
                        (write (var n) (num offset) e1')
   | step_write4 : forall val n offset,
                   step (write (var n) (num offset) (num val)) 
-                       (Write n (Z.to_nat offset) val)
+                       (Write n offset val)
                         yunit
   | step_plus1 : forall e1 e1' event e2,
                   step e1 event e1' ->
@@ -120,7 +119,7 @@ Inductive step : term -> mem_event -> term -> Prop :=
                   step e1 event e1' ->
                   step (modulo (num n) e1) event (modulo (num n) e1')
   | step_mod3 : forall m n,
-                  step (modulo (num m) (num n)) Tau (num (Z.modulo m n))
+                  step (modulo (num m) (num n)) Tau (num (Nat.modulo m n))
   | step_lt1 : forall e1 e1' e2 event,
                   step e1 event e1' ->
                   step (less_than e1 e2) event (less_than e1' e2)
@@ -128,8 +127,11 @@ Inductive step : term -> mem_event -> term -> Prop :=
                   step e1 event e1' ->
                   step (less_than (num n) e1) event (less_than (num n) e1')
   | step_lt3 : forall m n,
-                  (Z.ltb m n = true) ->
+                  m < n ->
                   step (less_than (num m) (num n)) Tau tru
+  | step_lt4 : forall m n,
+                  m >= n ->
+                  step (less_than (num m) (num n)) Tau fls
   | step_and1 : forall e1 e1' event e2,
                   step e1 event e1' ->
                   step (and e1 e2) event (and e1' e2)
@@ -140,12 +142,9 @@ Inductive step : term -> mem_event -> term -> Prop :=
                   step e1 event e1' ->
                   step (and fls e1) event (and fls e1')
   | step_and31 : step (and tru tru) Tau tru
-  | step_and32 : step (and tru fls) Tau tru
-  | step_and33 : step (and fls tru) Tau tru
-  | step_and34 : step (and fls fls) Tau tru
-  | step_lt4 : forall m n,
-                  (Z.ltb m n = false) ->
-                  step (less_than (num m) (num n)) Tau fls
+  | step_and32 : step (and tru fls) Tau fls
+  | step_and33 : step (and fls tru) Tau fls
+  | step_and34 : step (and fls fls) Tau fls
   | step_not1 : forall e1 e1' event,
                   step e1 event e1' ->
                   step (not e1) event (not e1')

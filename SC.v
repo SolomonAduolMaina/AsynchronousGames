@@ -1,16 +1,15 @@
 Require Import List.
-Require Import ZArith.
 Require Import IMP.
 Require Import Util.
 
 Definition mapping := nat -> (option (nat * nat)). (* base, size*)
-Definition global_store := nat -> (option Z).
+Definition global_store := nat -> (option nat).
 Definition memory_model := mapping * global_store.
 
-Definition allocate (start : nat) (finish : nat) (init : list Z) (g : global_store) : global_store :=
-(fun n => if andb (Nat.leb start n) (Nat.leb n finish) then Some (nth (n - start) init (0%Z)) else g 0).
+Definition allocate (start : nat) (finish : nat) (init : list nat) (g : global_store) : global_store :=
+(fun n => if andb (Nat.leb start n) (Nat.leb n finish) then Some (nth (n - start) init (0%nat)) else g 0).
 
-Definition update_global (val : nat * Z) (g : global_store) : global_store :=
+Definition update_global (val : nat * nat) (g : global_store) : global_store :=
 (fun n => if Nat.eqb n (fst val) then Some (snd val) else g n).
 
 Definition update_mapping (location : nat) (base : nat) (size : nat) (g : mapping) : mapping :=
@@ -30,8 +29,6 @@ Inductive memstep : memory_model -> mem_event -> memory_model -> Prop :=
                memstep (mapping, global) (Write location offset value) (mapping, global')
   | ST_allocate_array : forall global global' init location size mapping base mapping',
                (forall n, base <= n < base + size -> global n = None) ->
-               size > 0 ->
-               length init <= size ->
                mapping location = None ->
                mapping' = update_mapping location base size mapping ->
                global' = allocate base (base + size - 1) init global ->
@@ -44,17 +41,19 @@ Inductive memstep : memory_model -> mem_event -> memory_model -> Prop :=
                memstep (mapping, global) (Cast base location) (mapping, global).
 
 (* A program is a 4-tuple (init, s1, s2, s3)
-  2. init : (list (nat * (list Z))) denoting array variables with respective inital values,
+  2. init : (list (nat * (list nat))) denoting array variables with respective inital values,
   2. s1 : term denotes the program running on the first thread,
   3. s2 : term denotes the program running on the second thread.
   4. s3 : term denotes the program running on the third thread.
 *)
-Definition program := (list (nat * (list Z))) * term * term * term.
+Definition program := (list (nat * (list nat))) * term * term * term.
 
 Definition SC_machine := program * memory_model.
 
 Inductive pstep : SC_machine -> SC_machine -> Prop :=
   | ST_init_allocate_array : forall xs s1 s2 s3 mem mem' size init,
+                      size > 0 ->
+                      length init <= size ->
                       memstep mem (Allocate (length xs) size init) mem' ->
                       pstep ((xs ++ ((size, init) :: nil), s1, s2, s3), mem)
                             ((xs, s1, s2, s3), mem')
