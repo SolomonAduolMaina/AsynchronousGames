@@ -52,6 +52,56 @@ Inductive value : term -> Prop :=
   | val_unit : value yunit
   | val_num : forall n, value (num n).
 
+(* IMP with fixed width arrays *)
+Inductive context : Type :=
+  | Hole : context
+  | Cplus1 : context -> term -> context
+  | Cplus2 : {x : term | value x} -> context -> context
+  | Cminus1 : context -> term -> context
+  | Cminus2 : {x : term | value x} -> context -> context
+  | Cmodulo1 : context -> term -> context
+  | Cmodulo2 : {x : term | value x} -> context -> context
+  | Cless_than1 : context -> term -> context
+  | Cless_than2 : {x : term | value x} -> context -> context
+  | Cand1 : context -> term -> context
+  | Cand2 : {x : term | value x} -> context -> context
+  | Cread1 : context -> term -> context
+  | Cread2 : {x : term | value x} -> context -> context
+  | Cwrite1 : context -> term -> term -> context
+  | Cwrite2 : {x : term | value x} -> context -> term -> context
+  | Cwrite3 : {x : term | value x} -> {x : term | value x} -> context -> context
+  | Cif : context -> term -> term -> context
+  | Cseq : context -> term -> context
+  | Cnot : context -> context
+  | Creference : context -> context
+  | Ccast : context -> context.
+
+
+Fixpoint subst (E : context) (s : term) : term :=
+  match E with
+    | Hole => s
+    | Cplus1 E t => plus (subst E s) t
+    | Cplus2 (exist _ x _) E => plus x (subst E s)
+    | Cminus1 E t => minus (subst E s) t
+    | Cminus2 (exist _ x _) E => minus x (subst E s)
+    | Cmodulo1 E t => modulo (subst E s) t
+    | Cmodulo2 (exist _ x _) E => modulo x (subst E s)
+    | Cless_than1 E t => less_than (subst E s) t
+    | Cless_than2 (exist _ x _) E => less_than x (subst E s)
+    | Cand1 E t => and (subst E s) t
+    | Cand2 (exist _ x _) E => and x (subst E s)
+    | Cread1 E t => read (subst E s) t
+    | Cread2 (exist _ x _) E => read x (subst E s)
+    | Cwrite1 E t t' => write (subst E s) t t'
+    | Cwrite2 (exist _ x _) E t => write x (subst E s) t
+    | Cwrite3 (exist _ x _) (exist _ y _) E => write x y (subst E s)
+    | Cif E t t' => ifterm (subst E s) t t'
+    | Cseq E t => read (subst E s) t
+    | Cnot E => not (subst E s)
+    | Creference E => reference (subst E s)
+    | Ccast E => cast (subst E s)
+  end.
+
 Inductive mem_event : Type :=
     | Read (loc : nat) (offset : nat) (value : nat)
     | Write (loc : nat) (offset : nat) (value : nat)
@@ -61,108 +111,31 @@ Inductive mem_event : Type :=
     | Tau.
 
 Inductive step : term -> mem_event -> term -> Prop :=
-  | step_reference1 : forall e e' event,
-                  step e event e' ->
-                  step (reference e) event (reference e')
-  | step_reference2 : forall x n,
-                    step (reference (var x)) (Reference x n) (num n)
-  | step_cast1 : forall e e' event,
-                  step e event e' ->
-                  step (cast e) event (cast e')
-  | step_cast2 : forall x n,
-                    step (cast (num n)) (Cast n x) (var x)
-  | step_read1 : forall e1 e1' e2 event,
-                  step e1 event e1' ->
-                  step (read e1 e2) event (read e1' e2)
-  | step_read2 : forall e1 e1' event n,
-                  step e1 event e1' ->
-                  step (read (var n) e1) event (read (var n) e1')
-  | step_read3 : forall offset value n,
+  | step_context : forall e e' E event,
+                   step e event e' ->
+                   step (subst E e) event (subst E e')
+  | step_reference : forall x n, step (reference (var x)) (Reference x n) (num n)
+  | step_cast : forall x n,  step (cast (num n)) (Cast n x) (var x)
+  | step_read : forall offset value n,
                 step (read (var n) (num offset))
                      (Read n offset value)
                      (num value)
-  | step_write1 : forall e1 e1' e2 e3 event ,
-                  step e1 event e1' ->
-                  step (write e1 e2 e3) event (write e1' e2 e3)
-  | step_write2 : forall e1 e1' e2 event n,
-                  step e1 event e1' ->
-                  step (write (var n) e1 e2) event (write (var n) e1' e2)
-  | step_write3 : forall e1 e1' event n offset,
-                  step e1 event e1' ->
-                  step (write (var n) (num offset) e1)
-                       event
-                       (write (var n) (num offset) e1')
-  | step_write4 : forall val n offset,
+  | step_write : forall val n offset,
                   step (write (var n) (num offset) (num val)) 
                        (Write n offset val)
                         yunit
-  | step_plus1 : forall e1 e1' event e2,
-                  step e1 event e1' ->
-                  step (plus e1 e2) event (plus e1' e2)
-  | step_plus2 : forall e1 e1' n event,
-                  step e1 event e1' ->
-                  step (plus (num n) e1) event (plus (num n) e1')
-  | step_plus3 : forall m n,
-                  step (plus (num m) (num n)) Tau (num (m + n))
-  | step_minus1 : forall e1 e1' event e2,
-                  step e1 event e1' ->
-                  step (minus e1 e2) event (minus e1' e2)
-  | step_minus2 : forall e1 e1' n event,
-                  step e1 event e1' ->
-                  step (minus (num n) e1) event (minus (num n) e1')
-  | step_minus3 : forall m n,
-                  step (minus (num m) (num n)) Tau (num (m - n))
-  | step_mod1 : forall e1 e1' e2 event,
-                  step e1 event e1' ->
-                  step (modulo e1 e2) event (modulo e1' e2)
-  | step_mod2 : forall e1 e1' n event,
-                  step e1 event e1' ->
-                  step (modulo (num n) e1) event (modulo (num n) e1')
-  | step_mod3 : forall m n,
-                  step (modulo (num m) (num n)) Tau (num (Nat.modulo m n))
-  | step_lt1 : forall e1 e1' e2 event,
-                  step e1 event e1' ->
-                  step (less_than e1 e2) event (less_than e1' e2)
-  | step_lt2 : forall e1 e1' n event,
-                  step e1 event e1' ->
-                  step (less_than (num n) e1) event (less_than (num n) e1')
-  | step_lt3 : forall m n,
-                  m < n ->
-                  step (less_than (num m) (num n)) Tau tru
-  | step_lt4 : forall m n,
-                  m >= n ->
-                  step (less_than (num m) (num n)) Tau fls
-  | step_and1 : forall e1 e1' event e2,
-                  step e1 event e1' ->
-                  step (and e1 e2) event (and e1' e2)
-  | step_and21 : forall e1 e1' event,
-                  step e1 event e1' ->
-                  step (and tru e1) event (and tru e1')
-  | step_and22 : forall e1 e1' event,
-                  step e1 event e1' ->
-                  step (and fls e1) event (and fls e1')
-  | step_and31 : step (and tru tru) Tau tru
-  | step_and32 : step (and tru fls) Tau fls
-  | step_and33 : step (and fls tru) Tau fls
-  | step_and34 : step (and fls fls) Tau fls
-  | step_not1 : forall e1 e1' event,
-                  step e1 event e1' ->
-                  step (not e1) event (not e1')
-  | step_not2 : step (not tru) Tau fls
-  | step_not3 : step (not fls) Tau tru
-  | step_seq1 : forall e1 e1' e2 event,
-                  step e1 event e1' ->
-                  step (seq e1 e2) event (seq e1' e2)
-  | step_seq2 : forall e2, step (seq yunit e2) Tau e2
-  | step_ifterm1 : forall e1 e1' e2 e3 event,
-                  step e1 event e1' ->
-                  step (ifterm e1 e2 e3) event (ifterm e1' e2 e3)
-  | step_ifterm2 : forall e2 e3,
-                  step (ifterm tru e2 e3) Tau e2
-  | step_ifterm3 : forall e2 e3,
-                  step (ifterm fls e2 e3) Tau e3
-  | step_while : forall b c,
-                  step (while b c)
-                        Tau
-                        (ifterm b (seq c (while b c)) yunit).
-
+  | step_plus : forall m n, step (plus (num m) (num n)) Tau (num (m + n))
+  | step_minus : forall m n, step (minus (num m) (num n)) Tau (num (m - n))
+  | step_mod : forall m n, step (modulo (num m) (num n)) Tau (num (Nat.modulo m n))
+  | step_lt1 : forall m n, m < n -> step (less_than (num m) (num n)) Tau tru
+  | step_lt2 : forall m n, m >= n -> step (less_than (num m) (num n)) Tau fls
+  | step_and1 : step (and tru tru) Tau tru
+  | step_and2 : step (and tru fls) Tau fls
+  | step_and3 : step (and fls tru) Tau fls
+  | step_and4 : step (and fls fls) Tau fls
+  | step_not1 : step (not tru) Tau fls
+  | step_not2 : step (not fls) Tau tru
+  | step_seq : forall e2, step (seq yunit e2) Tau e2
+  | step_ifterm1 : forall e2 e3, step (ifterm tru e2 e3) Tau e2
+  | step_ifterm2 : forall e2 e3, step (ifterm fls e2 e3) Tau e3
+  | step_while : forall b c, step (while b c) Tau (ifterm b (seq c (while b c)) yunit).
