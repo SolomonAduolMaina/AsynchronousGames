@@ -128,17 +128,17 @@ Definition flush_all (thread : bool) (base : nat) (buf_size : nat): term :=
 
 Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : term :=
 match s with
-  | var k => var k
-  | num n => num n
+  | var k => (nd_flush thread base buf_size) ;; var k
+  | num n => (nd_flush thread base buf_size) ;; num n
   | plus e1 e2 => (nd_flush thread base buf_size) ;; (plus (translate e1 thread base buf_size) (translate e2 thread base buf_size))
   | minus e1 e2 => (nd_flush thread base buf_size) ;; (minus (translate e1 thread base buf_size) (translate e2 thread base buf_size))
   | modulo e1 e2 => (nd_flush thread base buf_size) ;; (modulo (translate e1 thread base buf_size) (translate e2 thread base buf_size))
-  | tru => tru
-  | fls => fls
+  | tru => (nd_flush thread base buf_size) ;; tru
+  | fls => (nd_flush thread base buf_size) ;; fls
   | less_than e1 e2 => (nd_flush thread base buf_size) ;; (less_than (translate e1 thread base buf_size) (translate e2 thread base buf_size))
   | not e => (nd_flush thread base buf_size) ;; (not (translate e thread base buf_size))
   | and e1 e2 => (nd_flush thread base buf_size) ;; (and (translate e1 thread base buf_size) (translate e2 thread base buf_size))
-  | yunit => yunit
+  | yunit => (nd_flush thread base buf_size) ;; yunit
   | seq e1 e2 => (nd_flush thread base buf_size) ;; ((translate e1 thread base buf_size) ;; (translate e2 thread base buf_size))
   | ifterm e1 e2 e3 => (nd_flush thread base buf_size) ;; (ifterm (translate e1 thread base buf_size) (translate e2 thread base buf_size) (translate e3 thread base buf_size))
   | reference e => (nd_flush thread base buf_size) ;; (reference (translate e thread base buf_size))

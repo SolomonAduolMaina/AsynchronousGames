@@ -64,47 +64,6 @@ Definition bisimilar (p : TSO_machine) (q : SC_machine) (f : nat -> nat) : Prop 
   bisimilar_memory TSO_memory SC_memory B f.
 
 Theorem forward_bisimulation : forall p p' q f,
-  TSO.pstep p p' -> bisimilar p q f -> (exists q', bisimilar p' q' f /\ psteps q q').
-Proof. intros. inversion H.
-  + subst. destruct q. destruct p. repeat (destruct p). destruct m. destruct mem. destruct mem'. repeat (destruct p0). repeat (destruct p).
-    inversion H3. subst. destruct H0. simpl in *. inversion H0. subst.
-    remember
-    (translate_vars xs buffer,
-     seq (translate s1 true (length (fst_list xs)) buffer) (flush_all true (length (fst_list xs)) buffer),
-     seq (translate s2 false (length (fst_list xs)) buffer) (flush_all false (length (fst_list xs)) buffer),
-     while tru (SPECIAL (length (fst_list xs)) [num 0]::= ZERO)) as answer_p.
-    unfold bisimilar_memory in H4. simpl in *. destruct H4. destruct H5. destruct H5.
-    remember (update_mapping x base size m, allocate x (x + size - 1) init g) as answer_m.
-    refine (ex_intro _ (answer_p, answer_m) _). subst. split.
-    ++ unfold bisimilar. simpl. split.
-      +++ intros. reflexivity.
-      +++ admit.
-    ++ admit.
-  + subst. generalize dependent q. induction H1 ; subst.
-    ++ intros. assert (TSO.pstep (buffer, nil, e, s2, mem) (buffer, nil, e', s2, mem')).
-       {apply TSO.ST_synchronize1 with (event:=event). auto. auto. }
-       assert (forall q : SC_machine,
-         bisimilar (buffer, nil, e, s2, mem) q f ->
-         exists q' : SC_machine,
-           bisimilar (buffer, nil, e', s2, mem') q' f /\
-           psteps q q'). {apply IHstep. auto. auto. } destruct q.
-       assert (bisimilar ((buffer, nil, e, s2), mem) (translate_program (buffer, nil, e, s2), m) f).
-       {split.
-          + reflexivity.
-          + simpl. destruct H0. simpl in H5. auto. }
-       apply H4 in H5. destruct H5. destruct H5. destruct H5. destruct x. simpl fst in *. 
-       simpl snd in *. subst.
-       refine (ex_intro _ (translate_program (buffer, nil, subst E e', s2), m0) _). split.
-      +++ split.
-        ++++ reflexivity.
-        ++++ simpl. simpl in H7. auto.
-      +++ unfold bisimilar in H0. destruct H0. simpl in *. subst.
-          assert (steps (seq (translate e true 0 buffer) (flush_all true 0 buffer)) (seq (translate e' true 0 buffer) (flush_all true 0 buffer))).
-          {apply psteps_inj_1 with (p:=(translate_vars nil buffer, seq (translate e true 0 buffer) (flush_all true 0 buffer),
-           seq (translate s2 false 0 buffer) (flush_all false 0 buffer), while tru (SPECIAL 0 [num 0]::= ZERO), m))
-           (q:=(translate_vars nil buffer, seq (translate e' true 0 buffer) (flush_all true 0 buffer),
-           seq (translate s2 false 0 buffer) (flush_all false 0 buffer), while tru (SPECIAL 0 [num 0]::= ZERO), m0)). apply H6. }
-          assert (steps (subst E e) (subst E e')).
-          {apply psteps_transports. apply steps_transitive with (q:=e') (event:=event). auto. apply steps_reflexive. }
-
+  TSO.pstep p p' -> bisimilar p q f -> (exists q' q'', bisimilar p' q' f /\ psteps q q'' /\ psteps q q'').
+Proof. Admitted.
 
