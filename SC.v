@@ -72,3 +72,39 @@ Inductive pstep : SC_machine -> SC_machine -> Prop :=
                       memstep mem event mem' ->
                       pstep ((nil, s1, s2, s3), mem)
                             ((nil, s1, s2, s3'), mem').
+
+Inductive psteps : SC_machine -> SC_machine -> Prop :=
+  | psteps_reflexive : forall p, psteps p p
+  | psteps_transitive : forall p q r, pstep p q -> psteps q r -> psteps p r.
+
+Fact psteps_inj_1 : forall p q, psteps p q -> steps (snd (fst (fst (fst p)))) (snd (fst (fst (fst q)))).
+  Proof. intros. induction H.
+    + apply steps_reflexive.
+    + repeat (destruct p). repeat (destruct q). repeat (destruct r). simpl in *. simpl.
+      repeat (destruct p0). simpl. repeat (destruct p). simpl in *. inversion H; subst; auto.
+      apply steps_transitive with (event:=event) (q:=t7). auto. auto.
+  Qed.
+
+Fact psteps_inj_2 : forall p q, psteps p q -> steps (snd (fst (fst p))) (snd (fst (fst q))).
+  Proof. intros. induction H.
+    + apply steps_reflexive.
+    + repeat (destruct p). repeat (destruct q). repeat (destruct r). simpl in *. simpl.
+      repeat (destruct p0). simpl. repeat (destruct p). simpl in *. inversion H; subst; auto.
+      apply steps_transitive with (event:=event) (q:=t6). auto. auto.
+  Qed.
+
+Fact psteps_inj_3 : forall p q, psteps p q -> steps (snd (fst p)) (snd (fst q)).
+  Proof. intros. induction H.
+    + apply steps_reflexive.
+    + repeat (destruct p). repeat (destruct q). repeat (destruct r). simpl in *. simpl.
+      repeat (destruct p0). simpl. repeat (destruct p). simpl in *. inversion H; subst; auto.
+      apply steps_transitive with (event:=event) (q:=t5). auto. auto.
+  Qed.
+
+Fact psteps_transports : forall e e' E, steps e e' -> steps (subst E e) (subst E e').
+  Proof. intros. induction H.
+    + apply steps_reflexive.
+    + assert (step (subst E p) event (subst E q)).
+      {apply step_context. auto. }
+      apply steps_transitive with (event:=event) (q:=subst E q). auto. auto.
+  Qed.

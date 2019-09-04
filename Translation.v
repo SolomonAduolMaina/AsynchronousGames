@@ -148,17 +148,25 @@ match s with
   | write e1 e2 e3 => (nd_flush thread base buf_size) ;; (write_code thread base buf_size (translate e1 thread base buf_size) (translate e2 thread base buf_size) (translate e3 thread base buf_size))
 end.
 
-Definition translate_program (p : TSO.program) : SC.program :=
-  let buf_size := fst (fst (fst p)) in
+Fact translation_respects_stepping1 : forall e e' event thread base buf_size,
+  step e event e' -> exists e'',
+  steps (translate e thread base buf_size) (translate e'' thread base buf_size) /\
+  steps (translate e' thread base buf_size) (translate e'' thread base buf_size).
+  Proof. Admitted.
+
+Fact translation_respects_stepping2 : forall e e' thread base buf_size,
+  steps e e' -> exists e'',
+  steps (translate e thread base buf_size) (translate e'' thread base buf_size) /\
+  steps (translate e' thread base buf_size) (translate e'' thread base buf_size).
+  Proof. Admitted.
+
+Fixpoint translate_program (p : TSO.program) : SC.program :=  let buf_size := fst (fst (fst p)) in
   let init := snd (fst (fst p))  in
   let s1 := snd (fst p) in
   let s2 := snd p in
   let base := length (fst_list init) in
-  match init with
-    | nil => (nil, s1, s2, yunit)
-    | _ => (translate_vars init buf_size,
-           seq (translate s1 true base buf_size) (flush_all true base buf_size),
-           seq (translate s1 false base buf_size) (flush_all false base buf_size),
-           while tru ((SPECIAL base) ::= ZERO))
-  end.
+  (translate_vars init buf_size,
+  seq (translate s1 true base buf_size) (flush_all true base buf_size),
+  seq (translate s2 false base buf_size) (flush_all false base buf_size),
+  while tru ((SPECIAL base) ::= ZERO)).
 

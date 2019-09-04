@@ -56,26 +56,25 @@ Inductive value : term -> Prop :=
 Inductive context : Type :=
   | Hole : context
   | Cplus1 : context -> term -> context
-  | Cplus2 : {x : term | value x} -> context -> context
+  | Cplus2 : {x : term | exists n, x = num n} -> context -> context
   | Cminus1 : context -> term -> context
-  | Cminus2 : {x : term | value x} -> context -> context
+  | Cminus2 : {x : term | exists n, x = num n} -> context -> context
   | Cmodulo1 : context -> term -> context
-  | Cmodulo2 : {x : term | value x} -> context -> context
+  | Cmodulo2 : {x : term | exists n, x = num n} -> context -> context
   | Cless_than1 : context -> term -> context
-  | Cless_than2 : {x : term | value x} -> context -> context
+  | Cless_than2 : {x : term | x = tru \/ x = fls} -> context -> context
   | Cand1 : context -> term -> context
-  | Cand2 : {x : term | value x} -> context -> context
+  | Cand2 : {x : term | x = tru \/ x = fls} -> context -> context
   | Cread1 : context -> term -> context
-  | Cread2 : {x : term | value x} -> context -> context
+  | Cread2 : {x : term | exists s, x = var s} -> context -> context
   | Cwrite1 : context -> term -> term -> context
-  | Cwrite2 : {x : term | value x} -> context -> term -> context
-  | Cwrite3 : {x : term | value x} -> {x : term | value x} -> context -> context
+  | Cwrite2 : {x : term | exists s, x = var s} -> context -> term -> context
+  | Cwrite3 : {x : term | exists s, x = var s} -> {x : term | exists n, x = num n} -> context -> context
   | Cif : context -> term -> term -> context
   | Cseq : context -> term -> context
   | Cnot : context -> context
   | Creference : context -> context
   | Ccast : context -> context.
-
 
 Fixpoint subst (E : context) (s : term) : term :=
   match E with
@@ -139,3 +138,22 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_ifterm1 : forall e2 e3, step (ifterm tru e2 e3) Tau e2
   | step_ifterm2 : forall e2 e3, step (ifterm fls e2 e3) Tau e3
   | step_while : forall b c, step (while b c) Tau (ifterm b (seq c (while b c)) yunit).
+
+Inductive steps : term -> term -> Prop :=
+  | steps_reflexive : forall p, steps p p
+  | steps_transitive : forall p q r event, step p event q -> steps q r -> steps p r.
+
+Fact var_does_not_step : forall n event e e', step e event e' -> e = var n -> False.
+  Proof. intros. induction H; inversion H0. apply IHstep.
+  destruct E; destruct e; simpl in *; try (destruct s); try (destruct s0); inversion H2; auto.
+  Qed.
+
+Fact num_does_not_step : forall n event e e', step e event e' -> e = num n -> False.
+  Proof. intros. induction H; inversion H0. apply IHstep.
+  destruct E; destruct e; simpl in *; try (destruct s); try (destruct s0); inversion H2; auto.
+  Qed.
+
+Fact unit_does_not_step : forall event e e', step e event e' -> e = yunit -> False.
+  Proof. intros. induction H; inversion H0. apply IHstep.
+  destruct E; destruct e; simpl in *; try (destruct s); try (destruct s0); inversion H2; auto.
+  Qed.
