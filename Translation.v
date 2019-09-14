@@ -64,7 +64,7 @@ Definition RESULT (thread : bool) (base : nat) :=
   if thread then RESULT_1 base else RESULT_2 base.
 
 Definition ZERO : term := num 0.
-Definition ONE : term  := num 0.
+Definition ONE : term  := num 1.
 
 Definition translate_vars (init : list (nat * (list nat))) (buf_size : nat) : list (nat * (list nat)) :=
   init ++
@@ -97,9 +97,9 @@ Definition read_code (thread : bool) (base : nat) (buf_size : nat) (location : t
       FOUND thread base ::= ONE
     ELSE
       yunit
-    END)
+    ESAC)
   DONE);;
-  CASE (!(FOUND thread base) == ONE) THEN !(RESULT thread base) ELSE (!(cast location)) END.
+  CASE (!(FOUND thread base) == ONE) THEN !(RESULT thread base) ELSE (!(cast location)) ESAC.
 
 Definition flush (thread : bool) (base : nat) (buf_size : nat) : term :=
   CASE (!(SIZE thread base ) == ZERO) THEN yunit
@@ -107,10 +107,10 @@ Definition flush (thread : bool) (base : nat) (buf_size : nat) : term :=
     (write (cast ((BUFFER_A thread base )[!(FRONT thread base)])) ((BUFFER_B thread base)[!(FRONT thread base)]) ((BUFFER_C thread base)[!(FRONT thread base)]));;
     (FRONT thread base) ::= modulo (plus (!(FRONT thread base)) ONE) (num buf_size) ;;
     (SIZE thread base) ::= minus (!(SIZE thread base)) ONE
-  END.
+  ESAC.
 
 Definition write_code (thread : bool) (base : nat) (buf_size : nat) (location : term) (offset : term) (value : term) : term :=
-  CASE (!(SIZE thread base) == (num buf_size)) THEN (flush thread buf_size base) ELSE yunit END ;;
+  CASE (!(SIZE thread base) == (num buf_size)) THEN (flush thread buf_size base) ELSE yunit ESAC ;;
   (REAR thread base) ::= modulo (plus (!(REAR thread base)) ONE) (num buf_size);;
   (BUFFER_A thread base)[!(REAR thread base)] ::= reference location;;
   (BUFFER_B thread base)[!(REAR thread base)] ::= offset;;
@@ -123,50 +123,55 @@ Definition nd_flush (thread : bool) (base : nat) (buf_size : nat): term :=
     flush thread base buf_size
   DONE.
 
-Definition flush_all (thread : bool) (base : nat) (buf_size : nat): term :=
-  WHILE (not (!(SIZE thread base) == ZERO)) DO flush thread base buf_size DONE.
+Definition nd_flush1 (thread : bool) (base : nat) (buf_size : nat): term :=
+  WHILE (and (!(SPECIAL base) == ONE) (not (!(SIZE thread base) == ZERO))) DO
+    flush thread base buf_size
+  DONE.
+
 
 Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : term :=
 match s with
-  | var k => (nd_flush thread base buf_size) ;; var k
-  | num n => (nd_flush thread base buf_size) ;; num n
-  | plus e1 e2 => (nd_flush thread base buf_size) ;; (plus (translate e1 thread base buf_size) (translate e2 thread base buf_size))
-  | minus e1 e2 => (nd_flush thread base buf_size) ;; (minus (translate e1 thread base buf_size) (translate e2 thread base buf_size))
-  | modulo e1 e2 => (nd_flush thread base buf_size) ;; (modulo (translate e1 thread base buf_size) (translate e2 thread base buf_size))
-  | tru => (nd_flush thread base buf_size) ;; tru
-  | fls => (nd_flush thread base buf_size) ;; fls
-  | less_than e1 e2 => (nd_flush thread base buf_size) ;; (less_than (translate e1 thread base buf_size) (translate e2 thread base buf_size))
-  | not e => (nd_flush thread base buf_size) ;; (not (translate e thread base buf_size))
-  | and e1 e2 => (nd_flush thread base buf_size) ;; (and (translate e1 thread base buf_size) (translate e2 thread base buf_size))
-  | yunit => (nd_flush thread base buf_size) ;; yunit
-  | seq e1 e2 => (nd_flush thread base buf_size) ;; ((translate e1 thread base buf_size) ;; (translate e2 thread base buf_size))
-  | ifterm e1 e2 e3 => (nd_flush thread base buf_size) ;; (ifterm (translate e1 thread base buf_size) (translate e2 thread base buf_size) (translate e3 thread base buf_size))
-  | reference e => (nd_flush thread base buf_size) ;; (reference (translate e thread base buf_size))
-  | cast e => (nd_flush thread base buf_size) ;; (cast (translate e thread base buf_size))
+  | var k =>  var k
+  | num n => num n
+  | tru =>  tru
+  | fls => fls
+  | yunit => yunit
+  | plus e1 e2 => (nd_flush thread base buf_size) ;; plus (translate e1 thread base buf_size) (translate e2 thread base buf_size))
+
+  | not tru => (nd_flush thread base buf_size) ;; (not tru)
+  | not fls => (nd_flush thread base buf_size) ;; (not fls)
+  | not e => not (translate e thread base buf_size)
+  | and fls e => (nd_flush thread base buf_size) ;; (and fls e)
+  | and tru tru => (nd_flush thread base buf_size) ;; (and tru tru)
+  | and tru fls => (nd_flush thread base buf_size) ;; (and tru fls)
+  | and e1 e2 => and (translate e1 thread base buf_size) (translate e2 thread base buf_size)
+  | seq yunit e2 => (nd_flush thread base buf_size) ;; (seq yunit (translate e2 thread base buf_size))
+  | seq e1 e2 => seq (translate e1 thread base buf_size) (translate e2 thread base buf_size)
+  | case tru e2 e3 => (nd_flush thread base buf_size) ;; (case tru (translate e2 thread base buf_size) e3)
+  | case fls e2 e3 => (nd_flush thread base buf_size) ;; (case fls e2 (translate e3 thread base buf_size))
+  | case e1 e2 e3 => case (translate e1 thread base buf_size) (translate e2 thread base buf_size) (translate e3 thread base buf_size)
+  | reference (var n) => (nd_flush thread base buf_size) ;; (reference (var n))
+  | reference e => reference (translate e thread base buf_size)
+  | cast (num n) => (nd_flush thread base buf_size) ;; (cast (num n))
+  | cast e => cast (translate e thread base buf_size)
   | while e1 e2 => (nd_flush thread base buf_size) ;; (while (translate e1 thread base buf_size) (translate e2 thread base buf_size))
-  | read e1 e2 => (nd_flush thread base buf_size) ;; (read_code thread base buf_size (translate e1 thread base buf_size) (translate e2 thread base buf_size))
-  | write e1 e2 e3 => (nd_flush thread base buf_size) ;; (write_code thread base buf_size (translate e1 thread base buf_size) (translate e2 thread base buf_size) (translate e3 thread base buf_size))
+  | read (var x) e => (nd_flush thread base buf_size) ;; (read (var x) (translate e thread base buf_size))
+  | read (var x) (num n) => (nd_flush thread base buf_size) ;; (read_code thread base buf_size (var x) (num n))
+  | read e1 e2 => read (translate e1 thread base buf_size) (translate e2 thread base buf_size)
+  | write (var x) e1 e2 => (nd_flush thread base buf_size) ;; (write (var x) (translate e2 thread base buf_size) (translate e3 thread base buf_size))
+  | write (var x) (num m) e2 => (nd_flush thread base buf_size) ;; (write (translate e2 thread base buf_size) (translate e3 thread base buf_size))
+  | write (var x) (num m) (num n) => (nd_flush thread base buf_size) ;; (write_code thread base buf_size (var x) (num m) (num n))
+  | write e1 e2 e3 => write (translate e1 thread base buf_size) (translate e2 thread base buf_size) (translate e3 thread base buf_size)
 end.
 
-Fact translation_respects_stepping1 : forall e e' event thread base buf_size,
-  step e event e' -> exists e'',
-  steps (translate e thread base buf_size) (translate e'' thread base buf_size) /\
-  steps (translate e' thread base buf_size) (translate e'' thread base buf_size).
-  Proof. Admitted.
 
-Fact translation_respects_stepping2 : forall e e' thread base buf_size,
-  steps e e' -> exists e'',
-  steps (translate e thread base buf_size) (translate e'' thread base buf_size) /\
-  steps (translate e' thread base buf_size) (translate e'' thread base buf_size).
-  Proof. Admitted.
-
-Fixpoint translate_program (p : TSO.program) : SC.program :=  let buf_size := fst (fst (fst p)) in
+Definition translate_program (p : TSO.program) : SC.program :=  
+ let buf_size := fst (fst (fst p)) in
   let init := snd (fst (fst p))  in
   let s1 := snd (fst p) in
   let s2 := snd p in
-  let base := length (fst_list init) in
+  let base := length init in
   (translate_vars init buf_size,
-  seq (translate s1 true base buf_size) (flush_all true base buf_size),
-  seq (translate s2 false base buf_size) (flush_all false base buf_size),
+  translate s1 true base buf_size,
+  translate s2 false base buf_size,
   while tru ((SPECIAL base) ::= ZERO)).
-

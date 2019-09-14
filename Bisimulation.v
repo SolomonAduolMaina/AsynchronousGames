@@ -5,7 +5,36 @@ Require Import SC.
 Require Import Util.
 Require Import Translation.
 
-Definition bisimilar_memory (TSO_memory : TSO.memory_model) (SC_memory : SC.memory_model) (B : nat) (f : nat -> nat) : Prop :=
+
+Inductive related : (term * bool) -> (term * bool) -> Prop :=
+  | related_reflexive : forall e thread, related (e, thread) (e, thread)
+  | related_base1 : forall e thread, related (e, thread) (seq yunit (seq yunit e), thread)
+  | related_base2 : forall e thread, related (e, thread) (seq yunit e, thread)
+  | related_plus1 : forall e1 e1' thread n,
+                    related (e1, thread) (e1', thread) ->
+                    related (plus (num n) e1, thread) (plus (num n) e1', thread)
+  | related_plus2 : forall e1 e1' e2 thread,
+                    (forall n, e1 <> num n) ->
+                    related (e1, thread) (e1', thread) ->
+                    related (plus e1 e2, thread) (plus e1' e2, thread).
+
+Fact step_related : forall e e' re event thread,
+                    step e event e' -> related (e, thread) (re, thread) ->
+                    (exists re', steps re re' /\ related (re, thread) (re', thread)).
+  Proof. 
+                               
+
+Definition related_terms (TSO_program : TSO.program) (SC_program : SC.program) (base : nat) : Prop :=
+  let TSO1 := snd (fst TSO_program) in
+  let TSO2 := snd TSO_program in
+  let SC1 := snd (fst (fst SC_program)) in
+  let SC2 := snd (fst SC_program) in
+  let SC3 := snd SC_program in
+  related (TSO1, true) (SC1, true) /\
+  related (TSO2, false) (SC2, false) /\
+  SC3 = while tru ((SPECIAL base) ::= ZERO).
+
+Definition related_memory (TSO_memory : TSO.memory_model) (SC_memory : SC.memory_model) (B : nat) (f : nat -> nat) : Prop :=
   let buf_size := fst (fst (fst TSO_memory)) in
   let local := snd (fst TSO_memory) in
   let TSOGS := snd TSO_memory in
@@ -53,17 +82,149 @@ Definition bisimilar_memory (TSO_memory : TSO.memory_model) (SC_memory : SC.memo
         )
   ).
 
-Definition bisimilar (p : TSO_machine) (q : SC_machine) (f : nat -> nat) : Prop :=
+Definition related_program (p : TSO_machine) (q : SC_machine) (f : nat -> nat) (B : nat) : Prop :=
   let TSO_program := fst p in
   let TSO_memory := snd p in
   let SC_program := fst q in
   let SC_memory := snd q in
-  let init := snd (fst (fst TSO_program)) in
-  let B := length init in
-  translate_program TSO_program = SC_program /\
-  bisimilar_memory TSO_memory SC_memory B f.
+  let TSO_init := snd (fst (fst TSO_program)) in
+  let SC_init := fst (fst (fst SC_program)) in
+  let buf_size := fst (fst (fst TSO_program)) in
+  (TSO_init <> nil -> SC_init = translate_vars TSO_init buf_size) /\
+  related_terms TSO_program SC_program B /\
+  related_memory TSO_memory SC_memory B f.
 
-Theorem forward_bisimulation : forall p p' q f,
-  TSO.pstep p p' -> bisimilar p q f -> (exists q' q'', bisimilar p' q' f /\ psteps q q'' /\ psteps q q'').
-Proof. Admitted.
-
+Theorem forward_bisimulation : forall p p' q f B,
+  TSO.pstep p p' -> related_program p q f B -> (exists q', related_program p' q' f B /\ psteps q q').
+Proof. intros. inversion H; subst.
+  + destruct q. destruct p. repeat (destruct p). destruct m. destruct mem. destruct mem'. repeat (destruct p0). repeat (destruct p). destruct H0. simpl in *. destruct H4. destruct H4. destruct H6. simpl in *. subst. assert (l = translate_vars (xs ++ (size, init) :: nil) buffer). apply H0. intros C. symmetry in C. contradiction app_cons_not_nil with (x:=xs) (a:=(size, init)) (y:=nil). subst. remember (translate_vars xs buffer, t1, t0, while tru (SPECIAL (length xs) [num 0]::= ZERO)) as answer_p. unfold related_memory in H5. simpl in *. destruct H5. destruct H7. destruct H7. remember (update_mapping (length xs) x size m, allocate x (x + size - 1) init g) as answer_m. refine (ex_intro _ (answer_p, answer_m) _); subst. admit.
+  + destruct H0. simpl in *. destruct H3. destruct H3. destruct q. destruct p. destruct p. destruct p. simpl in *. clear H0. destruct H5. subst. generalize dependent t1. induction H1; subst; intros; inversion H3; subst.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+  + admit.
+  + admit.
+Admitted.

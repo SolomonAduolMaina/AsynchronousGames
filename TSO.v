@@ -103,6 +103,7 @@ Inductive pstep : TSO_machine -> TSO_machine -> Prop :=
                             ((buffer, nil, s1, s2'), mem')
   | ST_flush : forall local local' thread address value xs global global' mapping program offset buffer,
                local thread = ((address, offset, value) :: xs) ->
+               snd (fst (fst program)) = nil ->
                local' thread = xs ->
                local' (negb thread) = local (negb thread) ->
                global' = update_global (address + offset, value) global ->

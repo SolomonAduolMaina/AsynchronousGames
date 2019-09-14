@@ -77,7 +77,7 @@ Inductive psteps : SC_machine -> SC_machine -> Prop :=
   | psteps_reflexive : forall p, psteps p p
   | psteps_transitive : forall p q r, pstep p q -> psteps q r -> psteps p r.
 
-Fact psteps_inj_1 : forall p q, psteps p q -> steps (snd (fst (fst (fst p)))) (snd (fst (fst (fst q)))).
+(*Fact psteps_inj_1 : forall p q, psteps p q -> steps (snd (fst (fst (fst p)))) (snd (fst (fst (fst q)))).
   Proof. intros. induction H.
     + apply steps_reflexive.
     + repeat (destruct p). repeat (destruct q). repeat (destruct r). simpl in *. simpl.
@@ -108,3 +108,4 @@ Fact psteps_transports : forall e e' E, steps e e' -> steps (subst E e) (subst E
       {apply step_context. auto. }
       apply steps_transitive with (event:=event) (q:=subst E q). auto. auto.
   Qed.
+*)
