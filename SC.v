@@ -1,5 +1,5 @@
 Require Import List.
-Require Import IMP.
+Require Import Lambda.
 Require Import Util.
 
 Definition mapping := nat -> (option (nat * nat)). (* base, size*)

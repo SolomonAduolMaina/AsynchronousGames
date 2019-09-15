@@ -1,9 +1,17 @@
 Require Import List.
+Require Import Strings.String.
 Require Import Util.
 
-(* IMP with fixed width arrays *)
+(* Untyped Lambda Calculus with 
+   1. fixed width arrays, 
+   2. unit, 
+   3. nats,
+   4. bools,
+   6. case statements
+ *)
+
 Inductive term : Type :=
-  | var : nat -> term
+  | array : nat -> term
   | num : nat -> term
   | plus : term -> term -> term
   | minus : term -> term -> term
@@ -18,13 +26,27 @@ Inductive term : Type :=
   | write : term -> term -> term -> term (* p[offset] := n *)
   | reference : term -> term (* &p *)
   | cast : term -> term (* ( int* ) n*)
-  | seq : term -> term -> term
   | case : term -> term -> term -> term
-  | while : term -> term -> term.
+  | var : string -> term
+  | app : term -> term -> term
+  | lam : string -> term -> term.
 
 Definition or (s : term) (t : term) := not (and (not s) (not t)).
 
 Definition equals (s : term) (t : term) := not (or (less_than s t) (less_than t s)).
+
+Definition seq (s : term) (t : term) := app (app (lam "x" (lam "y" (var "y"))) s) t.
+
+Definition y_combinator := 
+  let g := lam "x" (app (var "g") (app (var "x") (var "x"))) in
+  lam "g" (app g g).
+
+Definition while_fun := 
+  lam "while" (lam "b" (lam "c" (case (var "b") (seq (var "c") (app (app (var "while") (var "b")) (var "c"))) yunit))).
+
+Definition while_fics := app y_combinator while_fun.
+
+Definition while (s : term) (t : term) := app (app while_fics s) t.
 
 Bind Scope imp_scope with term.
 Notation "x == y" :=
@@ -48,37 +70,73 @@ Notation "'WHILE' b 'DO' c 'DONE'" :=
 Notation "'CASE' c1 'THEN' c2 'ELSE' c3 'ESAC'" :=
   (case c1 c2 c3) (at level 80, right associativity) : imp_scope.
 
-Inductive value : term -> Prop :=
-  | val_unit : value yunit
-  | val_num : forall n, value (num n).
 
 Inductive mem_event : Type :=
-    | Read (loc : nat) (offset : nat) (value : nat)
-    | Write (loc : nat) (offset : nat) (value : nat)
-    | Allocate (loc : nat) (size : nat) (init : list nat)
-    | Reference (loc : nat) (value : nat)
-    | Cast (n : nat) (loc : nat)
-    | Tau.
+  | Read (loc : nat) (offset : nat) (value : nat)
+  | Write (loc : nat) (offset : nat) (value : nat)
+  | Allocate (loc : nat) (size : nat) (init : list nat)
+  | Reference (loc : nat) (value : nat)
+  | Cast (n : nat) (loc : nat)
+  | Tau.
+
+Inductive value : term -> Prop :=
+  | value_array : forall x, value (array x)
+  | value_num : forall x, value (num x)
+  | value_yunit : value yunit
+  | value_tru : value tru
+  | value_fls : value fls
+  | value_lam : forall x y, value (lam x y).
+
+Fixpoint subst (x : string) (v : term) (e : term) :=
+  match e with
+    | array _ => e
+    | num _ => e
+    | plus e1 e2 => plus (subst x v e1) (subst x v e2)
+    | minus e1 e2 => minus (subst x v e1) (subst x v e2)
+    | modulo e1 e2 => modulo (subst x v e1) (subst x v e2)
+    | tru => tru
+    | fls => fls
+    | less_than e1 e2 => less_than (subst x v e1) (subst x v e2)
+    | not e => not (subst x v e)
+    | and e1 e2 => and (subst x v e1) (subst x v e2)
+    | yunit => yunit
+    | write e1 e2 e3 => write (subst x v e1) (subst x v e2) (subst x v e3)
+    | read e1 e2 => read (subst x v e1) (subst x v e2)
+    | reference e => reference (subst x v e)
+    | cast e => cast (subst x v e)
+    | case e1 e2 e3 => case (subst x v e1) (subst x v e2) (subst x v e3)
+    | var y => if string_dec x y then v else var y
+    | app e1 e2 => app (subst x v e1) (subst x v e2)
+    | lam y e => lam y (if (string_dec x y) then e else (subst x v e))
+  end.
+
 
 Inductive step : term -> mem_event -> term -> Prop :=
+  | step_app1 : forall e e' f event,
+                  step e event e' ->
+                  step (app e f) event (app e' f)
+  | step_app2 : forall e e' f x event,
+                  step e event e' ->
+                  step (app (lam x f) e) event (app (lam x f) e')
+  | step_app3 : forall x e v, value v -> step (app (lam x e) v) Tau (subst x v e)
   | step_reference1 : forall e e' event,
                   step e event e' ->
                   step (reference e) event (reference e')
   | step_reference2 : forall x n,
-                    step (reference (var x)) (Reference x n) (num n)
+                    step (reference (array x)) (Reference x n) (num n)
   | step_cast1 : forall e e' event,
                   step e event e' ->
                   step (cast e) event (cast e')
   | step_cast2 : forall x n,
-                    step (cast (num n)) (Cast n x) (var x)
+                    step (cast (num n)) (Cast n x) (array x)
   | step_read1 : forall e1 e1' e2 event,
                   step e1 event e1' ->
                   step (read e1 e2) event (read e1' e2)
   | step_read2 : forall e1 e1' event n,
                   step e1 event e1' ->
-                  step (read (var n) e1) event (read (var n) e1')
+                  step (read (array n) e1) event (read (array n) e1')
   | step_read3 : forall offset value n,
-                step (read (var n) (num offset))
+                step (read (array n) (num offset))
                      (Read n offset value)
                      (num value)
   | step_write1 : forall e1 e1' e2 e3 event ,
@@ -86,14 +144,14 @@ Inductive step : term -> mem_event -> term -> Prop :=
                   step (write e1 e2 e3) event (write e1' e2 e3)
   | step_write2 : forall e1 e1' e2 event n,
                   step e1 event e1' ->
-                  step (write (var n) e1 e2) event (write (var n) e1' e2)
+                  step (write (array n) e1 e2) event (write (array n) e1' e2)
   | step_write3 : forall e1 e1' event n offset,
                   step e1 event e1' ->
-                  step (write (var n) (num offset) e1)
+                  step (write (array n) (num offset) e1)
                        event
-                       (write (var n) (num offset) e1')
+                       (write (array n) (num offset) e1')
   | step_write4 : forall val n offset,
-                  step (write (var n) (num offset) (num val)) 
+                  step (write (array n) (num offset) (num val)) 
                        (Write n offset val)
                         yunit
   | step_plus1 : forall e1 e1' event e2,
@@ -146,27 +204,19 @@ Inductive step : term -> mem_event -> term -> Prop :=
                   step (not e1) event (not e1')
   | step_not2 : step (not tru) Tau fls
   | step_not3 : step (not fls) Tau tru
-  | step_seq1 : forall e1 e1' e2 event,
-                  step e1 event e1' ->
-                  step (seq e1 e2) event (seq e1' e2)
-  | step_seq2 : forall e2, step (seq yunit e2) Tau e2
   | step_case1 : forall e1 e1' e2 e3 event,
                   step e1 event e1' ->
                   step (case e1 e2 e3) event (case e1' e2 e3)
   | step_case2 : forall e2 e3,
                   step (case tru e2 e3) Tau e2
   | step_case3 : forall e2 e3,
-                  step (case fls e2 e3) Tau e3
-  | step_while : forall b c,
-                  step (while b c)
-                        Tau
-                        (case b (seq c (while b c)) yunit).
+                  step (case fls e2 e3) Tau e3.
 
 Inductive steps : term -> term -> Prop :=
   | steps_reflexive : forall p, steps p p
   | steps_transitive : forall p q r event, step p event q -> steps q r -> steps p r.
 
-Fact var_does_not_step : forall n event e e', step e event e' -> e = var n -> False.
+Fact array_does_not_step : forall n event e e', step e event e' -> e = array n -> False.
   Proof. intros; induction H; inversion H0. Qed.
 
 Fact num_does_not_step : forall n event e e', step e event e' -> e = num n -> False.
@@ -188,10 +238,10 @@ Fact unit_does_not_step : forall event e e', step e event e' -> e = yunit -> Fal
   | Cand1 : context -> term -> context
   | Cand2 : {x : term | x = tru \/ x = fls} -> context -> context
   | Cread1 : context -> term -> context
-  | Cread2 : {x : term | exists s, x = var s} -> context -> context
+  | Cread2 : {x : term | exists s, x = array s} -> context -> context
   | Cwrite1 : context -> term -> term -> context
-  | Cwrite2 : {x : term | exists s, x = var s} -> context -> term -> context
-  | Cwrite3 : {x : term | exists s, x = var s} -> {x : term | exists n, x = num n} -> context -> context
+  | Cwrite2 : {x : term | exists s, x = array s} -> context -> term -> context
+  | Cwrite3 : {x : term | exists s, x = array s} -> {x : term | exists n, x = num n} -> context -> context
   | Ccase : context -> term -> term -> context
   | Cseq : context -> term -> context
   | Cnot : context -> context
@@ -227,14 +277,14 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_context : forall e e' E event,
                    step e event e' ->
                    step (subst E e) event (subst E e')
-  | step_reference : forall x n, step (reference (var x)) (Reference x n) (num n)
-  | step_cast : forall x n,  step (cast (num n)) (Cast n x) (var x)
+  | step_reference : forall x n, step (reference (array x)) (Reference x n) (num n)
+  | step_cast : forall x n,  step (cast (num n)) (Cast n x) (array x)
   | step_read : forall offset value n,
-                step (read (var n) (num offset))
+                step (read (array n) (num offset))
                      (Read n offset value)
                      (num value)
   | step_write : forall val n offset,
-                  step (write (var n) (num offset) (num val)) 
+                  step (write (array n) (num offset) (num val)) 
                        (Write n offset val)
                         yunit
   | step_plus : forall m n, step (plus (num m) (num n)) Tau (num (m + n))
@@ -370,7 +420,7 @@ Fact subst_num : forall m E e, subst E e = num m -> E = Hole /\ e = num m.
   Proof. intros. induction E; simpl in *; subst; auto; try (destruct s); try (destruct s0); inversion H.
   Qed.
 
-Fact subst_var : forall m E e, subst E e = var m -> E = Hole /\ e = var m.
+Fact subst_array : forall m E e, subst E e = array m -> E = Hole /\ e = array m.
   Proof. intros. induction E; simpl in *; subst; auto; try (destruct s); try (destruct s0); inversion H.
   Qed.
 
