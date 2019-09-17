@@ -107,6 +107,7 @@ Theorem forward_bisimulation : forall p p' q f B,
       ++ admit.
       ++ admit.
       ++ admit.
+      ++ admit.
     + admit.
     + admit.
 Admitted.

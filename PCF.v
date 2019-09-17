@@ -2,13 +2,20 @@ Require Import List.
 Require Import Strings.String.
 Require Import Util.
 
-(* Untyped Lambda Calculus with 
+(* PCF with 
    1. fixed width arrays, 
    2. unit, 
    3. nats,
    4. bools,
    6. case statements
  *)
+Inductive type : Type :=
+  | Nat : type
+  | Bool : type
+  | Unit : type
+  | Array : nat -> type
+  | Arrow : type -> type -> type. 
+
 
 Inductive term : Type :=
   | array : nat -> term
@@ -29,46 +36,43 @@ Inductive term : Type :=
   | case : term -> term -> term -> term
   | var : string -> term
   | app : term -> term -> term
-  | lam : string -> term -> term.
+  | lam : string -> type -> term -> term
+  | fics : type -> term -> term.
 
 Definition or (s : term) (t : term) := not (and (not s) (not t)).
 
 Definition equals (s : term) (t : term) := not (or (less_than s t) (less_than t s)).
 
-Definition seq (s : term) (t : term) := app (app (lam "x" (lam "y" (var "y"))) s) t.
+Definition seq (s : term) (t : term) := app (app (lam "x" Unit (lam "y" Unit (var "y"))) s) t.
 
-Definition y_combinator := 
-  let g := lam "x" (app (var "g") (app (var "x") (var "x"))) in
-  lam "g" (app g g).
 
 Definition while_fun := 
-  lam "while" (lam "b" (lam "c" (case (var "b") (seq (var "c") (app (app (var "while") (var "b")) (var "c"))) yunit))).
+  lam "while" (Arrow Bool (Arrow Unit Unit)) (lam "b" Bool (lam "c" Unit (case (var "b") (seq (var "c") (app (app (var "while") (var "b")) (var "c"))) yunit))).
 
-Definition while_fics := app y_combinator while_fun.
+Definition while_fics := fics (Arrow Bool (Arrow Unit Unit)) while_fun.
 
 Definition while (s : term) (t : term) := app (app while_fics s) t.
 
-Bind Scope imp_scope with term.
 Notation "x == y" :=
-  (equals x y) (at level 60) : imp_scope.
+  (equals x y) (at level 60).
 Notation "x << y" :=
-  (less_than x y) (at level 60) : imp_scope.
+  (less_than x y) (at level 60).
 Notation "'!' x" :=
-  (read x (num 0)) (at level 60) : imp_scope.
+  (read x (num 0)) (at level 60).
 Notation "'&' x" :=
-  (reference x) (at level 60) : imp_scope.
+  (reference x) (at level 60).
 Notation "p '[' offset ']'" :=
-  (read p offset) (at level 60) : imp_scope.
+  (read p offset) (at level 60).
 Notation "x '::=' a" :=
-  (write x (num 0) a) (at level 60) : imp_scope.
+  (write x (num 0) a) (at level 60).
 Notation "x '[' offset ']' '::=' a" :=
-  (write x offset a) (at level 60) : imp_scope.
+  (write x offset a) (at level 60).
 Notation "c1 ;; c2" :=
-  (seq c1 c2) (at level 80, right associativity) : imp_scope.
+  (seq c1 c2) (at level 80, right associativity).
 Notation "'WHILE' b 'DO' c 'DONE'" :=
-  (while b c) (at level 80, right associativity) : imp_scope.
+  (while b c) (at level 80, right associativity).
 Notation "'CASE' c1 'THEN' c2 'ELSE' c3 'ESAC'" :=
-  (case c1 c2 c3) (at level 80, right associativity) : imp_scope.
+  (case c1 c2 c3) (at level 80, right associativity).
 
 
 Inductive mem_event : Type :=
@@ -85,7 +89,7 @@ Inductive value : term -> Prop :=
   | value_yunit : value yunit
   | value_tru : value tru
   | value_fls : value fls
-  | value_lam : forall x y, value (lam x y).
+  | value_lam : forall x y tau, value (lam x tau y).
 
 Fixpoint subst (x : string) (v : term) (e : term) :=
   match e with
@@ -107,116 +111,14 @@ Fixpoint subst (x : string) (v : term) (e : term) :=
     | case e1 e2 e3 => case (subst x v e1) (subst x v e2) (subst x v e3)
     | var y => if string_dec x y then v else var y
     | app e1 e2 => app (subst x v e1) (subst x v e2)
-    | lam y e => lam y (if (string_dec x y) then e else (subst x v e))
+    | lam y tau e => lam y tau (if (string_dec x y) then e else (subst x v e))
+    | fics tau e => fics tau (subst x v e)
   end.
-
-
-(*Inductive step : term -> mem_event -> term -> Prop :=
-  | step_app1 : forall e e' f event,
-                  step e event e' ->
-                  step (app e f) event (app e' f)
-  | step_app2 : forall e e' f x event,
-                  step e event e' ->
-                  step (app (lam x f) e) event (app (lam x f) e')
-  | step_app3 : forall x e v, value v -> step (app (lam x e) v) Tau (subst x v e)
-  | step_reference1 : forall e e' event,
-                  step e event e' ->
-                  step (reference e) event (reference e')
-  | step_reference2 : forall x n,
-                    step (reference (array x)) (Reference x n) (num n)
-  | step_cast1 : forall e e' event,
-                  step e event e' ->
-                  step (cast e) event (cast e')
-  | step_cast2 : forall x n,
-                    step (cast (num n)) (Cast n x) (array x)
-  | step_read1 : forall e1 e1' e2 event,
-                  step e1 event e1' ->
-                  step (read e1 e2) event (read e1' e2)
-  | step_read2 : forall e1 e1' event n,
-                  step e1 event e1' ->
-                  step (read (array n) e1) event (read (array n) e1')
-  | step_read3 : forall offset value n,
-                step (read (array n) (num offset))
-                     (Read n offset value)
-                     (num value)
-  | step_write1 : forall e1 e1' e2 e3 event ,
-                  step e1 event e1' ->
-                  step (write e1 e2 e3) event (write e1' e2 e3)
-  | step_write2 : forall e1 e1' e2 event n,
-                  step e1 event e1' ->
-                  step (write (array n) e1 e2) event (write (array n) e1' e2)
-  | step_write3 : forall e1 e1' event n offset,
-                  step e1 event e1' ->
-                  step (write (array n) (num offset) e1)
-                       event
-                       (write (array n) (num offset) e1')
-  | step_write4 : forall val n offset,
-                  step (write (array n) (num offset) (num val)) 
-                       (Write n offset val)
-                        yunit
-  | step_plus1 : forall e1 e1' event e2,
-                  step e1 event e1' ->
-                  step (plus e1 e2) event (plus e1' e2)
-  | step_plus2 : forall e1 e1' n event,
-                  step e1 event e1' ->
-                  step (plus (num n) e1) event (plus (num n) e1')
-  | step_plus3 : forall m n,
-                  step (plus (num m) (num n)) Tau (num (m + n))
-  | step_minus1 : forall e1 e1' event e2,
-                  step e1 event e1' ->
-                  step (minus e1 e2) event (minus e1' e2)
-  | step_minus2 : forall e1 e1' n event,
-                  step e1 event e1' ->
-                  step (minus (num n) e1) event (minus (num n) e1')
-  | step_minus3 : forall m n,
-                  step (minus (num m) (num n)) Tau (num (m - n))
-  | step_mod1 : forall e1 e1' e2 event,
-                  step e1 event e1' ->
-                  step (modulo e1 e2) event (modulo e1' e2)
-  | step_mod2 : forall e1 e1' n event,
-                  step e1 event e1' ->
-                  step (modulo (num n) e1) event (modulo (num n) e1')
-  | step_mod3 : forall m n,
-                  step (modulo (num m) (num n)) Tau (num (Nat.modulo m n))
-  | step_lt1 : forall e1 e1' e2 event,
-                  step e1 event e1' ->
-                  step (less_than e1 e2) event (less_than e1' e2)
-  | step_lt2 : forall e1 e1' n event,
-                  step e1 event e1' ->
-                  step (less_than (num n) e1) event (less_than (num n) e1')
-  | step_lt3 : forall m n,
-                  m < n ->
-                  step (less_than (num m) (num n)) Tau tru
-  | step_lt4 : forall m n,
-                  m >= n ->
-                  step (less_than (num m) (num n)) Tau fls
-  | step_and1 : forall e1 e1' event e2,
-                  step e1 event e1' ->
-                  step (and e1 e2) event (and e1' e2)
-  | step_and2 : forall e2 e2' event e1,
-                  step e2 event e2' ->
-                  step (and tru e2) event (and tru e2)
-  | step_and3 : forall e, step (and fls e) Tau fls
-  | step_and4 : step (and tru tru) Tau tru
-  | step_and5 : step (and tru fls) Tau fls
-  | step_not1 : forall e1 e1' event,
-                  step e1 event e1' ->
-                  step (not e1) event (not e1')
-  | step_not2 : step (not tru) Tau fls
-  | step_not3 : step (not fls) Tau tru
-  | step_case1 : forall e1 e1' e2 e3 event,
-                  step e1 event e1' ->
-                  step (case e1 e2 e3) event (case e1' e2 e3)
-  | step_case2 : forall e2 e3,
-                  step (case tru e2 e3) Tau e2
-  | step_case3 : forall e2 e3,
-                  step (case fls e2 e3) Tau e3.*)
-
 
 Inductive context : Type :=
   | Hole : context
   | Capp1 : context -> term -> context
-  | Capp2 : {t : term | exists x e', t = lam x e'} -> context -> context
+  | Capp2 : {t : term | exists x tau e', t = lam tau x e'} -> context -> context
   | Cplus1 : context -> term -> context
   | Cplus2 : {x : term | exists n, x = num n} -> context -> context
   | Cminus1 : context -> term -> context
@@ -269,9 +171,10 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_context : forall e e' E event,
                    step e event e' ->
                    step (con_subst E e) event (con_subst E e')
-  | step_app : forall x e v, value v -> step (app (lam x e) v) Tau (subst x v e)
+  | step_tau : forall f tau, step (fics tau f) Tau (app f (fics tau f))
+  | step_app : forall x tau e v, value v -> step (app (lam x tau e) v) Tau (subst x v e)
   | step_reference : forall x n, step (reference (array x)) (Reference x n) (num n)
-  | step_cast : forall x n,  step (cast (num n)) (Cast n x) (array x)
+  | step_cast : forall x n, step (cast (num n)) (Cast n x) (array x)
   | step_read : forall offset value n,
                 step (read (array n) (num offset))
                      (Read n offset value)
@@ -296,7 +199,7 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_case2 : forall e2 e3, step (case fls e2 e3) Tau e3
   | step_while : forall b c, step (while b c) Tau (case b (seq c (while b c)) yunit).
 
-Fact subst_inversion : forall E e e', con_subst E e = con_subst E e' -> e = e'.
+(* Fact subst_inversion : forall E e e', con_subst E e = con_subst E e' -> e = e'.
 Proof. intros. induction E; simpl in *; auto; apply IHE; try (destruct s); try (destruct s0); inversion H;   auto.
 Qed.
 
@@ -314,7 +217,7 @@ t = (plus e1 e2) ->
   + right. left. refine (ex_intro _ m _). refine (ex_intro _ n _). auto.
 Qed.
 
-(*Inductive steps : term -> term -> Prop :=
+Inductive steps : term -> term -> Prop :=
   | steps_reflexive : forall p, steps p p
   | steps_transitive : forall p q r event, step p event q -> steps q r -> steps p r.
 
