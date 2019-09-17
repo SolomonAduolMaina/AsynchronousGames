@@ -111,7 +111,7 @@ Fixpoint subst (x : string) (v : term) (e : term) :=
   end.
 
 
-Inductive step : term -> mem_event -> term -> Prop :=
+(*Inductive step : term -> mem_event -> term -> Prop :=
   | step_app1 : forall e e' f event,
                   step e event e' ->
                   step (app e f) event (app e' f)
@@ -193,10 +193,10 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_and1 : forall e1 e1' event e2,
                   step e1 event e1' ->
                   step (and e1 e2) event (and e1' e2)
-  | step_and2 : forall e, step (and fls e) Tau fls
-  | step_and3 : forall e1 e1' event,
-                  step e1 event e1' ->
-                  step (and tru e1) event (and tru e1')
+  | step_and2 : forall e2 e2' event e1,
+                  step e2 event e2' ->
+                  step (and tru e2) event (and tru e2)
+  | step_and3 : forall e, step (and fls e) Tau fls
   | step_and4 : step (and tru tru) Tau tru
   | step_and5 : step (and tru fls) Tau fls
   | step_not1 : forall e1 e1' event,
@@ -210,23 +210,13 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_case2 : forall e2 e3,
                   step (case tru e2 e3) Tau e2
   | step_case3 : forall e2 e3,
-                  step (case fls e2 e3) Tau e3.
+                  step (case fls e2 e3) Tau e3.*)
 
-Inductive steps : term -> term -> Prop :=
-  | steps_reflexive : forall p, steps p p
-  | steps_transitive : forall p q r event, step p event q -> steps q r -> steps p r.
 
-Fact array_does_not_step : forall n event e e', step e event e' -> e = array n -> False.
-  Proof. intros; induction H; inversion H0. Qed.
-
-Fact num_does_not_step : forall n event e e', step e event e' -> e = num n -> False.
-  Proof. intros; induction H; inversion H0. Qed.
-
-Fact unit_does_not_step : forall event e e', step e event e' -> e = yunit -> False.
-  Proof. intros; induction H; inversion H0. Qed.
-
-(* Inductive context : Type :=
+Inductive context : Type :=
   | Hole : context
+  | Capp1 : context -> term -> context
+  | Capp2 : {t : term | exists x e', t = lam x e'} -> context -> context
   | Cplus1 : context -> term -> context
   | Cplus2 : {x : term | exists n, x = num n} -> context -> context
   | Cminus1 : context -> term -> context
@@ -236,7 +226,7 @@ Fact unit_does_not_step : forall event e e', step e event e' -> e = yunit -> Fal
   | Cless_than1 : context -> term -> context
   | Cless_than2 : {x : term | x = tru \/ x = fls} -> context -> context
   | Cand1 : context -> term -> context
-  | Cand2 : {x : term | x = tru \/ x = fls} -> context -> context
+  | Cand2 : {x : term | x = tru} -> context -> context
   | Cread1 : context -> term -> context
   | Cread2 : {x : term | exists s, x = array s} -> context -> context
   | Cwrite1 : context -> term -> term -> context
@@ -248,35 +238,38 @@ Fact unit_does_not_step : forall event e e', step e event e' -> e = yunit -> Fal
   | Creference : context -> context
   | Ccast : context -> context.
 
-Fixpoint subst (E : context) (s : term) : term :=
+Fixpoint con_subst (E : context) (s : term) : term :=
   match E with
     | Hole => s
-    | Cplus1 E t => plus (subst E s) t
-    | Cplus2 (exist _ x _) E => plus x (subst E s)
-    | Cminus1 E t => minus (subst E s) t
-    | Cminus2 (exist _ x _) E => minus x (subst E s)
-    | Cmodulo1 E t => modulo (subst E s) t
-    | Cmodulo2 (exist _ x _) E => modulo x (subst E s)
-    | Cless_than1 E t => less_than (subst E s) t
-    | Cless_than2 (exist _ x _) E => less_than x (subst E s)
-    | Cand1 E t => and (subst E s) t
-    | Cand2 (exist _ x _) E => and x (subst E s)
-    | Cread1 E t => read (subst E s) t
-    | Cread2 (exist _ x _) E => read x (subst E s)
-    | Cwrite1 E t t' => write (subst E s) t t'
-    | Cwrite2 (exist _ x _) E t => write x (subst E s) t
-    | Cwrite3 (exist _ x _) (exist _ y _) E => write x y (subst E s)
-    | Ccase E t t' => case (subst E s) t t'
-    | Cseq E t => seq (subst E s) t
-    | Cnot E => not (subst E s)
-    | Creference E => reference (subst E s)
-    | Ccast E => cast (subst E s)
+    | Capp1 E t => app (con_subst E s) t
+    | Capp2 (exist _ f _) E => app f (con_subst E s)
+    | Cplus1 E t => plus (con_subst E s) t
+    | Cplus2 (exist _ x _) E => plus x (con_subst E s)
+    | Cminus1 E t => minus (con_subst E s) t
+    | Cminus2 (exist _ x _) E => minus x (con_subst E s)
+    | Cmodulo1 E t => modulo (con_subst E s) t
+    | Cmodulo2 (exist _ x _) E => modulo x (con_subst E s)
+    | Cless_than1 E t => less_than (con_subst E s) t
+    | Cless_than2 (exist _ x _) E => less_than x (con_subst E s)
+    | Cand1 E t => and (con_subst E s) t
+    | Cand2 (exist _ x _) E => and x (con_subst E s)
+    | Cread1 E t => read (con_subst E s) t
+    | Cread2 (exist _ x _) E => read x (con_subst E s)
+    | Cwrite1 E t t' => write (con_subst E s) t t'
+    | Cwrite2 (exist _ x _) E t => write x (con_subst E s) t
+    | Cwrite3 (exist _ x _) (exist _ y _) E => write x y (con_subst E s)
+    | Ccase E t t' => case (con_subst E s) t t'
+    | Cseq E t => seq (con_subst E s) t
+    | Cnot E => not (con_subst E s)
+    | Creference E => reference (con_subst E s)
+    | Ccast E => cast (con_subst E s)
   end.
 
 Inductive step : term -> mem_event -> term -> Prop :=
   | step_context : forall e e' E event,
                    step e event e' ->
-                   step (subst E e) event (subst E e')
+                   step (con_subst E e) event (con_subst E e')
+  | step_app : forall x e v, value v -> step (app (lam x e) v) Tau (subst x v e)
   | step_reference : forall x n, step (reference (array x)) (Reference x n) (num n)
   | step_cast : forall x n,  step (cast (num n)) (Cast n x) (array x)
   | step_read : forall offset value n,
@@ -303,135 +296,167 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_case2 : forall e2 e3, step (case fls e2 e3) Tau e3
   | step_while : forall b c, step (while b c) Tau (case b (seq c (while b c)) yunit).
 
-Fact steps_context : forall e e' E, steps e e' -> steps (subst E e) (subst E e').
+Fact subst_inversion : forall E e e', con_subst E e = con_subst E e' -> e = e'.
+Proof. intros. induction E; simpl in *; auto; apply IHE; try (destruct s); try (destruct s0); inversion H;   auto.
+Qed.
+
+
+Fact steps_plus : forall e1 e2 e t event, step t event e ->
+t = (plus e1 e2) ->
+(exists e1', e = plus e1' e2 /\ step e1 event e1') \/ 
+(exists n1 n2, e1 = num n1 /\ e2 = num n2  /\ e = num (n1 + n2)) \/ 
+(exists n e2', e1 = num n /\ e = plus e1 e2' /\ step e2 event e2').
+  Proof. intros. generalize dependent e1. generalize dependent e2. induction H; intros; try (inversion H0); subst.
+  + destruct E; simpl in *; subst; try (destruct s); try (destruct s0); try (inversion H0); subst.
+    ++ apply IHstep. reflexivity.
+    ++ left. refine (ex_intro _ (con_subst E e') _). split. reflexivity. apply step_context. auto.
+    ++ destruct e0; subst. right. right. refine (ex_intro _ x _). refine (ex_intro _ (con_subst E e') _). split. reflexivity. split. reflexivity. apply step_context. auto.
+  + right. left. refine (ex_intro _ m _). refine (ex_intro _ n _). auto.
+Qed.
+
+(*Inductive steps : term -> term -> Prop :=
+  | steps_reflexive : forall p, steps p p
+  | steps_transitive : forall p q r event, step p event q -> steps q r -> steps p r.
+
+Fact array_does_not_step : forall n event e e', step e event e' -> e = array n -> False.
+  Proof. intros; induction H; inversion H0. Qed.
+
+Fact num_does_not_step : forall n event e e', step e event e' -> e = num n -> False.
+  Proof. intros; induction H; inversion H0. Qed.
+
+Fact unit_does_not_step : forall event e e', step e event e' -> e = yunit -> False.
+  Proof. intros; induction H; inversion H0. Qed.
+
+
+Fact steps_context : forall e e' E, steps e e' -> steps (con_subst E e) (con_subst E e').
   Proof. intros. induction E; simpl; auto; induction IHE; try (apply steps_reflexive).
   + apply steps_transitive with (event:=event) (q:=plus q t).
-      ++ assert (subst (Cplus1 Hole t) p = plus p t). simpl. auto.
-          assert (subst (Cplus1 Hole t) q = plus q t). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Cplus1 Hole t) p = plus p t). simpl. auto.
+          assert (con_subst (Cplus1 Hole t) q = plus q t). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + destruct s eqn:ORIG. apply steps_transitive with (event:=event) (q:=plus x q).
-      ++ assert (subst (Cplus2 s Hole) p = plus x p /\ subst (Cplus2 s Hole) q = plus x q). split.
+      ++ assert (con_subst (Cplus2 s Hole) p = plus x p /\ con_subst (Cplus2 s Hole) q = plus x q). split.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ destruct H1. rewrite <- H1. rewrite <- H2. apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=minus q t).
-      ++ assert (subst (Cminus1 Hole t) p = minus p t). simpl. auto.
-          assert (subst (Cminus1 Hole t) q = minus q t). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Cminus1 Hole t) p = minus p t). simpl. auto.
+          assert (con_subst (Cminus1 Hole t) q = minus q t). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + destruct s eqn:ORIG. apply steps_transitive with (event:=event) (q:=minus x q).
-      ++ assert (subst (Cminus2 s Hole) p = minus x p /\ subst (Cminus2 s Hole) q = minus x q). split.
+      ++ assert (con_subst (Cminus2 s Hole) p = minus x p /\ con_subst (Cminus2 s Hole) q = minus x q). split.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ destruct H1. rewrite <- H1. rewrite <- H2. apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=modulo q t).
-      ++ assert (subst (Cmodulo1 Hole t) p = modulo p t). simpl. auto.
-          assert (subst (Cmodulo1 Hole t) q = modulo q t). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Cmodulo1 Hole t) p = modulo p t). simpl. auto.
+          assert (con_subst (Cmodulo1 Hole t) q = modulo q t). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + destruct s eqn:ORIG. apply steps_transitive with (event:=event) (q:=modulo x q).
-      ++ assert (subst (Cmodulo2 s Hole) p = modulo x p /\ subst (Cmodulo2 s Hole) q = modulo x q). split.
+      ++ assert (con_subst (Cmodulo2 s Hole) p = modulo x p /\ con_subst (Cmodulo2 s Hole) q = modulo x q). split.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ destruct H1. rewrite <- H1. rewrite <- H2. apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=less_than q t).
-      ++ assert (subst (Cless_than1 Hole t) p = less_than p t). simpl. auto.
-          assert (subst (Cless_than1 Hole t) q = less_than q t). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Cless_than1 Hole t) p = less_than p t). simpl. auto.
+          assert (con_subst (Cless_than1 Hole t) q = less_than q t). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + destruct s eqn:ORIG. apply steps_transitive with (event:=event) (q:=less_than x q).
-      ++ assert (subst (Cless_than2 s Hole) p = less_than x p /\ subst (Cless_than2 s Hole) q = less_than x q). split.
+      ++ assert (con_subst (Cless_than2 s Hole) p = less_than x p /\ con_subst (Cless_than2 s Hole) q = less_than x q). split.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ destruct H1. rewrite <- H1. rewrite <- H2. apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=and q t).
-      ++ assert (subst (Cand1 Hole t) p = and p t). simpl. auto.
-          assert (subst (Cand1 Hole t) q = and q t). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Cand1 Hole t) p = and p t). simpl. auto.
+          assert (con_subst (Cand1 Hole t) q = and q t). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + destruct s eqn:ORIG. apply steps_transitive with (event:=event) (q:=and x q).
-      ++ assert (subst (Cand2 s Hole) p = and x p /\ subst (Cand2 s Hole) q = and x q). split.
+      ++ assert (con_subst (Cand2 s Hole) p = and x p /\ con_subst (Cand2 s Hole) q = and x q). split.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ destruct H1. rewrite <- H1. rewrite <- H2. apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=read q t).
-      ++ assert (subst (Cread1 Hole t) p = read p t). simpl. auto.
-          assert (subst (Cread1 Hole t) q = read q t). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Cread1 Hole t) p = read p t). simpl. auto.
+          assert (con_subst (Cread1 Hole t) q = read q t). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + destruct s eqn:ORIG. apply steps_transitive with (event:=event) (q:=read x q).
-      ++ assert (subst (Cread2 s Hole) p = read x p /\ subst (Cread2 s Hole) q = read x q). split.
+      ++ assert (con_subst (Cread2 s Hole) p = read x p /\ con_subst (Cread2 s Hole) q = read x q). split.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ destruct H1. rewrite <- H1. rewrite <- H2. apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=write q t t0).
-      ++ assert (subst (Cwrite1 Hole t t0) p = write p t t0). simpl. auto.
-          assert (subst (Cwrite1 Hole t t0) q = write q t t0). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Cwrite1 Hole t t0) p = write p t t0). simpl. auto.
+          assert (con_subst (Cwrite1 Hole t t0) q = write q t t0). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + destruct s eqn:ORIG. apply steps_transitive with (event:=event) (q:=write x q t).
-      ++ assert (subst (Cwrite2 s Hole t) p = write x p t/\ subst (Cwrite2 s Hole t) q = write x q t). split.
+      ++ assert (con_subst (Cwrite2 s Hole t) p = write x p t/\ con_subst (Cwrite2 s Hole t) q = write x q t). split.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ simpl. destruct s. inversion ORIG. auto.
         +++ destruct H1. rewrite <- H1. rewrite <- H2. apply step_context. auto.
       ++ auto.
   + destruct s eqn:ORIG. destruct s0 eqn:ORIG1. apply steps_transitive with (event:=event) (q:=write x x0 q).
-      ++ assert (subst (Cwrite3 s s0 Hole) p = write x x0 p/\ subst (Cwrite3 s s0 Hole) q = write x x0 q). split.
+      ++ assert (con_subst (Cwrite3 s s0 Hole) p = write x x0 p/\ con_subst (Cwrite3 s s0 Hole) q = write x x0 q). split.
         +++ simpl. destruct s. destruct s0. inversion ORIG. inversion ORIG1. auto.
         +++ simpl. destruct s. destruct s0. inversion ORIG. inversion ORIG1. auto.
         +++ destruct H1. rewrite <- H1. rewrite <- H2. apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=case q t t0).
-      ++ assert (subst (Ccase Hole t t0) p = case p t t0). simpl. auto.
-          assert (subst (Ccase Hole t t0) q = case q t t0). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Ccase Hole t t0) p = case p t t0). simpl. auto.
+          assert (con_subst (Ccase Hole t t0) q = case q t t0). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=seq q t).
-      ++ assert (subst (Cseq Hole t) p = seq p t). simpl. auto.
-          assert (subst (Cseq Hole t) q = seq q t). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Cseq Hole t) p = seq p t). simpl. auto.
+          assert (con_subst (Cseq Hole t) q = seq q t). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=not q).
-      ++ assert (subst (Cnot Hole) p = not p). simpl. auto.
-          assert (subst (Cnot Hole) q = not q). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Cnot Hole) p = not p). simpl. auto.
+          assert (con_subst (Cnot Hole) q = not q). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=reference q).
-      ++ assert (subst (Creference Hole) p = reference p). simpl. auto.
-          assert (subst (Creference Hole) q = reference q). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Creference Hole) p = reference p). simpl. auto.
+          assert (con_subst (Creference Hole) q = reference q). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
   + apply steps_transitive with (event:=event) (q:=cast q).
-      ++ assert (subst (Ccast Hole) p = cast p). simpl. auto.
-          assert (subst (Ccast Hole) q = cast q). simpl. auto. rewrite <- H1. rewrite <- H2.
+      ++ assert (con_subst (Ccast Hole) p = cast p). simpl. auto.
+          assert (con_subst (Ccast Hole) q = cast q). simpl. auto. rewrite <- H1. rewrite <- H2.
           apply step_context. auto.
       ++ auto.
 Qed.
 
 
-Fact subst_num : forall m E e, subst E e = num m -> E = Hole /\ e = num m.
-  Proof. intros. induction E; simpl in *; subst; auto; try (destruct s); try (destruct s0); inversion H.
+Fact con_subst_num : forall m E e, con_subst E e = num m -> E = Hole /\ e = num m.
+  Proof. intros. induction E; simpl in *; con_subst; auto; try (destruct s); try (destruct s0); inversion H.
   Qed.
 
-Fact subst_array : forall m E e, subst E e = array m -> E = Hole /\ e = array m.
-  Proof. intros. induction E; simpl in *; subst; auto; try (destruct s); try (destruct s0); inversion H.
+Fact con_subst_array : forall m E e, con_subst E e = array m -> E = Hole /\ e = array m.
+  Proof. intros. induction E; simpl in *; con_subst; auto; try (destruct s); try (destruct s0); inversion H.
   Qed.
 
-Fact subst_yunit : forall E e, subst E e = yunit -> E = Hole /\ e = yunit.
-  Proof. intros. induction E; simpl in *; subst; auto; try (destruct s); try (destruct s0); inversion H.
+Fact con_subst_yunit : forall E e, con_subst E e = yunit -> E = Hole /\ e = yunit.
+  Proof. intros. induction E; simpl in *; con_subst; auto; try (destruct s); try (destruct s0); inversion H.
   Qed.
 
-Fact subst_tru : forall E e, subst E e = tru -> E = Hole /\ e = tru.
-  Proof. intros. induction E; simpl in *; subst; auto; try (destruct s); try (destruct s0); inversion H.
+Fact con_subst_tru : forall E e, con_subst E e = tru -> E = Hole /\ e = tru.
+  Proof. intros. induction E; simpl in *; con_subst; auto; try (destruct s); try (destruct s0); inversion H.
   Qed.
 
-Fact subst_fls : forall E e, subst E e = fls -> E = Hole /\ e = fls.
-  Proof. intros. induction E; simpl in *; subst; auto; try (destruct s); try (destruct s0); inversion H.
+Fact con_subst_fls : forall E e, con_subst E e = fls -> E = Hole /\ e = fls.
+  Proof. intros. induction E; simpl in *; con_subst; auto; try (destruct s); try (destruct s0); inversion H.
   Qed.*)

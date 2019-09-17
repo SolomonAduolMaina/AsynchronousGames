@@ -90,7 +90,7 @@ Definition translate_arrays (init : list (nat * (list nat))) (buf_size : nat) : 
   (1,nil) :: (* RESULT_2 *)
   (1,nil) :: nil. (* SPECIAL *)
 
-Definition read_code (thread : bool) (base : nat) (buf_size : nat) (location : term) (offset : term)  : term :=
+Definition translate_read (thread : bool) (base : nat) (buf_size : nat) (location : term) (offset : term)  : term :=
   LOOP thread base ::= ZERO ;;
   FOUND thread base ::= ZERO ;;
   (WHILE !(LOOP thread base ) << (num buf_size) DO
@@ -111,7 +111,8 @@ Definition flush (thread : bool) (base : nat) (buf_size : nat) : term :=
     (SIZE thread base) ::= minus (!(SIZE thread base)) ONE
   ESAC.
 
-Definition write_code (thread : bool) (base : nat) (buf_size : nat) (array : term) (offset : term) (value : term) : term :=
+
+Definition translate_write (thread : bool) (base : nat) (buf_size : nat) (array : term) (offset : term) (value : term) : term :=
   CASE (!(SIZE thread base) == (num buf_size)) THEN (flush thread buf_size base) ELSE yunit ESAC ;;
   (REAR thread base) ::= modulo (plus (!(REAR thread base)) ONE) (num buf_size);;
   (BUFFER_A thread base)[!(REAR thread base)] ::= (& array);;
@@ -119,13 +120,9 @@ Definition write_code (thread : bool) (base : nat) (buf_size : nat) (array : ter
   (BUFFER_C thread base)[!(REAR thread base)] ::= value;;
   (SIZE thread base) ::= plus (!(SIZE thread base)) ONE.
 
-Definition nd_flush (thread : bool) (base : nat) (buf_size : nat): term :=
-  (SPECIAL base) ::= ONE ;;
-  WHILE (and (!(SPECIAL base) == ONE) (not (!(SIZE thread base) == ZERO))) DO
-    flush thread base buf_size
-  DONE.
 
-Definition nd_flush1 (thread : bool) (base : nat) (buf_size : nat): term :=
+Definition flush_star (thread : bool) (base : nat) (buf_size : nat): term :=
+  (SPECIAL base) ::= ONE ;;
   WHILE (and (!(SPECIAL base) == ONE) (not (!(SIZE thread base) == ZERO))) DO
     flush thread base buf_size
   DONE.
@@ -133,64 +130,64 @@ Definition nd_flush1 (thread : bool) (base : nat) (buf_size : nat): term :=
 
 Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : term :=
   match s with
-    | array k => app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (array k)
-    | num n => app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (num n)
-    | tru => app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) tru
-    | fls => app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) fls
-    | yunit => app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) yunit
-    | var x => app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (var x)
-    | lam x y => app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (lam x y)
+    | array k => array k
+    | num n => num n
+    | tru => tru
+    | fls => fls
+    | yunit => yunit
+    | var x => var x
+    | lam x y => lam x y
     | app e1 e2 => 
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (app x y)
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (app x y)
     | plus e1 e2 => 
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (plus x y)
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (plus x y)
     | minus e1 e2 =>
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
-      let z := nd_flush thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (minus x y)
+      let z := flush_star thread base buf_size in
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (minus x y)
     | modulo e1 e2 =>
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
-      let z := nd_flush thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (modulo x y)
+      let z := flush_star thread base buf_size in
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (modulo x y)
     | less_than e1 e2 =>
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
-      let z := nd_flush thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (less_than x y)
+      let z := flush_star thread base buf_size in
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (less_than x y)
     | and e1 e2 =>
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
-      let z := nd_flush thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (and x y)
+      let z := flush_star thread base buf_size in
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (and x y)
     | not e =>
       let x := translate e thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (not x)
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (not x)
     | reference e =>
       let x := translate e thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (reference x)
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (reference x)
     | cast e =>
       let x := translate e thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (cast x)
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (cast x)
     | case e1 e2 e3 =>
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
       let z := translate e3 thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (case x y z)
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (case x y z)
     | read e1 e2 =>
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (read_code thread base buf_size x y)
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (translate_read thread base buf_size x y)
     | write e1 e2 e3 =>
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
       let z := translate e3 thread base buf_size in
-      app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (write_code thread base buf_size x y z)
+      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (translate_write thread base buf_size x y z)
   end.
 
 Definition translate_program (p : TSO.program) : SC.program :=  

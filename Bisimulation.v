@@ -7,17 +7,9 @@ Require Import Util.
 Require Import Translation.
 
 
-(* Inductive related : (term * bool) -> (term * bool) -> Prop :=
-  | related_num : forall n thread base buf_size, related (num n, thread) (app (lam "x" (seq (nd_flush thread base buf_size) (var "x"))) (num n), thread)
-  | related_plus1 : forall e1 e1' n thread,
-                   related (e1, thread) (e1', thread) ->
-                   related (plus (num n) e1, thread) (plus (num n) e1', thread)
-  | related_plus2 : forall e1 e1' e2 thread ,
-                   (forall n, e1 <> num n) ->
-                   related (e1, thread) (e1', thread) ->
-                   related (plus e1 e2, thread) (plus e1' e2, thread).*)
+ Inductive related : (term * bool) -> (term * bool) -> Prop :=
+  | related_base : forall e thread base buf_size, related (e, thread) (translate e thread base buf_size, thread).
 
-Definition related  (s t : term * bool) := (snd s = snd t) /\ (exists buf_size base, fst t = translate (fst s) (snd s) base buf_size).
 
 Definition related_terms (TSO_program : TSO.program) (SC_program : SC.program) (base : nat) : Prop :=
   let TSO1 := snd (fst TSO_program) in
@@ -91,47 +83,30 @@ Definition related_program (p : TSO_machine) (q : SC_machine) (f : nat -> nat) (
 
 Theorem forward_bisimulation : forall p p' q f B,
   TSO.pstep p p' -> related_program p q f B -> (exists q', related_program p' q' f B /\ psteps q q').
-Proof. intros. inversion H; subst.
-  + destruct q. destruct p. repeat (destruct p). destruct m. destruct mem. destruct mem'. repeat (destruct p0). repeat (destruct p). destruct H0. simpl in *. destruct H4. destruct H4. destruct H6. simpl in *. subst. assert (l = translate_arrays (xs ++ (size, init) :: nil) buffer). apply H0. intros C. symmetry in C. contradiction app_cons_not_nil with (x:=xs) (a:=(size, init)) (y:=nil). subst. remember (translate_arrays xs buffer, t1, t0, while tru (SPECIAL (length xs) [num 0]::= ZERO)) as answer_p. unfold related_memory in H5. simpl in *. destruct H5. destruct H7. destruct H7. remember (update_mapping (length xs) x size m, allocate x (x + size - 1) init g) as answer_m. refine (ex_intro _ (answer_p, answer_m) _); subst. admit.
-  + destruct H0. simpl in *. destruct H3. destruct H3. destruct q. destruct p. destruct p. destruct p. simpl in *. clear H0. destruct H5. subst. generalize dependent s1'. induction s1; intros;  inversion H1; subst; intros.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-  + admit.
-  + admit.
+  Proof. intros. inversion H; subst.
+    + destruct q. destruct p. repeat (destruct p). destruct m. destruct mem. destruct mem'. repeat (destruct p0). repeat (destruct p). destruct H0. simpl in *. destruct H4. destruct H4. destruct H6. simpl in *. subst. assert (l = translate_arrays (xs ++ (size, init) :: nil) buffer). apply H0. intros C. symmetry in C. contradiction app_cons_not_nil with (x:=xs) (a:=(size, init)) (y:=nil). subst. remember (translate_arrays xs buffer, t1, t0, while tru (SPECIAL (length xs) [num 0]::= ZERO)) as answer_p. unfold related_memory in H5. simpl in *. destruct H5. destruct H7. destruct H7. remember (update_mapping (length xs) x size m, allocate x (x + size - 1) init g) as answer_m. refine (ex_intro _ (answer_p, answer_m) _); subst. admit.
+    + destruct H0. simpl in *. destruct H3. destruct H3. destruct q. destruct p. destruct p. destruct p. simpl in *. clear H0. destruct H5. subst. generalize dependent t1. induction H1; intros; subst.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+      ++ admit.
+    + admit.
+    + admit.
 Admitted.
