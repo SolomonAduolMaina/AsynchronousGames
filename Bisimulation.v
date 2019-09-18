@@ -7,8 +7,11 @@ Require Import Util.
 Require Import Translation.
 
 
- Inductive related : (term * bool) -> (term * bool) -> Prop :=
-  | related_base : forall e thread base buf_size, related (e, thread) (translate e thread base buf_size, thread).
+Inductive related : (term * bool) -> (term * bool) -> Prop :=
+(*  | related_reflexive : forall e thread, related (e, thread) (e, thread)*)
+  | related_translate : forall e thread base buf_size, related (e, thread) (translate e thread base buf_size, thread).
+ 
+
 
 
 Definition related_terms (TSO_program : TSO.program) (SC_program : SC.program) (base : nat) : Prop :=
@@ -81,8 +84,66 @@ Definition related_program (p : TSO_machine) (q : SC_machine) (f : nat -> nat) (
   related_terms TSO_program SC_program B /\
   related_memory TSO_memory SC_memory B f.
 
+Fact contexts_respect_bisimilarity : forall E B s2 buffer f true e event e' mem mem' m t0 l t1,
+  related (s2, false) (t0, false) ->
+  related_memory mem m B f ->
+  step e event e' ->
+  TSO.memstep mem (true, event) mem' ->
+  related (con_subst E e, true) (t1, true) ->
+  (forall re : term,
+  related (e, true) (re, true) ->
+  exists q' : SC_machine,
+  related_program (buffer, nil, e', s2, mem') q' f B /\
+  SC_program_steps (l, re, t0, while tru (SPECIAL B [num 0]::= ZERO), m) q') ->
+  exists q' : SC_machine,
+  (related_program (buffer, nil, con_subst E e', s2, mem') q' f B /\
+  SC_program_steps (l, t1, t0, while tru (SPECIAL B [num 0]::= ZERO), m) q').
+Proof. intros. generalize dependent t1. induction E; intros; simpl in *.
+  + apply H4. auto.
+  + assert (exists q' : SC_machine,
+          related_program
+            (buffer, nil, con_subst E e', s2, mem') q'
+            f B /\
+          SC_program_steps
+            (l, translate (con_subst E e) true B buffer, t0,
+            while tru (SPECIAL B [num 0]::= ZERO), m)
+            q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. destruct H7. destruct H7. simpl in *. inversion H3. inversion H7. subst. refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t3, t2, m0) _). split.
+    ++ unfold related_program. simpl. split.
+      +++ intros. contradiction H10. auto.
+      +++ split.
+        ++++ unfold related_terms. simpl in *. split.
+          - admit.
+          - split.
+            -- admit.
+            -- admit.
+        ++++ admit.
+    ++ simpl. admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+  + admit.
+Admitted.
+
+
 Theorem forward_bisimulation : forall p p' q f B,
-  TSO.pstep p p' -> related_program p q f B -> (exists q', related_program p' q' f B /\ psteps q q').
+  TSO.pstep p p' -> related_program p q f B -> (exists q', related_program p' q' f B /\ SC_program_steps q q').
   Proof. intros. inversion H; subst.
     + destruct q. destruct p. repeat (destruct p). destruct m. destruct mem. destruct mem'. repeat (destruct p0). repeat (destruct p). destruct H0. simpl in *. destruct H4. destruct H4. destruct H6. simpl in *. subst. assert (l = translate_arrays (xs ++ (size, init) :: nil) buffer). apply H0. intros C. symmetry in C. contradiction app_cons_not_nil with (x:=xs) (a:=(size, init)) (y:=nil). subst. remember (translate_arrays xs buffer, t1, t0, while tru (SPECIAL (length xs) [num 0]::= ZERO)) as answer_p. unfold related_memory in H5. simpl in *. destruct H5. destruct H7. destruct H7. remember (update_mapping (length xs) x size m, allocate x (x + size - 1) init g) as answer_m. refine (ex_intro _ (answer_p, answer_m) _); subst. admit.
     + destruct H0. simpl in *. destruct H3. destruct H3. destruct q. destruct p. destruct p. destruct p. simpl in *. clear H0. destruct H5. subst. generalize dependent t1. induction H1; intros; subst.

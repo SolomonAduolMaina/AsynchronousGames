@@ -48,27 +48,26 @@ Definition while_fics := app y_combinator while_fun.
 
 Definition while (s : term) (t : term) := app (app while_fics s) t.
 
-Bind Scope imp_scope with term.
 Notation "x == y" :=
-  (equals x y) (at level 60) : imp_scope.
+  (equals x y) (at level 60).
 Notation "x << y" :=
-  (less_than x y) (at level 60) : imp_scope.
+  (less_than x y) (at level 60).
 Notation "'!' x" :=
-  (read x (num 0)) (at level 60) : imp_scope.
+  (read x (num 0)) (at level 60).
 Notation "'&' x" :=
-  (reference x) (at level 60) : imp_scope.
+  (reference x) (at level 60).
 Notation "p '[' offset ']'" :=
-  (read p offset) (at level 60) : imp_scope.
+  (read p offset) (at level 60).
 Notation "x '::=' a" :=
-  (write x (num 0) a) (at level 60) : imp_scope.
+  (write x (num 0) a) (at level 60).
 Notation "x '[' offset ']' '::=' a" :=
-  (write x offset a) (at level 60) : imp_scope.
+  (write x offset a) (at level 60).
 Notation "c1 ;; c2" :=
-  (seq c1 c2) (at level 80, right associativity) : imp_scope.
+  (seq c1 c2) (at level 80, right associativity).
 Notation "'WHILE' b 'DO' c 'DONE'" :=
-  (while b c) (at level 80, right associativity) : imp_scope.
+  (while b c) (at level 80, right associativity).
 Notation "'CASE' c1 'THEN' c2 'ELSE' c3 'ESAC'" :=
-  (case c1 c2 c3) (at level 80, right associativity) : imp_scope.
+  (case c1 c2 c3) (at level 80, right associativity).
 
 
 Inductive mem_event : Type :=

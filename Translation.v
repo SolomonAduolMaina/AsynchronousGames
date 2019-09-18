@@ -91,17 +91,19 @@ Definition translate_arrays (init : list (nat * (list nat))) (buf_size : nat) : 
   (1,nil) :: nil. (* SPECIAL *)
 
 Definition translate_read (thread : bool) (base : nat) (buf_size : nat) (location : term) (offset : term)  : term :=
+  let read_code :=
   LOOP thread base ::= ZERO ;;
   FOUND thread base ::= ZERO ;;
   (WHILE !(LOOP thread base ) << (num buf_size) DO
-    (CASE (and ( (BUFFER_A thread base ) [!(LOOP thread base)] == location ) ( (BUFFER_B thread base) [!(LOOP thread base)] == offset )) THEN
+    (CASE (and ( (BUFFER_A thread base ) [!(LOOP thread base)] == (var "location") ) ( (BUFFER_B thread base) [!(LOOP thread base)] == (var "offset") )) THEN
       RESULT thread base ::= (BUFFER_C thread base)[!(LOOP thread base)] ;;
       FOUND thread base ::= ONE
     ELSE
       yunit
     ESAC)
   DONE);;
-  CASE (!(FOUND thread base) == ONE) THEN !(RESULT thread base) ELSE (!(cast location)) ESAC.
+  CASE (!(FOUND thread base) == ONE) THEN !(RESULT thread base) ELSE (!(cast (var "location"))) ESAC in
+app (app (lam "location" (lam "offset" read_code)) location) offset.
 
 Definition flush (thread : bool) (base : nat) (buf_size : nat) : term :=
   CASE (!(SIZE thread base ) == ZERO) THEN yunit
@@ -113,12 +115,14 @@ Definition flush (thread : bool) (base : nat) (buf_size : nat) : term :=
 
 
 Definition translate_write (thread : bool) (base : nat) (buf_size : nat) (array : term) (offset : term) (value : term) : term :=
+  let write_code :=
   CASE (!(SIZE thread base) == (num buf_size)) THEN (flush thread buf_size base) ELSE yunit ESAC ;;
   (REAR thread base) ::= modulo (plus (!(REAR thread base)) ONE) (num buf_size);;
-  (BUFFER_A thread base)[!(REAR thread base)] ::= (& array);;
-  (BUFFER_B thread base)[!(REAR thread base)] ::= offset;;
-  (BUFFER_C thread base)[!(REAR thread base)] ::= value;;
-  (SIZE thread base) ::= plus (!(SIZE thread base)) ONE.
+  (BUFFER_A thread base)[!(REAR thread base)] ::= (& (var "array"));;
+  (BUFFER_B thread base)[!(REAR thread base)] ::= (var "offset");;
+  (BUFFER_C thread base)[!(REAR thread base)] ::= (var "value");;
+  (SIZE thread base) ::= plus (!(SIZE thread base)) ONE
+in app (app (app (lam "array" (lam "offset" (lam "value" write_code))) array) offset) value.
 
 
 Definition flush_star (thread : bool) (base : nat) (buf_size : nat): term :=
