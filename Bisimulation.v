@@ -8,11 +8,8 @@ Require Import Translation.
 
 
 Inductive related : (term * bool) -> (term * bool) -> Prop :=
-(*  | related_reflexive : forall e thread, related (e, thread) (e, thread)*)
   | related_translate : forall e thread base buf_size, related (e, thread) (translate e thread base buf_size, thread).
  
-
-
 
 Definition related_terms (TSO_program : TSO.program) (SC_program : SC.program) (base : nat) : Prop :=
   let TSO1 := snd (fst TSO_program) in
