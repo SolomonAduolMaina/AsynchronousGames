@@ -134,12 +134,12 @@ Definition flush_star (thread : bool) (base : nat) (buf_size : nat): term :=
 
 Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : term :=
   match s with
-    | array k =>seq (flush_star thread base buf_size) (array k)
-    | num n => seq (flush_star thread base buf_size) (num n)
-    | tru => seq (flush_star thread base buf_size) tru
-    | fls =>seq (flush_star thread base buf_size) fls
-    | yunit => seq (flush_star thread base buf_size) yunit
-    | var x => seq (flush_star thread base buf_size) (var x)
+    | array k => array k
+    | num n => num n
+    | tru => tru
+    | fls => fls
+    | yunit => yunit
+    | var x => var x
     | lam x y => lam x y
     | app e1 e2 => 
       let x := translate e1 thread base buf_size in

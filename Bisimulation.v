@@ -7,18 +7,19 @@ Require Import Util.
 Require Import Translation.
 
 
-Inductive related : (term * bool) -> (term * bool) -> Prop :=
-  | related_translate : forall e thread base buf_size, related (e, thread) (translate e thread base buf_size, thread).
+Inductive related (base : nat) (buf_size : nat) : (term * bool) -> (term * bool) -> Prop :=
+  | related_translate : forall e thread, related base buf_size (e, thread) (translate e thread base buf_size, thread).
  
 
 Definition related_terms (TSO_program : TSO.program) (SC_program : SC.program) (base : nat) : Prop :=
   let TSO1 := snd (fst TSO_program) in
   let TSO2 := snd TSO_program in
   let SC1 := snd (fst (fst SC_program)) in
-  let SC2 := snd (fst SC_program) in
+  let SC2 := snd (fst SC_program)in
   let SC3 := snd SC_program in
-  related (TSO1, true) (SC1, true) /\
-  related (TSO2, false) (SC2, false) /\
+  let buf_size := fst (fst (fst TSO_program)) in
+  related base buf_size (TSO1, true) (SC1, true) /\
+  related base buf_size (TSO2, false) (SC2, false) /\
   SC3 = while tru ((SPECIAL base) ::= ZERO).
 
 Definition related_memory (TSO_memory : TSO.memory_model) (SC_memory : SC.memory_model) (B : nat) (f : nat -> nat) : Prop :=
@@ -81,14 +82,28 @@ Definition related_program (p : TSO_machine) (q : SC_machine) (f : nat -> nat) (
   related_terms TSO_program SC_program B /\
   related_memory TSO_memory SC_memory B f.
 
-Fact contexts_respect_bisimilarity : forall E B s2 buffer f true e event e' mem mem' m t0 l t1,
-  related (s2, false) (t0, false) ->
+Fact psteps_app : forall t t' x e,
+  SC_program_steps t t' ->
+  SC_program_steps (fst (fst (fst (fst t))), app (lam x e) (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), app (lam x e) (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. induction H.
+  + apply SC_program_steps_reflexive.
+  + destruct q. destruct p. destruct p. destruct p. destruct p. destruct r. destruct p. destruct p. destruct p. destruct p0. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l1, app (lam x e) t7, t6, t5, m)). inversion H; subst.
+    ++ apply ST_init_allocate_array. auto. auto. auto.
+    ++ apply ST_synchronize1 with (event:=event).
+       assert (exists y e', lam x e = lam y e'). refine (ex_intro _ x _). refine (ex_intro _ e _). reflexivity. assert (app (lam x e) t1 = con_subst (Capp2 (exist _ (lam x e) H1) Hole) t1). simpl. reflexivity. assert (app (lam x e) t7 = con_subst (Capp2 (exist _ (lam x e) H1) Hole) t7). simpl. reflexivity. rewrite H2. rewrite H4. apply step_context. auto. auto.
+    ++ apply ST_synchronize2 with (event:=event). auto. auto.
+    ++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ auto.
+Qed.
+
+Fact contexts_respect_bisimilarity : forall E B s2 buffer f e event e' mem mem' m t0 l t1,
+  related B buffer (s2, false) (t0, false) ->
   related_memory mem m B f ->
   step e event e' ->
   TSO.memstep mem (true, event) mem' ->
-  related (con_subst E e, true) (t1, true) ->
+  related B buffer (con_subst E e, true) (t1, true) ->
   (forall re : term,
-  related (e, true) (re, true) ->
+  related B buffer (e, true) (re, true) ->
   exists q' : SC_machine,
   related_program (buffer, nil, e', s2, mem') q' f B /\
   SC_program_steps (l, re, t0, while tru (SPECIAL B [num 0]::= ZERO), m) q') ->
@@ -104,17 +119,28 @@ Proof. intros. generalize dependent t1. induction E; intros; simpl in *.
           SC_program_steps
             (l, translate (con_subst E e) true B buffer, t0,
             while tru (SPECIAL B [num 0]::= ZERO), m)
-            q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. destruct H7. destruct H7. simpl in *. inversion H3. inversion H7. subst. refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t3, t2, m0) _). split.
-    ++ unfold related_program. simpl. split.
-      +++ intros. contradiction H10. auto.
+            q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. unfold related_terms in H7. destruct H7. destruct H7. simpl in *. inversion H3. inversion H7. subst. refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t3, t2, m0) _). split.
+    ++ split.
+      +++ simpl. intros. contradiction H10. auto.
       +++ split.
         ++++ unfold related_terms. simpl in *. split.
-          - admit.
-          - split.
-            -- admit.
-            -- admit.
-        ++++ admit.
-    ++ simpl. admit.
+          - assert ((translate (app (con_subst E e') t) true B buffer, true) =
+(app (lam "x" (flush_star true B buffer;; var "x")) (app (translate (con_subst E e') true B buffer) (translate t true B buffer)), true)). auto. rewrite <- H10. apply related_translate.
+          - auto.
+        ++++ auto.
+    ++ simpl. remember (l,
+      (app (translate (con_subst E e) true B buffer)
+         (translate t true B buffer)), t0,
+    WHILE tru DO SPECIAL B [num 0]::= ZERO DONE, m) as P1. remember (l0,
+      (app (translate (con_subst E e') true B buffer)
+         (translate t true B buffer)), t3, t2, m0) as P2. assert ((l,
+    app (lam "x" (flush_star true B buffer;; var "x"))
+      (app (translate (con_subst E e) true B buffer)
+         (translate t true B buffer)), t0,
+    WHILE tru DO SPECIAL B [num 0]::= ZERO DONE, m) = (fst (fst (fst (fst P1))), app (lam "x" (flush_star true B buffer;; var "x")) (snd (fst (fst (fst P1)))), snd (fst (fst P1)), snd (fst P1), snd P1)). subst. simpl. auto. rewrite H10. assert ((l0,
+    app (lam "x" (flush_star true B buffer;; var "x"))
+      (app (translate (con_subst E e') true B buffer)
+         (translate t true B buffer)), t3, t2, m0) = (fst (fst (fst (fst P2))), app (lam "x" (flush_star true B buffer;; var "x")) (snd (fst (fst (fst P2)))), snd (fst (fst P2)), snd (fst P2), snd P2)). subst. simpl. auto. rewrite H11. clear H10. clear H11. apply psteps_app. subst. simpl in *. admit.
   + admit.
   + admit.
   + admit.
