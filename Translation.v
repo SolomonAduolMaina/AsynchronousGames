@@ -141,6 +141,16 @@ Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : te
     | yunit => yunit
     | var x => var x
     | lam x y => lam x y
+    | app (lam x e) (array k) =>
+      seq (flush_star thread base buf_size) (subst x (array k) (translate e thread base buf_size))
+    | app (lam x e) (num n) =>
+      seq (flush_star thread base buf_size) (subst x (num n) (translate e thread base buf_size))
+    | app (lam x e) tru =>
+      seq (flush_star thread base buf_size) (subst x tru (translate e thread base buf_size))
+    | app (lam x e) fls =>
+      seq (flush_star thread base buf_size) (subst x fls (translate e thread base buf_size))
+    | app (lam x e) (lam y e') =>
+      seq (flush_star thread base buf_size) (subst x (lam y e') (translate e thread base buf_size))
     | app e1 e2 => 
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
@@ -193,6 +203,7 @@ Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : te
       let z := translate e3 thread base buf_size in
       app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (translate_write thread base buf_size x y z)
   end.
+
 
 Definition translate_program (p : TSO.program) : SC.program :=  
   let buf_size := fst (fst (fst p)) in

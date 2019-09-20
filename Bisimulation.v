@@ -8,7 +8,9 @@ Require Import Translation.
 
 
 Inductive related (base : nat) (buf_size : nat) : (term * bool) -> (term * bool) -> Prop :=
-  | related_translate : forall e thread, related base buf_size (e, thread) (translate e thread base buf_size, thread).
+  | related_translate : forall e thread, related base buf_size (e, thread) (translate e thread base buf_size, thread)
+  | related_flush : forall e thread, related base buf_size (e, thread) (seq (flush_star thread base buf_size) (translate e thread base buf_size), thread)
+.
  
 
 Definition related_terms (TSO_program : TSO.program) (SC_program : SC.program) (base : nat) : Prop :=
@@ -112,35 +114,28 @@ Fact contexts_respect_bisimilarity : forall E B s2 buffer f e event e' mem mem' 
   SC_program_steps (l, t1, t0, while tru (SPECIAL B [num 0]::= ZERO), m) q').
 Proof. intros. generalize dependent t1. induction E; intros; simpl in *.
   + apply H4. auto.
-  + assert (exists q' : SC_machine,
+  + inversion H3; subst.
+    ++
+assert (exists q' : SC_machine,
           related_program
             (buffer, nil, con_subst E e', s2, mem') q'
             f B /\
           SC_program_steps
             (l, translate (con_subst E e) true B buffer, t0,
             while tru (SPECIAL B [num 0]::= ZERO), m)
-            q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. unfold related_terms in H7. destruct H7. destruct H7. simpl in *. inversion H3. inversion H7. subst. refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t3, t2, m0) _). split.
-    ++ split.
-      +++ simpl. intros. contradiction H10. auto.
-      +++ split.
-        ++++ unfold related_terms. simpl in *. split.
-          - assert ((translate (app (con_subst E e') t) true B buffer, true) =
-(app (lam "x" (flush_star true B buffer;; var "x")) (app (translate (con_subst E e') true B buffer) (translate t true B buffer)), true)). auto. rewrite <- H10. apply related_translate.
-          - auto.
-        ++++ auto.
-    ++ simpl. remember (l,
-      (app (translate (con_subst E e) true B buffer)
-         (translate t true B buffer)), t0,
-    WHILE tru DO SPECIAL B [num 0]::= ZERO DONE, m) as P1. remember (l0,
-      (app (translate (con_subst E e') true B buffer)
-         (translate t true B buffer)), t3, t2, m0) as P2. assert ((l,
-    app (lam "x" (flush_star true B buffer;; var "x"))
-      (app (translate (con_subst E e) true B buffer)
-         (translate t true B buffer)), t0,
-    WHILE tru DO SPECIAL B [num 0]::= ZERO DONE, m) = (fst (fst (fst (fst P1))), app (lam "x" (flush_star true B buffer;; var "x")) (snd (fst (fst (fst P1)))), snd (fst (fst P1)), snd (fst P1), snd P1)). subst. simpl. auto. rewrite H10. assert ((l0,
-    app (lam "x" (flush_star true B buffer;; var "x"))
-      (app (translate (con_subst E e') true B buffer)
-         (translate t true B buffer)), t3, t2, m0) = (fst (fst (fst (fst P2))), app (lam "x" (flush_star true B buffer;; var "x")) (snd (fst (fst (fst P2)))), snd (fst (fst P2)), snd (fst P2), snd P2)). subst. simpl. auto. rewrite H11. clear H10. clear H11. apply psteps_app. subst. simpl in *. admit.
+            q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. unfold related_terms in H7. destruct H7. destruct H7. simpl in *. inversion H7; subst.
+      +++ refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). simpl. admit.
+      +++ refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). simpl. admit.
+    ++ assert (exists q' : SC_machine,
+          related_program
+            (buffer, nil, con_subst E e', s2, mem') q'
+            f B /\
+          SC_program_steps
+            (l, translate (con_subst E e) true B buffer, t0,
+            while tru (SPECIAL B [num 0]::= ZERO), m)
+            q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. unfold related_terms in H7. destruct H7. destruct H7. simpl in *. inversion H7; subst.
+      +++ refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). simpl. admit.
+      +++ refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). simpl. admit.
   + admit.
   + admit.
   + admit.
