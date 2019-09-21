@@ -204,6 +204,92 @@ Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : te
       app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (translate_write thread base buf_size x y z)
   end.
 
+Fact translate_app : forall e t thread B buffer,
+(match e with
+    | lam x e0 =>
+        match t with
+        | array k =>
+            flush_star thread B buffer;; subst x (array k) (translate e0 thread B buffer)
+        | num n => flush_star thread B buffer;; subst x (num n) (translate e0 thread B buffer)
+        | tru => flush_star thread B buffer;; subst x tru (translate e0 thread B buffer)
+        | fls => flush_star thread B buffer;; subst x fls (translate e0 thread B buffer)
+        | lam y e'0 =>
+            flush_star thread B buffer;; subst x (lam y e'0) (translate e0 thread B buffer)
+        | _ =>
+            app (lam "x" (flush_star thread B buffer;; var "x"))
+              (app (translate e thread B buffer) (translate t thread B buffer))
+        end
+    | _ =>
+        app (lam "x" (flush_star thread B buffer;; var "x"))
+          (app (translate e thread B buffer) (translate t thread B buffer))
+    end) = translate (app e t) thread B buffer.
+Proof. intros. simpl. auto. Qed.
+
+Fact subst_flush_star : forall x v thread base buf_size,
+  subst x v (lam "x" (flush_star thread base buf_size;; var "x")) =
+  (lam "x" (flush_star thread base buf_size;; var "x")).
+Proof. intros. simpl. assert (subst x v (FRONT thread base) = (FRONT thread base)). unfold FRONT. destruct thread. unfold FRONT_1. simpl. reflexivity. unfold FRONT_2. simpl. reflexivity. assert (subst x v (SIZE thread base) = (SIZE thread base)). unfold SIZE. destruct thread. unfold SIZE_1. simpl. reflexivity. unfold SIZE_2. simpl. reflexivity. assert (subst x v (BUFFER_A thread base) = (BUFFER_A thread base)). unfold BUFFER_A. destruct thread. unfold BUFFER_1A. simpl. reflexivity. unfold BUFFER_2A. simpl. reflexivity. assert (subst x v (BUFFER_B thread base) = (BUFFER_B thread base)). unfold BUFFER_B. destruct thread. unfold BUFFER_1B. simpl. reflexivity. unfold BUFFER_2B. simpl. reflexivity. assert (subst x v (BUFFER_C thread base) = (BUFFER_C thread base)). unfold BUFFER_C. destruct thread. unfold BUFFER_1C. simpl. reflexivity. unfold BUFFER_2C. simpl. reflexivity.
+destruct (string_dec x "x") eqn:ORIG; destruct (string_dec x "y") eqn:ORIG1; destruct (string_dec x "g") eqn:ORIG2; destruct (string_dec x "while") eqn:ORIG3; destruct (string_dec x "b") eqn:ORIG4; destruct (string_dec x "c") eqn:ORIG5; try (rewrite H); try (rewrite H0); try (rewrite H1); try (rewrite H1); try (rewrite H2); try (rewrite H3); auto; simpl. Qed.
+
+Fact subst_array : forall n x v, subst x v (array n) = array n.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_num : forall n x v, subst x v (num n) = num n.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_tru : forall x v, subst x v tru = tru.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_fls : forall x v, subst x v fls = fls.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_yunit : forall x v, subst x v yunit = yunit.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_app : forall e1 e2 x v, subst x v (app e1 e2) = app (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+
+Fact subst_plus : forall e1 e2 x v, subst x v (plus e1 e2) = plus (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_minus : forall e1 e2 x v, subst x v (minus e1 e2) = minus (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_modulo : forall e1 e2 x v, subst x v (modulo e1 e2) = modulo (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_less_than : forall e1 e2 x v, subst x v (less_than e1 e2) = less_than (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_and : forall e1 e2 x v, subst x v (and e1 e2) = and (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_not : forall e1  x v, subst x v (not e1) = not (subst x v e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_cast : forall e1 x v, subst x v (cast e1) = cast (subst x v e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_reference : forall e1 x v, subst x v (reference e1) = reference (subst x v e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_read : forall e1 e2 x v, subst x v (read e1 e2) = read (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_write : forall e1 e2 e3 x v, subst x v (write e1 e2 e3) = write (subst x v e1) (subst x v e2) (subst x v e3).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_case : forall e1 e2 e3 x v, subst x v (case e1 e2 e3) = case (subst x v e1) (subst x v e2) (subst x v e3).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_var : forall x y v, subst x v (var y) = if (string_dec x y) then v else (var y).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_lam : forall x y v e, subst x v (lam y e) = lam y (if (string_dec x y) then e else (subst x v e)).
+Proof. intros. simpl. reflexivity. Qed.
+
+
 
 Definition translate_program (p : TSO.program) : SC.program :=  
   let buf_size := fst (fst (fst p)) in
