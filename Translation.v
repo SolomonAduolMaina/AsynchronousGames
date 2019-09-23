@@ -140,17 +140,7 @@ Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : te
     | fls => fls
     | yunit => yunit
     | var x => var x
-    | lam x y => lam x y
-    | app (lam x e) (array k) =>
-      seq (flush_star thread base buf_size) (subst x (array k) (translate e thread base buf_size))
-    | app (lam x e) (num n) =>
-      seq (flush_star thread base buf_size) (subst x (num n) (translate e thread base buf_size))
-    | app (lam x e) tru =>
-      seq (flush_star thread base buf_size) (subst x tru (translate e thread base buf_size))
-    | app (lam x e) fls =>
-      seq (flush_star thread base buf_size) (subst x fls (translate e thread base buf_size))
-    | app (lam x e) (lam y e') =>
-      seq (flush_star thread base buf_size) (subst x (lam y e') (translate e thread base buf_size))
+    | lam x e => lam x (translate e thread base buf_size)
     | app e1 e2 => 
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
@@ -203,27 +193,6 @@ Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : te
       let z := translate e3 thread base buf_size in
       app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (translate_write thread base buf_size x y z)
   end.
-
-Fact translate_app : forall e t thread B buffer,
-(match e with
-    | lam x e0 =>
-        match t with
-        | array k =>
-            flush_star thread B buffer;; subst x (array k) (translate e0 thread B buffer)
-        | num n => flush_star thread B buffer;; subst x (num n) (translate e0 thread B buffer)
-        | tru => flush_star thread B buffer;; subst x tru (translate e0 thread B buffer)
-        | fls => flush_star thread B buffer;; subst x fls (translate e0 thread B buffer)
-        | lam y e'0 =>
-            flush_star thread B buffer;; subst x (lam y e'0) (translate e0 thread B buffer)
-        | _ =>
-            app (lam "x" (flush_star thread B buffer;; var "x"))
-              (app (translate e thread B buffer) (translate t thread B buffer))
-        end
-    | _ =>
-        app (lam "x" (flush_star thread B buffer;; var "x"))
-          (app (translate e thread B buffer) (translate t thread B buffer))
-    end) = translate (app e t) thread B buffer.
-Proof. intros. simpl. auto. Qed.
 
 Fact subst_flush_star : forall x v thread base buf_size,
   subst x v (lam "x" (flush_star thread base buf_size;; var "x")) =
