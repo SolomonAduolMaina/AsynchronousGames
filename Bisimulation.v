@@ -9,9 +9,7 @@ Require Import Translation.
 
 Inductive related (base : nat) (buf_size : nat) : (term * bool) -> (term * bool) -> Prop :=
   | related_translate : forall e thread, related base buf_size (e, thread) (translate e thread base buf_size, thread)
-  | related_flush : forall e thread, related base buf_size (e, thread) (seq (flush_star thread base buf_size) (translate e thread base buf_size), thread)
-  | related_subst : forall x v e thread, value v -> related base buf_size (subst x v e, thread) (seq (flush_star thread base buf_size) (subst x v (translate e thread base buf_size)), thread).
-
+  | related_flush : forall e thread, related base buf_size (e, thread) (seq (flush_star thread base buf_size) (translate e thread base buf_size), thread).
 
 
 Definition related_terms (TSO_program : TSO.program) (SC_program : SC.program) (base : nat) : Prop :=
@@ -127,7 +125,6 @@ assert (exists q' : SC_machine,
             q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. unfold related_terms in H7. destruct H7. destruct H7. simpl in *. inversion H7; subst.
       +++ refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). simpl. repeat (rewrite translate_app in *). admit.
       +++ repeat (rewrite translate_app in *). refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). admit.
-      +++ admit.
     ++ assert (exists q' : SC_machine,
           related_program
             (buffer, nil, con_subst E e', s2, mem') q'
@@ -138,8 +135,6 @@ assert (exists q' : SC_machine,
             q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. unfold related_terms in H7. destruct H7. destruct H7. simpl in *. inversion H7; subst.
       +++ refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). simpl. admit.
       +++ refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). simpl. admit.
-      +++ admit.
-    ++ simpl in *. admit.
   + admit.
   + admit.
   + admit.
