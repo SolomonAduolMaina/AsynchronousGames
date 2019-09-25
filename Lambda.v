@@ -109,6 +109,147 @@ Fixpoint subst (x : string) (v : term) (e : term) :=
     | lam y e => lam y (if (string_dec x y) then e else (subst x v e))
   end.
 
+Fixpoint remove (s : string) (l : list string) :=
+  match l with
+    | nil => nil
+    | t :: l => if string_dec t s then (remove s l) else t :: (remove s l)
+  end.
+
+Fixpoint fvs (e : term) : list string :=
+  match e with
+    | array _ => nil
+    | num _ => nil
+    | plus e1 e2 => (fvs e1) ++ (fvs e2)
+    | minus e1 e2 =>  (fvs e1) ++ (fvs e2)
+    | modulo e1 e2 =>  (fvs e1) ++ (fvs e2)
+    | tru => nil
+    | fls => nil
+    | less_than e1 e2 =>  (fvs e1) ++ (fvs e2)
+    | not e => fvs e
+    | and e1 e2 =>  (fvs e1) ++ (fvs e2)
+    | yunit => nil
+    | write e1 e2 e3 => (fvs e1) ++ (fvs e2) ++ (fvs e3)
+    | read e1 e2 =>  (fvs e1) ++ (fvs e2)
+    | reference e => fvs e
+    | cast e => fvs e
+    | case e1 e2 e3 => (fvs e1) ++ (fvs e2) ++ (fvs e3)
+    | var y => y :: nil
+    | app e1 e2 =>  (fvs e1) ++ (fvs e2)
+    | lam x e => remove x (fvs e)
+  end.
+
+Fact subst_array : forall n x v, subst x v (array n) = array n.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_num : forall n x v, subst x v (num n) = num n.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_tru : forall x v, subst x v tru = tru.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_fls : forall x v, subst x v fls = fls.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_yunit : forall x v, subst x v yunit = yunit.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_app : forall e1 e2 x v, subst x v (app e1 e2) = app (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+
+Fact subst_plus : forall e1 e2 x v, subst x v (plus e1 e2) = plus (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_minus : forall e1 e2 x v, subst x v (minus e1 e2) = minus (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_modulo : forall e1 e2 x v, subst x v (modulo e1 e2) = modulo (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_less_than : forall e1 e2 x v, subst x v (less_than e1 e2) = less_than (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_and : forall e1 e2 x v, subst x v (and e1 e2) = and (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_not : forall e1  x v, subst x v (not e1) = not (subst x v e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_cast : forall e1 x v, subst x v (cast e1) = cast (subst x v e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_reference : forall e1 x v, subst x v (reference e1) = reference (subst x v e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_read : forall e1 e2 x v, subst x v (read e1 e2) = read (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_write : forall e1 e2 e3 x v, subst x v (write e1 e2 e3) = write (subst x v e1) (subst x v e2) (subst x v e3).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_case : forall e1 e2 e3 x v, subst x v (case e1 e2 e3) = case (subst x v e1) (subst x v e2) (subst x v e3).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_var : forall x y v, subst x v (var y) = if (string_dec x y) then v else (var y).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_lam : forall x y v e, subst x v (lam y e) = lam y (if (string_dec x y) then e else (subst x v e)).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_closed_helper1 : forall y l x, In y l -> y <> x -> In y (remove x l).
+Proof. intros. induction l.
+  + inversion H.
+  + simpl. destruct (string_dec a x).
+    ++ subst. apply IHl. destruct H. contradiction H0. auto. auto.
+    ++ simpl. destruct H. subst. left. reflexivity. right. apply IHl. auto. Qed.
+
+Fact not_in_app : forall {A} (x: A) l l', (~ (In x (l ++ l'))) -> (~ (In x l)) /\ (~ (In x l')).
+Proof. intros. induction l.
+  + simpl in *. auto.
+  + simpl in *. split.
+    ++ intros C. apply H. destruct C.
+      +++ left. auto.
+      +++ right. apply in_or_app. left. auto.
+    ++ apply IHl. intros C. apply H. right. auto.
+Qed.
+
+
+
+Fact subst_idempotent : forall x v e, (~ (In x (fvs e))) -> subst x v e = e.
+Proof. intros. generalize dependent x. induction e; intros.
+  + rewrite subst_array. reflexivity.
+  + rewrite subst_num. reflexivity.
+  + rewrite subst_plus. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
+  + rewrite subst_minus. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
+  + rewrite subst_modulo. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
+  + rewrite subst_tru. reflexivity.
+  + rewrite subst_fls. reflexivity.
+  + rewrite subst_less_than. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
+  + rewrite subst_not. simpl in H. rewrite IHe. auto. auto.
+  + rewrite subst_and. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
+  + rewrite subst_yunit. auto.
+  + rewrite subst_read. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
+  + rewrite subst_write. simpl in H. apply not_in_app in H. destruct H. apply not_in_app in H0. destruct H0. rewrite IHe1. rewrite IHe2. rewrite IHe3. auto. auto. auto. auto.
+  + rewrite subst_reference. simpl in H. rewrite IHe. auto. auto.
+  + rewrite subst_cast. simpl in H. rewrite IHe. auto. auto.
+  + rewrite subst_case. simpl in H. apply not_in_app in H. destruct H. apply not_in_app in H0. destruct H0. rewrite IHe1. rewrite IHe2. rewrite IHe3. auto. auto. auto. auto.
+  + rewrite subst_var. simpl in H. destruct (string_dec x s).
+    ++ subst. contradiction H. left. reflexivity.
+    ++ reflexivity.
+  + rewrite subst_app. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
+  + rewrite subst_lam. destruct (string_dec x s).
+    ++ reflexivity.
+    ++ rewrite IHe. auto. simpl in H. intros C. destruct (string_dec x s).
+      +++ contradiction n.
+      +++ contradiction H. apply subst_closed_helper1. auto. auto.
+Qed.
+
+
+
+Fact subst_closed : forall x v e, fvs e = nil -> subst x v e = e.
+Proof. intros. apply subst_idempotent. rewrite H. auto. Qed.
+
+
 Inductive context : Type :=
   | Hole : context
   | Capp1 : context -> term -> context
@@ -192,65 +333,4 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_case2 : forall e2 e3, step (case fls e2 e3) Tau e3
   | step_while : forall b c, step (while b c) Tau (case b (seq c (while b c)) yunit).
 
-Fact subst_inversion : forall E e e', con_subst E e = con_subst E e' -> e = e'.
-Proof. intros. induction E; simpl in *; auto; apply IHE; try (destruct s); try (destruct s0); inversion H;   auto.
-Qed.
 
-
-Fact subst_array : forall n x v, subst x v (array n) = array n.
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_num : forall n x v, subst x v (num n) = num n.
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_tru : forall x v, subst x v tru = tru.
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_fls : forall x v, subst x v fls = fls.
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_yunit : forall x v, subst x v yunit = yunit.
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_app : forall e1 e2 x v, subst x v (app e1 e2) = app (subst x v e1) (subst x v e2).
-Proof. intros. simpl. reflexivity. Qed.
-
-
-Fact subst_plus : forall e1 e2 x v, subst x v (plus e1 e2) = plus (subst x v e1) (subst x v e2).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_minus : forall e1 e2 x v, subst x v (minus e1 e2) = minus (subst x v e1) (subst x v e2).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_modulo : forall e1 e2 x v, subst x v (modulo e1 e2) = modulo (subst x v e1) (subst x v e2).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_less_than : forall e1 e2 x v, subst x v (less_than e1 e2) = less_than (subst x v e1) (subst x v e2).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_and : forall e1 e2 x v, subst x v (and e1 e2) = and (subst x v e1) (subst x v e2).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_not : forall e1  x v, subst x v (not e1) = not (subst x v e1).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_cast : forall e1 x v, subst x v (cast e1) = cast (subst x v e1).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_reference : forall e1 x v, subst x v (reference e1) = reference (subst x v e1).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_read : forall e1 e2 x v, subst x v (read e1 e2) = read (subst x v e1) (subst x v e2).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_write : forall e1 e2 e3 x v, subst x v (write e1 e2 e3) = write (subst x v e1) (subst x v e2) (subst x v e3).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_case : forall e1 e2 e3 x v, subst x v (case e1 e2 e3) = case (subst x v e1) (subst x v e2) (subst x v e3).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_var : forall x y v, subst x v (var y) = if (string_dec x y) then v else (var y).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_lam : forall x y v e, subst x v (lam y e) = lam y (if (string_dec x y) then e else (subst x v e)).
-Proof. intros. simpl. reflexivity. Qed.
