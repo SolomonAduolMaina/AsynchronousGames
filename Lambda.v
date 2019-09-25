@@ -86,29 +86,6 @@ Inductive value : term -> Prop :=
   | value_fls : value fls
   | value_lam : forall x y, value (lam x y).
 
-Fixpoint subst (x : string) (v : term) (e : term) :=
-  match e with
-    | array _ => e
-    | num _ => e
-    | plus e1 e2 => plus (subst x v e1) (subst x v e2)
-    | minus e1 e2 => minus (subst x v e1) (subst x v e2)
-    | modulo e1 e2 => modulo (subst x v e1) (subst x v e2)
-    | tru => tru
-    | fls => fls
-    | less_than e1 e2 => less_than (subst x v e1) (subst x v e2)
-    | not e => not (subst x v e)
-    | and e1 e2 => and (subst x v e1) (subst x v e2)
-    | yunit => yunit
-    | write e1 e2 e3 => write (subst x v e1) (subst x v e2) (subst x v e3)
-    | read e1 e2 => read (subst x v e1) (subst x v e2)
-    | reference e => reference (subst x v e)
-    | cast e => cast (subst x v e)
-    | case e1 e2 e3 => case (subst x v e1) (subst x v e2) (subst x v e3)
-    | var y => if string_dec x y then v else var y
-    | app e1 e2 => app (subst x v e1) (subst x v e2)
-    | lam y e => lam y (if (string_dec x y) then e else (subst x v e))
-  end.
-
 Fixpoint remove (s : string) (l : list string) :=
   match l with
     | nil => nil
@@ -137,6 +114,34 @@ Fixpoint fvs (e : term) : list string :=
     | app e1 e2 =>  (fvs e1) ++ (fvs e2)
     | lam x e => remove x (fvs e)
   end.
+
+
+Fixpoint subst (x : string) (v : term) (e : term) :=
+  match e with
+    | array _ => e
+    | num _ => e
+    | plus e1 e2 => plus (subst x v e1) (subst x v e2)
+    | minus e1 e2 => minus (subst x v e1) (subst x v e2)
+    | modulo e1 e2 => modulo (subst x v e1) (subst x v e2)
+    | tru => tru
+    | fls => fls
+    | less_than e1 e2 => less_than (subst x v e1) (subst x v e2)
+    | not e => not (subst x v e)
+    | and e1 e2 => and (subst x v e1) (subst x v e2)
+    | yunit => yunit
+    | write e1 e2 e3 => write (subst x v e1) (subst x v e2) (subst x v e3)
+    | read e1 e2 => read (subst x v e1) (subst x v e2)
+    | reference e => reference (subst x v e)
+    | cast e => cast (subst x v e)
+    | case e1 e2 e3 => case (subst x v e1) (subst x v e2) (subst x v e3)
+    | var y => if string_dec x y then v else var y
+    | app e1 e2 => app (subst x v e1) (subst x v e2)
+    | lam y e => lam y (if (string_dec x y) then e else (subst x v e))
+  end.
+
+
+
+
 
 Fact subst_array : forall n x v, subst x v (array n) = array n.
 Proof. intros. simpl. reflexivity. Qed.
@@ -269,8 +274,9 @@ Inductive context : Type :=
   | Cwrite1 : context -> term -> term -> context
   | Cwrite2 : {x : term | exists s, x = array s} -> context -> term -> context
   | Cwrite3 : {x : term | exists s, x = array s} -> {x : term | exists n, x = num n} -> context -> context
-  | Ccase : context -> term -> term -> context
-  | Cseq : context -> term -> context
+  | Ccase1 : context -> term -> term -> context
+  | Ccase2 : {x : term | x = tru} -> context -> term -> context
+  | Ccase3 : {x : term | x = fls} -> term -> context -> context
   | Cnot : context -> context
   | Creference : context -> context
   | Ccast : context -> context.
@@ -295,8 +301,9 @@ Fixpoint con_subst (E : context) (s : term) : term :=
     | Cwrite1 E t t' => write (con_subst E s) t t'
     | Cwrite2 (exist _ x _) E t => write x (con_subst E s) t
     | Cwrite3 (exist _ x _) (exist _ y _) E => write x y (con_subst E s)
-    | Ccase E t t' => case (con_subst E s) t t'
-    | Cseq E t => seq (con_subst E s) t
+    | Ccase1 E t t' => case (con_subst E s) t t'
+    | Ccase2 (exist _ x _) E t' => case x (con_subst E s) t'
+    | Ccase3 (exist _ x _) t E => case x t (con_subst E s)
     | Cnot E => not (con_subst E s)
     | Creference E => reference (con_subst E s)
     | Ccast E => cast (con_subst E s)
@@ -324,13 +331,9 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_lt2 : forall m n, m >= n -> step (less_than (num m) (num n)) Tau fls
   | step_and1 : step (and tru tru) Tau tru
   | step_and2 : step (and tru fls) Tau fls
-  | step_and3 : step (and fls tru) Tau fls
-  | step_and4 : step (and fls fls) Tau fls
+  | step_and3 : forall e, step (and fls e) Tau fls
   | step_not1 : step (not tru) Tau fls
   | step_not2 : step (not fls) Tau tru
-  | step_seq : forall e2, step (seq yunit e2) Tau e2
-  | step_case1 : forall e2 e3, step (case tru e2 e3) Tau e2
-  | step_case2 : forall e2 e3, step (case fls e2 e3) Tau e3
-  | step_while : forall b c, step (while b c) Tau (case b (seq c (while b c)) yunit).
-
+  | step_case1 : forall v e, value v -> step (case tru v e) Tau v
+  | step_case2 : forall v e, value v -> step (case fls e v) Tau v.
 
