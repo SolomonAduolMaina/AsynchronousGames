@@ -25,6 +25,7 @@ Definition LOOP_2_CONST := 15.
 Definition FOUND_2_CONST := 16.
 Definition RESULT_2_CONST := 17.
 Definition SPECIAL_CONST := 18.
+Definition DONE_COUNTER_CONST := 19.
 
 Definition BUFFER_1A (base : nat) : term := array (base + BUFFER_1A_CONST).
 Definition BUFFER_1B (base : nat) : term := array (base + BUFFER_1B_CONST).
@@ -45,6 +46,7 @@ Definition LOOP_2 (base : nat) : term := array (base + LOOP_2_CONST).
 Definition FOUND_2 (base : nat) : term := array (base + FOUND_2_CONST).
 Definition RESULT_2 (base : nat) : term := array (base + RESULT_2_CONST).
 Definition SPECIAL (base : nat) : term := array (base + SPECIAL_CONST).
+Definition DONE_COUNTER (base : nat) : term := array (base + DONE_COUNTER_CONST).
 
 Definition BUFFER_A (thread : bool) (base : nat) := 
   if thread then BUFFER_1A base else BUFFER_2A base.
@@ -88,22 +90,24 @@ Definition translate_arrays (init : list (nat * (list nat))) (buf_size : nat) : 
   (1,nil) :: (* LOOP_2 *)
   (1,nil) :: (* FOUND_2 *)
   (1,nil) :: (* RESULT_2 *)
-  (1,nil) :: nil. (* SPECIAL *)
+  (1,nil) :: (* SPECIAL *)
+  (1, 2 :: nil) :: nil. (* DONE_COUNTER *)
 
-Definition new_read (thread : bool) (base : nat) (buf_size : nat) (location : term) (offset : term)  : term :=
+
+Definition new_read (thread : bool) (base : nat) (buf_size : nat) (array : term) (offset : term)  : term :=
   let read_code :=
-  LOOP thread base ::= ZERO ;;
+  (LOOP thread base ::= ZERO ;;
   FOUND thread base ::= ZERO ;;
   (WHILE !(LOOP thread base ) << (num buf_size) DO
-    (CASE (and ( (BUFFER_A thread base ) [!(LOOP thread base)] == (var "location") ) ( (BUFFER_B thread base) [!(LOOP thread base)] == (var "offset") )) THEN
+    (CASE (and ( (BUFFER_A thread base)[!(LOOP thread base)] == (&(var "array")) ) ( (BUFFER_B thread base)[!(LOOP thread base)] == (var "offset") )) THEN
       RESULT thread base ::= (BUFFER_C thread base)[!(LOOP thread base)] ;;
       FOUND thread base ::= ONE
     ELSE
       yunit
     ESAC)
-  DONE);;
-  CASE (!(FOUND thread base) == ONE) THEN !(RESULT thread base) ELSE (!(cast (var "location"))) ESAC in
-app (app (lam "location" (lam "offset" read_code)) location) offset.
+  DONE) ;;
+  CASE (!(FOUND thread base) == ONE) THEN !(RESULT thread base) ELSE (read (var "array") (var "offset")) ESAC) in 
+  app (app (lam "array" (lam "offset" read_code)) array) offset.
 
 Definition flush (thread : bool) (base : nat) (buf_size : nat) : term :=
   CASE (!(SIZE thread base ) == ZERO) THEN yunit
@@ -121,8 +125,8 @@ Definition new_write (thread : bool) (base : nat) (buf_size : nat) (array : term
   (BUFFER_A thread base)[!(REAR thread base)] ::= (& (var "array"));;
   (BUFFER_B thread base)[!(REAR thread base)] ::= (var "offset");;
   (BUFFER_C thread base)[!(REAR thread base)] ::= (var "value");;
-  (SIZE thread base) ::= plus (!(SIZE thread base)) ONE
-in app (app (app (lam "array" (lam "offset" (lam "value" write_code))) array) offset) value.
+  (SIZE thread base) ::= plus (!(SIZE thread base)) ONE in 
+  app (app (app (lam "array" (lam "offset" (lam "value" write_code))) array) offset) value.
 
 
 Definition flush_star (thread : bool) (base : nat) (buf_size : nat): term :=
@@ -180,7 +184,7 @@ Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : te
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
       let z := translate e3 thread base buf_size in
-      app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (case x y z)
+      case x (seq (flush_star thread base buf_size) y) (seq (flush_star thread base buf_size) z)
     | read e1 e2 =>
       let x := translate e1 thread base buf_size in
       let y := translate e2 thread base buf_size in
@@ -231,8 +235,6 @@ Proof. intros. simpl. reflexivity. Qed.
 Fact translate_and : forall thread base buf_size e1 e2, translate (and e1 e2) thread base buf_size = app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (and (translate e1 thread base buf_size) (translate e2 thread base buf_size)).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact translate_case : forall thread base buf_size e1 e2 e3, translate (case e1 e2 e3) thread base buf_size = app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (case (translate e1 thread base buf_size) (translate e2 thread base buf_size) (translate e3 thread base buf_size)).
-Proof. intros. simpl. reflexivity. Qed.
 
 Fact translate_not : forall thread base buf_size e, translate (not e) thread base buf_size = app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (not (translate e thread base buf_size)).
 Proof. intros. simpl. reflexivity. Qed.
@@ -249,6 +251,9 @@ Proof. intros. simpl. reflexivity. Qed.
 Fact translate_write : forall thread base buf_size e1 e2 e3, translate (write e1 e2 e3) thread base buf_size = app (lam "x" (seq (flush_star thread base buf_size) (var "x"))) (new_write thread base buf_size (translate e1 thread base buf_size) (translate e2 thread base buf_size) (translate e3 thread base buf_size)).
 Proof. intros. simpl. reflexivity. Qed.
 
+Fact translate_case : forall thread base buf_size e1 e2 e3, translate (case e1 e2 e3) thread base buf_size = case (translate e1 thread base buf_size) (seq (flush_star thread base buf_size) (translate e2 thread base buf_size)) (seq (flush_star thread base buf_size) (translate e3 thread base buf_size)).
+Proof. intros. simpl. reflexivity. Qed.
+
 Fact subst_flush_star : forall x v thread base buf_size,
   subst x v (lam "x" (flush_star thread base buf_size;; var "x")) =
   (lam "x" (flush_star thread base buf_size;; var "x")).
@@ -257,36 +262,26 @@ Proof. intros. apply subst_idempotent. intros C. simpl in C. destruct thread; si
 
 Fact new_read_subst : forall x v e1 e2 thread base buf_size,
   new_read thread base buf_size (subst x v e1) (subst x v e2) = subst x v (new_read thread base buf_size e1 e2).
-Proof. intros. unfold new_read. rewrite subst_app. rewrite subst_app. rewrite subst_lam. rewrite subst_lam. destruct (string_dec x "location"); destruct (string_dec x "offset"); auto.
+Proof. intros. unfold new_read. rewrite subst_app. rewrite subst_app. rewrite subst_lam. rewrite subst_lam. destruct (string_dec x "array"); destruct (string_dec x "offset"); auto.
 assert (subst x v
                 (LOOP thread base [num 0]::= ZERO;;
                  FOUND thread base [num 0]::= ZERO;;
                  (WHILE (LOOP thread base [num 0]) << num buf_size
-                  DO CASE and
-                            ((BUFFER_A thread base [LOOP thread base [num 0]]) ==
-                             var "location")
-                            ((BUFFER_B thread base [LOOP thread base [num 0]]) ==
-                             var "offset")
-                     THEN (RESULT thread base [num 0]::= BUFFER_C thread base)
-                          [LOOP thread base [num 0]];;
+                  DO CASE and ((BUFFER_A thread base [LOOP thread base [num 0]]) == (& var "array"))
+                            ((BUFFER_B thread base [LOOP thread base [num 0]]) == var "offset")
+                     THEN (RESULT thread base [num 0]::= BUFFER_C thread base) [LOOP thread base [num 0]];;
                           FOUND thread base [num 0]::= ONE ELSE yunit ESAC DONE);;
-                 CASE (FOUND thread base [num 0]) == ONE
-                 THEN RESULT thread base [num 0] ELSE cast (var "location") [num 0]
-                 ESAC) = 
+                 CASE (FOUND thread base [num 0]) == ONE THEN RESULT thread base [num 0]
+                 ELSE var "array" [var "offset"] ESAC) = 
                 (LOOP thread base [num 0]::= ZERO;;
                  FOUND thread base [num 0]::= ZERO;;
                  (WHILE (LOOP thread base [num 0]) << num buf_size
-                  DO CASE and
-                            ((BUFFER_A thread base [LOOP thread base [num 0]]) ==
-                             var "location")
-                            ((BUFFER_B thread base [LOOP thread base [num 0]]) ==
-                             var "offset")
-                     THEN (RESULT thread base [num 0]::= BUFFER_C thread base)
-                          [LOOP thread base [num 0]];;
+                  DO CASE and ((BUFFER_A thread base [LOOP thread base [num 0]]) == (& var "array"))
+                            ((BUFFER_B thread base [LOOP thread base [num 0]]) == var "offset")
+                     THEN (RESULT thread base [num 0]::= BUFFER_C thread base) [LOOP thread base [num 0]];;
                           FOUND thread base [num 0]::= ONE ELSE yunit ESAC DONE);;
-                 CASE (FOUND thread base [num 0]) == ONE
-                 THEN RESULT thread base [num 0] ELSE cast (var "location") [num 0]
-                 ESAC)). apply subst_idempotent. simpl. destruct thread. simpl. intros C. destruct C. contradiction n. auto. destruct H. contradiction n. auto. destruct H. contradiction n0. auto. destruct H. contradiction n0. auto. destruct H. contradiction n. auto. auto. simpl. intros C. destruct C. contradiction n. auto. destruct H. contradiction n. auto. destruct H. contradiction n0. auto. destruct H. contradiction n0. auto. destruct H. contradiction n. auto. auto. rewrite H. auto. Qed.
+                 CASE (FOUND thread base [num 0]) == ONE THEN RESULT thread base [num 0]
+                 ELSE var "array" [var "offset"] ESAC)). apply subst_idempotent. simpl. destruct thread. simpl. intros C. destruct C. contradiction n. auto. destruct H. contradiction n. auto. destruct H. contradiction n0. auto. destruct H. contradiction n0. auto. destruct H. contradiction n. auto. destruct H. contradiction n0. auto. auto. intros C. simpl in C. destruct C. contradiction n. auto. destruct H. contradiction n. auto. destruct H. contradiction n0. auto. destruct H. contradiction n0. auto. destruct H. contradiction n. auto. destruct H. contradiction n0. auto. auto. rewrite H. auto. Qed.
 
 Fact new_write_subst : forall x v e1 e2 e3 thread base buf_size,
   new_write thread base buf_size (subst x v e1) (subst x v e2) (subst x v e3) = subst x v (new_write thread base buf_size e1 e2 e3).
@@ -345,6 +340,8 @@ Proof. intros. unfold flush_star. unfold flush. unfold seq. rewrite subst_app. r
                            (SIZE thread base [num 0]::= minus (SIZE thread base [num 0]) ONE)) ESAC DONE)). apply subst_idempotent. simpl. destruct thread; simpl; auto. rewrite H0. clear H0. destruct (string_dec x "x"); destruct (string_dec x "y"); auto.
 Qed.
 
+Definition race_thread (base : nat) : term :=
+  WHILE (not (!(DONE_COUNTER base) == ZERO)) DO (SPECIAL base) ::= ZERO DONE.
 
 Fact trans_subst : forall x v e thread base buf_size, 
   translate (subst x v e) thread base buf_size = subst x (translate v thread base buf_size) (translate e thread base buf_size).
@@ -364,23 +361,14 @@ Proof. intros. induction e.
   + rewrite subst_write. rewrite translate_write. rewrite translate_write. rewrite subst_app. rewrite IHe1. rewrite IHe2. rewrite IHe3. rewrite subst_flush_star. rewrite new_write_subst. auto.
   + rewrite subst_reference. rewrite translate_reference. rewrite translate_reference. rewrite subst_app. rewrite subst_reference. rewrite IHe. rewrite subst_flush_star. reflexivity.
   + rewrite subst_cast. rewrite translate_cast. rewrite translate_cast. rewrite subst_app. rewrite subst_cast. rewrite IHe. rewrite subst_flush_star. reflexivity.
-  + rewrite subst_case. rewrite translate_case. rewrite translate_case. rewrite subst_app. rewrite subst_case. rewrite IHe1. rewrite IHe2. rewrite IHe3. rewrite subst_flush_star. reflexivity.
-  + rewrite subst_var. rewrite translate_var. simpl. destruct (string_dec x s).
-    ++ subst. reflexivity.
-    ++ simpl. reflexivity.
+  + rewrite subst_case. rewrite translate_case. rewrite translate_case. rewrite subst_case. rewrite IHe1. rewrite IHe2. rewrite IHe3. rewrite seq_flush_subst. rewrite seq_flush_subst. auto.
+  + rewrite subst_var. rewrite translate_var. rewrite subst_var. destruct (string_dec x s).
+    ++ reflexivity.
+    ++ rewrite translate_var. reflexivity.
   + rewrite subst_app. rewrite translate_app. rewrite translate_app. rewrite subst_app. rewrite IHe1. rewrite IHe2. reflexivity.
   + rewrite subst_lam. rewrite translate_lam. rewrite translate_lam. rewrite subst_lam.
 destruct (string_dec x s).
     ++ subst. reflexivity.
     ++ rewrite IHe. rewrite seq_flush_subst. auto. Qed.
 
-Definition translate_program (p : TSO.program) : SC.program :=  
-  let buf_size := fst (fst (fst p)) in
-  let init := snd (fst (fst p))  in
-  let s1 := snd (fst p) in
-  let s2 := snd p in
-  let base := length init in
-  (translate_arrays init buf_size,
-  translate s1 true base buf_size,
-  translate s2 false base buf_size,
-  while tru ((SPECIAL base) ::= ZERO)).
+

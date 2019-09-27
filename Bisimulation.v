@@ -7,25 +7,13 @@ Require Import Util.
 Require Import Translation.
 
 
-Inductive related (base : nat) (buf_size : nat) : (term * bool) -> (term * bool) -> Prop :=
-  | related_translate : forall e thread, related base buf_size (e, thread) (translate e thread base buf_size, thread)
-  | related_flush : forall e thread, related base buf_size (e, thread) (seq (flush_star thread base buf_size) (translate e thread base buf_size), thread).
+Inductive related_term (base : nat) (buf_size : nat) : (term * bool) -> (term * bool) -> Prop :=
+  | related_flush : forall e thread, related_term base buf_size (e, thread) (seq (flush_star thread base buf_size) (translate e thread base buf_size), thread).
 
 
-Definition related_terms (TSO_program : TSO.program) (SC_program : SC.program) (base : nat) : Prop :=
-  let TSO1 := snd (fst TSO_program) in
-  let TSO2 := snd TSO_program in
-  let SC1 := snd (fst (fst SC_program)) in
-  let SC2 := snd (fst SC_program)in
-  let SC3 := snd SC_program in
-  let buf_size := fst (fst (fst TSO_program)) in
-  related base buf_size (TSO1, true) (SC1, true) /\
-  related base buf_size (TSO2, false) (SC2, false) /\
-  SC3 = while tru ((SPECIAL base) ::= ZERO).
-
-Definition related_memory (TSO_memory : TSO.memory_model) (SC_memory : SC.memory_model) (B : nat) (f : nat -> nat) : Prop :=
+(* We will need more validity conditions on the memories besides finiteness *)
+Definition related_memory_always (B : nat) (f : nat -> nat) (TSO_memory : TSO.memory_model) (SC_memory : SC.memory_model)  : Prop :=
   let buf_size := fst (fst (fst TSO_memory)) in
-  let local := snd (fst TSO_memory) in
   let TSOGS := snd TSO_memory in
   let TSO_mapping := snd (fst (fst TSO_memory)) in
   let SC_mapping := fst SC_memory in
@@ -33,7 +21,14 @@ Definition related_memory (TSO_memory : TSO.memory_model) (SC_memory : SC.memory
   (exists n, forall k, k >= n -> TSOGS k = None) /\ (* TSO memory is finite *)
   (exists n, forall k, k >= n -> SCGS k = None) /\ (* SC memory is finite *)
   (forall n m k, TSO_mapping n = Some (m, k) -> SC_mapping n = Some (f m, k)) /\
-  (forall n m, TSOGS n = Some m -> SCGS (f n) = Some m) /\
+  (forall n m, TSOGS n = Some m -> SCGS (f n) = Some m).
+
+Definition related_memory_after_initial (B : nat) (TSO_memory : TSO.memory_model) (SC_memory : SC.memory_model)  : Prop :=
+  let buf_size := fst (fst (fst TSO_memory)) in
+  let local := snd (fst TSO_memory) in
+  let TSOGS := snd TSO_memory in
+  let SC_mapping := fst SC_memory in
+  let SCGS := snd SC_memory in
   (forall base offset value n, (nth_error (local true) n = Some (base, offset, value)) ->
       exists BASES OFFSETS VALUES FRONT REAR SIZE front rear size,
         (SC_mapping (B + LOOP_1_CONST) <> None /\
@@ -69,35 +64,34 @@ Definition related_memory (TSO_memory : TSO.memory_model) (SC_memory : SC.memory
          SCGS (OFFSETS + (Nat.modulo (front + n) buf_size)) = Some offset /\
          SCGS (VALUES + (Nat.modulo (front + n) buf_size)) = Some value
         )
-  ).
+  ) /\
+  (SC_mapping (B + SPECIAL_CONST) <> None /\ SC_mapping (B + DONE_COUNTER_CONST) <> None).
 
-Definition related_program (p : TSO_machine) (q : SC_machine) (f : nat -> nat) (B : nat) : Prop :=
-  let TSO_program := fst p in
-  let TSO_memory := snd p in
-  let SC_program := fst q in
-  let SC_memory := snd q in
-  let TSO_init := snd (fst (fst TSO_program)) in
-  let SC_init := fst (fst (fst SC_program)) in
-  let buf_size := fst (fst (fst TSO_program)) in
-  (TSO_init <> nil -> SC_init = translate_arrays TSO_init buf_size) /\
-  related_terms TSO_program SC_program B /\
-  related_memory TSO_memory SC_memory B f.
+Inductive related_program (B : nat) (f : nat -> nat) : TSO_machine -> SC_machine -> Prop :=
+  | related_initial : forall buf_size init s1 s2 t1 t2 m m',
+    init <> nil ->
+    related_memory_always B f m m' ->
+    related_term B buf_size (s1, true) (t1, true) ->
+    related_term B buf_size (s2, false) (t2, false) ->
+    related_program B f ((buf_size, init, s1, s2), m)
+    ((translate_arrays init buf_size,
+     app (lam "x" (seq (write (DONE_COUNTER B) ZERO (minus (!(DONE_COUNTER B)) ONE)) (var "x"))) t1, 
+     app (lam "x" (seq (write (DONE_COUNTER B) ZERO (minus (!(DONE_COUNTER B)) ONE)) (var "x"))) t2, 
+     race_thread B), m')
+  | related_after_initial : forall buf_size s1 s2 t1 t2 m m',
+    related_memory_always B f m m' ->
+    related_memory_after_initial B m m' ->
+    related_term B buf_size (s1, true) (t1, true) ->
+    related_term B buf_size (s2, false) (t2, false) ->
+    related_program B f ((buf_size, nil, s1, s2), m)
+    ((nil,
+     app (lam "x" (seq (write (DONE_COUNTER B) ZERO (minus (!(DONE_COUNTER B)) ONE)) (var "x"))) t1, 
+     app (lam "x" (seq (write (DONE_COUNTER B) ZERO (minus (!(DONE_COUNTER B)) ONE)) (var "x"))) t2, 
+     race_thread B), m').
 
-Fact psteps_app : forall t t' x e,
-  SC_program_steps t t' ->
-  SC_program_steps (fst (fst (fst (fst t))), app (lam x e) (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), app (lam x e) (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
-Proof. intros. induction H.
-  + apply SC_program_steps_reflexive.
-  + destruct q. destruct p. destruct p. destruct p. destruct p. destruct r. destruct p. destruct p. destruct p. destruct p0. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l1, app (lam x e) t7, t6, t5, m)). inversion H; subst.
-    ++ apply ST_init_allocate_array. auto. auto. auto.
-    ++ apply ST_synchronize1 with (event:=event).
-       assert (exists y e', lam x e = lam y e'). refine (ex_intro _ x _). refine (ex_intro _ e _). reflexivity. assert (app (lam x e) t1 = con_subst (Capp2 (exist _ (lam x e) H1) Hole) t1). simpl. reflexivity. assert (app (lam x e) t7 = con_subst (Capp2 (exist _ (lam x e) H1) Hole) t7). simpl. reflexivity. rewrite H2. rewrite H4. apply step_context. auto. auto.
-    ++ apply ST_synchronize2 with (event:=event). auto. auto.
-    ++ apply ST_synchronize3 with (event:=event). auto. auto.
-    ++ auto.
-Qed.
 
-Fact contexts_respect_relation : forall E B s2 buffer f e event e' mem mem' m t0 l t1,
+
+(*Fact contexts_respect_relation : forall E B s2 buffer f e event e' mem mem' m t0 l t1,
   related B buffer (s2, false) (t0, false) ->
   related_memory mem m B f ->
   step e event e' ->
@@ -111,30 +105,20 @@ Fact contexts_respect_relation : forall E B s2 buffer f e event e' mem mem' m t0
   exists q' : SC_machine,
   (related_program (buffer, nil, con_subst E e', s2, mem') q' f B /\
   SC_program_steps (l, t1, t0, while tru (SPECIAL B [num 0]::= ZERO), m) q').
-Proof. intros. generalize dependent t1. induction E; intros.
+Proof. intros. generalize dependent t1. induction E; intros; simpl in *.
   + apply H4. auto.
-  + inversion H3; subst.
-    ++
-assert (exists q' : SC_machine,
+  + assert (exists q' : SC_machine,
           related_program
             (buffer, nil, con_subst E e', s2, mem') q'
             f B /\
           SC_program_steps
             (l, translate (con_subst E e) true B buffer, t0,
             while tru (SPECIAL B [num 0]::= ZERO), m)
-            q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. unfold related_terms in H7. destruct H7. destruct H7. simpl in *. inversion H7; subst.
-      +++ refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). simpl. repeat (rewrite translate_app in *). admit.
-      +++ repeat (rewrite translate_app in *). refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). admit.
-    ++ assert (exists q' : SC_machine,
-          related_program
-            (buffer, nil, con_subst E e', s2, mem') q'
-            f B /\
-          SC_program_steps
-            (l, translate (con_subst E e) true B buffer, t0,
-            while tru (SPECIAL B [num 0]::= ZERO), m)
-            q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. unfold related_terms in H7. destruct H7. destruct H7. simpl in *. inversion H7; subst.
-      +++ refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). simpl. admit.
-      +++ refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t2, t1, m0) _). simpl. admit.
+            q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. unfold related_terms in H7. destruct H7. destruct H7. simpl in *. destruct H9. refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t3, WHILE tru DO SPECIAL B [num 0]::= ZERO DONE, m0) _). rewrite translate_app. inversion H3; inversion H7; subst.
+    ++ admit.
+    ++ admit.
+    ++ admit.
+    ++ admit. 
   + admit.
   + admit.
   + admit.
@@ -165,7 +149,7 @@ Theorem forward_bisimulation : forall p p' q f B,
     + destruct q. destruct p. repeat (destruct p). destruct m. destruct mem. destruct mem'. repeat (destruct p0). repeat (destruct p). destruct H0. simpl in *. destruct H4. destruct H4. destruct H6. simpl in *. subst. assert (l = translate_arrays (xs ++ (size, init) :: nil) buffer). apply H0. intros C. symmetry in C. contradiction app_cons_not_nil with (x:=xs) (a:=(size, init)) (y:=nil). subst. remember (translate_arrays xs buffer, t1, t0, while tru (SPECIAL (length xs) [num 0]::= ZERO)) as answer_p. unfold related_memory in H5. simpl in *. destruct H5. destruct H7. destruct H7. remember (update_mapping (length xs) x size m, allocate x (x + size - 1) init g) as answer_m. refine (ex_intro _ (answer_p, answer_m) _); subst. admit.
     + destruct H0. simpl in *. destruct H3. destruct H3. destruct q. destruct p. destruct p. destruct p. simpl in *. clear H0. destruct H5. subst. generalize dependent t1. induction H1; intros; subst.
       ++ admit.
-      ++ inversion H3; subst.
+      ++ refine (ex_intro _ (nil, translate (subst x v e) true B buffer, t0, WHILE tru DO SPECIAL B [num 0]::= ZERO DONE, m) _). inversion H3; subst.
         +++ admit.
         +++ admit.
       ++ admit.
@@ -187,3 +171,4 @@ Theorem forward_bisimulation : forall p p' q f B,
     + admit.
     + admit.
 Admitted.
+*)

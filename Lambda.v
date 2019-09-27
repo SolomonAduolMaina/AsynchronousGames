@@ -249,8 +249,6 @@ Proof. intros. generalize dependent x. induction e; intros.
       +++ contradiction H. apply subst_closed_helper1. auto. auto.
 Qed.
 
-
-
 Fact subst_closed : forall x v e, fvs e = nil -> subst x v e = e.
 Proof. intros. apply subst_idempotent. rewrite H. auto. Qed.
 
@@ -274,9 +272,7 @@ Inductive context : Type :=
   | Cwrite1 : context -> term -> term -> context
   | Cwrite2 : {x : term | exists s, x = array s} -> context -> term -> context
   | Cwrite3 : {x : term | exists s, x = array s} -> {x : term | exists n, x = num n} -> context -> context
-  | Ccase1 : context -> term -> term -> context
-  | Ccase2 : {x : term | x = tru} -> context -> term -> context
-  | Ccase3 : {x : term | x = fls} -> term -> context -> context
+  | Ccase : context -> term -> term -> context
   | Cnot : context -> context
   | Creference : context -> context
   | Ccast : context -> context.
@@ -301,9 +297,7 @@ Fixpoint con_subst (E : context) (s : term) : term :=
     | Cwrite1 E t t' => write (con_subst E s) t t'
     | Cwrite2 (exist _ x _) E t => write x (con_subst E s) t
     | Cwrite3 (exist _ x _) (exist _ y _) E => write x y (con_subst E s)
-    | Ccase1 E t t' => case (con_subst E s) t t'
-    | Ccase2 (exist _ x _) E t' => case x (con_subst E s) t'
-    | Ccase3 (exist _ x _) t E => case x t (con_subst E s)
+    | Ccase E t t' => case (con_subst E s) t t'
     | Cnot E => not (con_subst E s)
     | Creference E => reference (con_subst E s)
     | Ccast E => cast (con_subst E s)
@@ -334,6 +328,5 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_and3 : forall e, step (and fls e) Tau fls
   | step_not1 : step (not tru) Tau fls
   | step_not2 : step (not fls) Tau tru
-  | step_case1 : forall v e, value v -> step (case tru v e) Tau v
-  | step_case2 : forall v e, value v -> step (case fls e v) Tau v.
-
+  | step_case1 : forall e1 e2, step (case tru e1 e2) Tau e1
+  | step_case2 : forall e1 e2, step (case fls e1 e2) Tau e2.
