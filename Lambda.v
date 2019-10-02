@@ -139,10 +139,6 @@ Fixpoint subst (x : string) (v : term) (e : term) :=
     | lam y e => lam y (if (string_dec x y) then e else (subst x v e))
   end.
 
-
-
-
-
 Fact subst_array : forall n x v, subst x v (array n) = array n.
 Proof. intros. simpl. reflexivity. Qed.
 
@@ -160,7 +156,6 @@ Proof. intros. simpl. reflexivity. Qed.
 
 Fact subst_app : forall e1 e2 x v, subst x v (app e1 e2) = app (subst x v e1) (subst x v e2).
 Proof. intros. simpl. reflexivity. Qed.
-
 
 Fact subst_plus : forall e1 e2 x v, subst x v (plus e1 e2) = plus (subst x v e1) (subst x v e2).
 Proof. intros. simpl. reflexivity. Qed.
@@ -217,8 +212,6 @@ Proof. intros. induction l.
       +++ right. apply in_or_app. left. auto.
     ++ apply IHl. intros C. apply H. right. auto.
 Qed.
-
-
 
 Fact subst_idempotent : forall x v e, (~ (In x (fvs e))) -> subst x v e = e.
 Proof. intros. generalize dependent x. induction e; intros.

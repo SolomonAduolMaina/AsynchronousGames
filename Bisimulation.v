@@ -7,10 +7,6 @@ Require Import Util.
 Require Import Translation.
 
 
-Inductive related_term (base : nat) (buf_size : nat) : (term * bool) -> (term * bool) -> Prop :=
-  | related_flush : forall e thread, related_term base buf_size (e, thread) (seq (flush_star thread base buf_size) (translate e thread base buf_size), thread).
-
-
 (* We will need more validity conditions on the memories besides finiteness *)
 Definition related_memory_always (B : nat) (f : nat -> nat) (TSO_memory : TSO.memory_model) (SC_memory : SC.memory_model)  : Prop :=
   let buf_size := fst (fst (fst TSO_memory)) in
@@ -67,7 +63,7 @@ Definition related_memory_after_initial (B : nat) (TSO_memory : TSO.memory_model
   ) /\
   (SC_mapping (B + SPECIAL_CONST) <> None /\ SC_mapping (B + DONE_COUNTER_CONST) <> None).
 
-Inductive related_program (B : nat) (f : nat -> nat) : TSO_machine -> SC_machine -> Prop :=
+(*Inductive related_program (B : nat) (f : nat -> nat) : TSO_machine -> SC_machine -> Prop :=
   | related_initial : forall buf_size init s1 s2 t1 t2 m m',
     init <> nil ->
     related_memory_always B f m m' ->
@@ -87,88 +83,106 @@ Inductive related_program (B : nat) (f : nat -> nat) : TSO_machine -> SC_machine
     ((nil,
      app (lam "x" (seq (write (DONE_COUNTER B) ZERO (minus (!(DONE_COUNTER B)) ONE)) (var "x"))) t1, 
      app (lam "x" (seq (write (DONE_COUNTER B) ZERO (minus (!(DONE_COUNTER B)) ONE)) (var "x"))) t2, 
-     race_thread B), m').
+     race_thread B), m').*)
 
+Inductive related_program (B : nat) (f : nat -> nat) : TSO_machine -> SC_machine -> Prop :=
+  | related_after_initial : forall buf_size s1 s2 m m',
+    related_memory_always B f m m' ->
+    related_memory_after_initial B m m' ->
+    related_program B f ((buf_size, nil, s1, s2), m) ((nil, (translate s1 true B buf_size), (translate s2 false B buf_size), race_thread B), m').
 
+Inductive term_step : TSO_machine -> mem_event -> TSO_machine -> Prop :=
+  | step_one : forall s1 s1' mem event mem' s2 buffer,
+               step s1 event s1' ->
+               memstep mem (true, event) mem' ->
+               term_step ((buffer, nil, s1, s2), mem) event ((buffer, nil, s1', s2), mem')
+  | step_2 : forall s2 s2' mem event mem' s1 buffer,
+               step s2 event s2' ->
+               memstep mem (false, event) mem' ->
+               term_step ((buffer, nil, s1, s2), mem) event ((buffer, nil, s1, s2'), mem').
 
-(*Fact contexts_respect_relation : forall E B s2 buffer f e event e' mem mem' m t0 l t1,
-  related B buffer (s2, false) (t0, false) ->
-  related_memory mem m B f ->
-  step e event e' ->
-  TSO.memstep mem (true, event) mem' ->
-  related B buffer (con_subst E e, true) (t1, true) ->
-  (forall re : term,
-  related B buffer (e, true) (re, true) ->
-  exists q' : SC_machine,
-  related_program (buffer, nil, e', s2, mem') q' f B /\
-  SC_program_steps (l, re, t0, while tru (SPECIAL B [num 0]::= ZERO), m) q') ->
-  exists q' : SC_machine,
-  (related_program (buffer, nil, con_subst E e', s2, mem') q' f B /\
-  SC_program_steps (l, t1, t0, while tru (SPECIAL B [num 0]::= ZERO), m) q').
-Proof. intros. generalize dependent t1. induction E; intros; simpl in *.
-  + apply H4. auto.
-  + assert (exists q' : SC_machine,
-          related_program
-            (buffer, nil, con_subst E e', s2, mem') q'
-            f B /\
-          SC_program_steps
-            (l, translate (con_subst E e) true B buffer, t0,
-            while tru (SPECIAL B [num 0]::= ZERO), m)
-            q'). apply IHE. apply related_translate. destruct H5. destruct H5. destruct x. destruct p. destruct p. destruct p. destruct H5. simpl in *. unfold related_terms in H7. destruct H7. destruct H7. simpl in *. destruct H9. refine (ex_intro _ (l0, translate (app (con_subst E e') t) true B buffer, t3, WHILE tru DO SPECIAL B [num 0]::= ZERO DONE, m0) _). rewrite translate_app. inversion H3; inversion H7; subst.
-    ++ admit.
-    ++ admit.
-    ++ admit.
-    ++ admit. 
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-  + admit.
-Admitted.
+Inductive mem_flush_steps : TSO.memory_model -> TSO.memory_model -> Prop :=
+  | flush_step_reflexive : forall m, mem_flush_steps m m
+  | flush_step : forall local local' thread address value xs global global' mapping offset buffer m m' m'',
+               m = (buffer, mapping, local, global) ->
+               m' = (buffer, mapping, local', global') ->
+               mem_flush_steps m' m'' ->
+               local thread = ((address, offset, value) :: xs) ->
+               local' thread = xs ->
+               local' (negb thread) = local (negb thread) ->
+               global' = update_global (address + offset, value) global ->
+               mem_flush_steps m m''.
 
+Inductive term_flush_steps : TSO_machine -> TSO_machine -> Prop :=
+  | step_then_flush_star : forall s s' m'',
+                           (exists event, term_step s event s' /\ mem_flush_steps (snd s') m'') ->
+                           term_flush_steps s (fst s', m'').
+
+Fact context_forward_simulation : forall f B buf_size m m0 m'' m' e e' E event s2,
+    related_memory_always B f m m' ->
+    related_memory_after_initial B m m' ->
+    mem_flush_steps m0 m'' ->
+    step e event e' ->
+    memstep m (true, event) m0 ->
+    (exists q' : SC_machine,
+             related_program B f (buf_size, nil, e', s2, m'') q' /\
+             SC_program_steps (nil, translate e true B buf_size, translate s2 false B buf_size, race_thread B, m')
+               q') ->
+    (exists q' : SC_machine,
+    related_program B f (buf_size, nil, con_subst E e', s2, m'') q' /\
+    SC_program_steps
+      (nil, translate (con_subst E e) true B buf_size, translate s2 false B buf_size, race_thread B, m') q').
+Proof. intros. destruct E; simpl in *.
+  + auto.
+  + Admitted.
 
 Theorem forward_bisimulation : forall p p' q f B,
-  TSO.pstep p p' -> related_program p q f B -> (exists q', related_program p' q' f B /\ SC_program_steps q q').
-  Proof. intros. inversion H; subst.
-    + destruct q. destruct p. repeat (destruct p). destruct m. destruct mem. destruct mem'. repeat (destruct p0). repeat (destruct p). destruct H0. simpl in *. destruct H4. destruct H4. destruct H6. simpl in *. subst. assert (l = translate_arrays (xs ++ (size, init) :: nil) buffer). apply H0. intros C. symmetry in C. contradiction app_cons_not_nil with (x:=xs) (a:=(size, init)) (y:=nil). subst. remember (translate_arrays xs buffer, t1, t0, while tru (SPECIAL (length xs) [num 0]::= ZERO)) as answer_p. unfold related_memory in H5. simpl in *. destruct H5. destruct H7. destruct H7. remember (update_mapping (length xs) x size m, allocate x (x + size - 1) init g) as answer_m. refine (ex_intro _ (answer_p, answer_m) _); subst. admit.
-    + destruct H0. simpl in *. destruct H3. destruct H3. destruct q. destruct p. destruct p. destruct p. simpl in *. clear H0. destruct H5. subst. generalize dependent t1. induction H1; intros; subst.
-      ++ admit.
-      ++ refine (ex_intro _ (nil, translate (subst x v e) true B buffer, t0, WHILE tru DO SPECIAL B [num 0]::= ZERO DONE, m) _). inversion H3; subst.
-        +++ admit.
-        +++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-      ++ admit.
-    + admit.
-    + admit.
+  term_flush_steps p p' -> related_program B f p q -> (exists q', related_program B f p' q' /\ SC_program_steps q q').
+Proof. intros. inversion H0. clear H0. subst. inversion H. subst. clear H. destruct H0. destruct H. destruct s'. simpl in *. inversion H; subst.
+  + induction H8; intros.
+    ++ admit.
+    ++ rewrite translate_app. rewrite translate_lam. admit.
+    ++ rewrite translate_reference. rewrite translate_array. admit.
+    ++ rewrite translate_cast. rewrite translate_num. admit.
+    ++ rewrite translate_read. rewrite translate_num. rewrite translate_array. admit.
+    ++ rewrite translate_write. rewrite translate_num. rewrite translate_num. rewrite translate_array. admit.
+    ++ rewrite translate_plus. rewrite translate_num. rewrite translate_num. admit.
+    ++ rewrite translate_minus. rewrite translate_num. rewrite translate_num. admit.
+    ++ rewrite translate_modulo. rewrite translate_num. rewrite translate_num. admit.
+    ++ rewrite translate_less_than. rewrite translate_num. rewrite translate_num. admit.
+    ++ rewrite translate_less_than. rewrite translate_num. rewrite translate_num. admit.
+    ++ rewrite translate_and. rewrite translate_tru. admit.
+    ++ rewrite translate_and. rewrite translate_tru. rewrite translate_fls. admit.
+    ++ rewrite translate_and. rewrite translate_fls. admit.
+    ++ rewrite translate_not. rewrite translate_tru. admit.
+    ++ rewrite translate_not. rewrite translate_fls. admit.
+    ++ rewrite translate_case. rewrite translate_tru. admit.
+    ++ rewrite translate_case. rewrite translate_fls. admit.
+  + induction H8; intros.
+    ++ admit.
+    ++ rewrite translate_app. rewrite translate_lam. admit.
+    ++ rewrite translate_reference. rewrite translate_array. admit.
+    ++ rewrite translate_cast. rewrite translate_num. admit.
+    ++ rewrite translate_read. rewrite translate_num. rewrite translate_array. admit.
+    ++ rewrite translate_write. rewrite translate_num. rewrite translate_num. rewrite translate_array. admit.
+    ++ rewrite translate_plus. rewrite translate_num. rewrite translate_num. admit.
+    ++ rewrite translate_minus. rewrite translate_num. rewrite translate_num. admit.
+    ++ rewrite translate_modulo. rewrite translate_num. rewrite translate_num. admit.
+    ++ rewrite translate_less_than. rewrite translate_num. rewrite translate_num. admit.
+    ++ rewrite translate_less_than. rewrite translate_num. rewrite translate_num. admit.
+    ++ rewrite translate_and. rewrite translate_tru. admit.
+    ++ rewrite translate_and. rewrite translate_tru. rewrite translate_fls. admit.
+    ++ rewrite translate_and. rewrite translate_fls. admit.
+    ++ rewrite translate_not. rewrite translate_tru. admit.
+    ++ rewrite translate_not. rewrite translate_fls. admit.
+    ++ rewrite translate_case. rewrite translate_tru. admit.
+    ++ rewrite translate_case. rewrite translate_fls. admit.
 Admitted.
-*)
+
+
+
+
+
+
+
+
