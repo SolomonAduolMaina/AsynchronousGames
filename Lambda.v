@@ -257,7 +257,7 @@ Inductive context : Type :=
   | Cmodulo1 : context -> term -> context
   | Cmodulo2 : {x : term | exists n, x = num n} -> context -> context
   | Cless_than1 : context -> term -> context
-  | Cless_than2 : {x : term | x = tru \/ x = fls} -> context -> context
+  | Cless_than2 : {x : term | exists n, x = num n} -> context -> context
   | Cand1 : context -> term -> context
   | Cand2 : {x : term | x = tru} -> context -> context
   | Cread1 : context -> term -> context

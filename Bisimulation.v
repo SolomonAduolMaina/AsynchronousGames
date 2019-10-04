@@ -8,7 +8,7 @@ Require Import Translation.
 
 
 (* We will need more validity conditions on the memories besides finiteness *)
-Definition related_memory_always (B : nat) (f : nat -> nat) (TSO_memory : TSO.memory_model) (SC_memory : SC.memory_model)  : Prop :=
+Definition related_memory_always (B : nat) (TSO_memory : TSO.memory_model) (SC_memory : SC.memory_model)  : Prop :=
   let buf_size := fst (fst (fst TSO_memory)) in
   let TSOGS := snd TSO_memory in
   let TSO_mapping := snd (fst (fst TSO_memory)) in
@@ -16,8 +16,8 @@ Definition related_memory_always (B : nat) (f : nat -> nat) (TSO_memory : TSO.me
   let SCGS := snd SC_memory in
   (exists n, forall k, k >= n -> TSOGS k = None) /\ (* TSO memory is finite *)
   (exists n, forall k, k >= n -> SCGS k = None) /\ (* SC memory is finite *)
-  (forall n m k, TSO_mapping n = Some (m, k) -> SC_mapping n = Some (f m, k)) /\
-  (forall n m, TSOGS n = Some m -> SCGS (f n) = Some m).
+  (forall n m k, TSO_mapping n = Some (m, k) -> SC_mapping n = Some (m, k)) /\
+  (forall n m, TSOGS n = Some m -> SCGS n = Some m).
 
 Definition related_memory_after_initial (B : nat) (TSO_memory : TSO.memory_model) (SC_memory : SC.memory_model)  : Prop :=
   let buf_size := fst (fst (fst TSO_memory)) in
@@ -85,11 +85,11 @@ Definition related_memory_after_initial (B : nat) (TSO_memory : TSO.memory_model
      app (lam "x" (seq (write (DONE_COUNTER B) ZERO (minus (!(DONE_COUNTER B)) ONE)) (var "x"))) t2, 
      race_thread B), m').*)
 
-Inductive related_program (B : nat) (f : nat -> nat) : TSO_machine -> SC_machine -> Prop :=
+Inductive related_program (B : nat) : TSO_machine -> SC_machine -> Prop :=
   | related_after_initial : forall buf_size s1 s2 m m',
-    related_memory_always B f m m' ->
+    related_memory_always B m m' ->
     related_memory_after_initial B m m' ->
-    related_program B f ((buf_size, nil, s1, s2), m) ((nil, (translate s1 true B buf_size), (translate s2 false B buf_size), race_thread B), m').
+    related_program B ((buf_size, nil, s1, s2), m) ((nil, (translate s1 true B buf_size), (translate s2 false B buf_size), race_thread B), m').
 
 Inductive term_step : TSO_machine -> mem_event -> TSO_machine -> Prop :=
   | step_one : forall s1 s1' mem event mem' s2 buffer,
@@ -118,26 +118,110 @@ Inductive term_flush_steps : TSO_machine -> TSO_machine -> Prop :=
                            (exists event, term_step s event s' /\ mem_flush_steps (snd s') m'') ->
                            term_flush_steps s (fst s', m'').
 
-Fact context_forward_simulation : forall f B buf_size m m0 m'' m' e e' E event s2,
-    related_memory_always B f m m' ->
+Fact context_left_step_simulation : forall B buf_size m m0 m'' m' E e e' event s2 s3 m'0,
+  step e event e' ->
+  memstep m (true, event) m0 ->
+  mem_flush_steps m0 m'' ->
+  SC_program_steps
+    (nil, translate e true B buf_size, s2, s3, m')
+    (nil, translate e' true B buf_size, s2, s3, m'0) ->
+SC_program_steps
+    (nil, translate (con_subst E e) true B buf_size, s2, s3, m')
+    (nil, translate (con_subst E e') true B buf_size, s2, s3, m'0).
+Proof. intros. induction E; intros; simpl; try (remember (nil, translate (con_subst E e) true B buf_size, s2, s3, m') as T; remember ((nil : list (nat * list nat)), translate (con_subst E e') true B buf_size, s2, s3, m'0) as T').
+  + auto.
+  + assert ((nil, app (translate (con_subst E e) true B buf_size) (translate t true B buf_size), s2, s3, m') = (fst (fst (fst (fst T))), app (snd (fst (fst (fst T)))) (translate t true B buf_size), snd (fst (fst T)), snd (fst T), snd T)). subst T. simpl. auto. assert ((nil, app (translate (con_subst E e') true B buf_size) (translate t true B buf_size), s2, s3, m'0) = (fst (fst (fst (fst T'))), app (snd (fst (fst (fst T')))) (translate t true B buf_size), snd (fst (fst T')), snd (fst T'), snd T')). subst T'. simpl. auto. rewrite H3. rewrite H4. apply steps_app_left with (l:=nil) (l':=nil) (e1:=translate (con_subst E e) true B buf_size) (e1':=translate (con_subst E e') true B buf_size) (e3:=s2) (e3':=s2) (e4:=s3) (e4':=s3) (m:=m') (m':=m'0). auto. auto. subst. auto.
+  + destruct s. destruct e0. destruct H3. subst x. simpl. assert ((nil, app (lam x0 (flush_star true B buf_size;; translate x1 true B buf_size)) (translate (con_subst E e) true B buf_size), s2, s3, m') = (fst (fst (fst (fst T))), app (lam x0 (flush_star true B buf_size;; translate x1 true B buf_size)) (snd (fst (fst (fst T)))), snd (fst (fst T)), snd (fst T), snd T)). subst T. simpl. auto. assert ((nil, app (lam x0 (flush_star true B buf_size;; translate x1 true B buf_size)) (translate (con_subst E e') true B buf_size), s2, s3, m'0) = (fst (fst (fst (fst T'))), app (lam x0 (flush_star true B buf_size;; translate x1 true B buf_size)) (snd (fst (fst (fst T')))), snd (fst (fst T')), snd (fst T'), snd T')). subst T'. simpl. auto. rewrite H3. rewrite H4. apply steps_app_right with (l:=nil) (l':=nil) (e1:=translate (con_subst E e) true B buf_size) (e1':=translate (con_subst E e') true B buf_size) (e3:=s2) (e3':=s2) (e4:=s3) (e4':=s3) (m:=m') (m':=m'0). auto. auto. subst. auto.
+  + Admitted.
+
+
+
+Fact context_forward_simulation : forall B buf_size m m0 m'' m' e e' E event s2,
+    related_memory_always B m m' ->
     related_memory_after_initial B m m' ->
     mem_flush_steps m0 m'' ->
     step e event e' ->
     memstep m (true, event) m0 ->
     (exists q' : SC_machine,
-             related_program B f (buf_size, nil, e', s2, m'') q' /\
+             related_program B (buf_size, nil, e', s2, m'') q' /\
              SC_program_steps (nil, translate e true B buf_size, translate s2 false B buf_size, race_thread B, m')
                q') ->
     (exists q' : SC_machine,
-    related_program B f (buf_size, nil, con_subst E e', s2, m'') q' /\
+    related_program B (buf_size, nil, con_subst E e', s2, m'') q' /\
     SC_program_steps
       (nil, translate (con_subst E e) true B buf_size, translate s2 false B buf_size, race_thread B, m') q').
-Proof. intros. destruct E; simpl in *.
-  + auto.
-  + Admitted.
+Proof. intros. destruct E; simpl in *; destruct H4; destruct H4.
+  + refine (ex_intro _ x _). auto.
+  + inversion H4; subst. refine (ex_intro _ (nil, app (translate (con_subst E e') true B buf_size) (translate t true B buf_size), translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ remember ((nil : list (nat * list nat)), translate (con_subst E e) true B buf_size, translate s2 false B buf_size, race_thread B, m') as T. remember ((nil : list (nat * list nat)), translate (con_subst E e') true B buf_size, translate s2 false B buf_size, race_thread B, m'0) as T'.
+assert ((fst (fst (fst (fst T))), app (snd (fst (fst (fst T)))) (translate t true B buf_size), snd (fst (fst T)), snd (fst T), snd T) = (nil, app (translate (con_subst E e) true B buf_size) (translate t true B buf_size), translate s2 false B buf_size, race_thread B, m')). subst T. simpl. auto.
+assert ((fst (fst (fst (fst T'))), app (snd (fst (fst (fst T')))) (translate t true B buf_size), snd (fst (fst T')), snd (fst T'), snd T') = (nil, app (translate (con_subst E e') true B buf_size) (translate t true B buf_size), translate s2 false B buf_size, race_thread B, m'0)). subst T'. simpl. auto. rewrite <- H6. rewrite <- H7. apply steps_app_left with (l:=nil) (l':=nil) (e1:=translate (con_subst E e) true B buf_size) (e1':=translate (con_subst E e') true B buf_size) (e3:=translate s2 false B buf_size) (e3':=translate s2 false B buf_size) (e4:=race_thread B) (e4':=race_thread B) (m:=m') (m':=m'0). auto. auto. subst. simpl in *. clear H6. clear H7. admit.
+  + destruct s. destruct e0. destruct H6. subst. inversion H4. subst. refine (ex_intro _ (nil, translate (app (lam x1 x2) (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4. subst. refine (ex_intro _ (nil, translate (plus (con_subst E e') t) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + destruct s. destruct e0. subst. inversion H4. subst. refine (ex_intro _ (nil, translate (plus (num x1) (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4; subst. refine (ex_intro _ (nil, translate (minus (con_subst E e') t) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + destruct s. destruct e0. subst. inversion H4. subst. refine (ex_intro _ (nil, translate (minus (num x1) (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4; subst. refine (ex_intro _ (nil, translate (modulo (con_subst E e') t) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + destruct s. destruct e0. subst. inversion H4. subst. refine (ex_intro _ (nil, translate (modulo (num x1) (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4; subst. refine (ex_intro _ (nil, translate (less_than (con_subst E e') t) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + destruct s. inversion H4. subst. refine (ex_intro _ (nil, translate (less_than x0 (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4; subst. refine (ex_intro _ (nil, translate (and (con_subst E e') t) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + destruct s. subst. inversion H4. subst. refine (ex_intro _ (nil, translate (and tru (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4; subst. refine (ex_intro _ (nil, translate (read (con_subst E e') t) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + destruct s. destruct e0. subst. inversion H4. subst. refine (ex_intro _ (nil, translate (read (array x1) (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4; subst. refine (ex_intro _ (nil, translate (write (con_subst E e') t t0) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + destruct s. destruct e0. subst. inversion H4. subst. refine (ex_intro _ (nil, translate (write (array x1) (con_subst E e') t) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + destruct s. destruct e0. destruct s0. destruct e0. subst. inversion H4. subst. refine (ex_intro _ (nil, translate (write (array x1) (num x3) (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4; subst. refine (ex_intro _ (nil, translate (case (con_subst E e') t t0) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4. subst. refine (ex_intro _ (nil, translate (not (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4; subst. refine (ex_intro _ (nil, translate (reference (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+  + inversion H4. subst. refine (ex_intro _ (nil, translate (cast (con_subst E e')) true B buf_size, translate s2 false B buf_size, race_thread B, m'0) _). split.
+    ++ apply related_after_initial. auto. auto.
+    ++ simpl. admit.
+Admitted.
 
-Theorem forward_bisimulation : forall p p' q f B,
-  term_flush_steps p p' -> related_program B f p q -> (exists q', related_program B f p' q' /\ SC_program_steps q q').
+
+Theorem forward_bisimulation : forall p p' q B,
+  term_flush_steps p p' -> related_program B p q -> (exists q', related_program B p' q' /\ SC_program_steps q q').
 Proof. intros. inversion H0. clear H0. subst. inversion H. subst. clear H. destruct H0. destruct H. destruct s'. simpl in *. inversion H; subst.
   + induction H8; intros.
     ++ admit.
@@ -178,11 +262,3 @@ Proof. intros. inversion H0. clear H0. subst. inversion H. subst. clear H. destr
     ++ rewrite translate_case. rewrite translate_tru. admit.
     ++ rewrite translate_case. rewrite translate_fls. admit.
 Admitted.
-
-
-
-
-
-
-
-

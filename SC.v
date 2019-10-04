@@ -77,23 +77,338 @@ Inductive SC_program_steps : SC_machine -> SC_machine -> Prop :=
   | SC_program_steps_reflexive : forall p, SC_program_steps p p
   | SC_program_steps_transitive : forall p q r, pstep p q -> SC_program_steps q r -> SC_program_steps p r.
 
-Inductive SC_thread_steps : (term * memory_model) -> (term * memory_model) -> Prop :=
-  | SC_thread_steps_reflexive : forall t, SC_thread_steps t t
-  | SC_thread_steps_transitive : forall e e' e'' m m' m'' event, memory_step m event m' ->
-      (step e event e' \/ e = e') -> SC_thread_steps (e', m') (e'', m'') ->
-      SC_thread_steps (e, m) (e'', m'').
+Fact steps_app_left : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), app (snd (fst (fst (fst t)))) e2, snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), app (snd (fst (fst (fst t')))) e2, snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, app t1 e2, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Capp1 Hole e2). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+    
+Fact steps_app_right : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t' x,
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), app (lam x e2) (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), app (lam x e2) (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. generalize dependent x. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, app (lam x e2) t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). assert (exists y e', lam x e2 = lam y e'). refine (ex_intro _ x _). refine (ex_intro _ e2 _). auto. apply step_context with (E:=Capp2 (exist _ (lam x e2) H0) Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
 
-Fact SC_program_steps_to_SC_thread_steps : forall t t',
-(SC_program_steps t t' ->
-(SC_thread_steps (snd (fst (fst (fst t))), snd t) (snd (fst (fst (fst t'))), snd t') /\ 
-SC_thread_steps (snd (fst (fst t)), snd t) (snd (fst (fst t')), snd t') /\ 
-SC_thread_steps (snd (fst t), snd t) (snd (fst t'), snd t'))).
-  Proof. intros. induction H. 
-      ++ split. apply SC_thread_steps_reflexive. split. apply SC_thread_steps_reflexive. apply SC_thread_steps_reflexive.
-      ++ destruct IHSC_program_steps. destruct H2. repeat (destruct p). destruct q. repeat (destruct p). destruct r. repeat (destruct p). simpl in *. inversion H; subst; clear H.
-        +++ split. apply SC_thread_steps_transitive with (e':=t4) (event:=(Allocate (length l0) size init)) (m':=m0). auto. right. auto. auto. split. apply SC_thread_steps_transitive with (e':=t3) (event:=(Allocate (length l0) size init)) (m':=m0). auto. right. auto. auto. apply SC_thread_steps_transitive with (e':=t2) (event:=(Allocate (length l0) size init)) (m':=m0). auto. right. auto. auto.
-        +++ split. apply SC_thread_steps_transitive with (event:=event) (e':=t4) (m':=m0). auto. left. auto.
-auto. split. apply SC_thread_steps_transitive with (e':=t3) (event:=event) (m':=m0). auto. right. auto. auto.  apply SC_thread_steps_transitive with (e':=t2) (event:=event) (m':=m0). auto. right. auto. auto.
-        +++ split. apply SC_thread_steps_transitive with (e':=t4) (event:=event) (m':=m0). auto. right. auto. auto. split.  apply SC_thread_steps_transitive with (e':=t3) (event:=event) (m':=m0). auto. left. auto. auto.  apply SC_thread_steps_transitive with (e':=t2) (event:=event) (m':=m0). auto. right. auto. auto.
-        +++ split. apply SC_thread_steps_transitive with (e':=t4) (event:=event) (m':=m0). auto. right. auto. auto. split. apply SC_thread_steps_transitive with (e':=t3) (event:=event) (m':=m0). auto. right. auto. auto.  apply SC_thread_steps_transitive with (e':=t2) (event:=event) (m':=m0). auto. left. auto. auto.
-Qed.
+Fact steps_plus_left : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), plus (snd (fst (fst (fst t)))) e2, snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), plus (snd (fst (fst (fst t')))) e2, snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, plus t1 e2, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Cplus1 Hole e2). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+    
+Fact steps_plus_right : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), plus (num e2) (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), plus (num e2) (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, plus (num e2) t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). assert (exists n, num e2 = num n). refine (ex_intro _ e2 _). auto. apply step_context with (E:=Cplus2 (exist _ (num e2) H0) Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_minus_left : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), minus (snd (fst (fst (fst t)))) e2, snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), minus (snd (fst (fst (fst t')))) e2, snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, minus t1 e2, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Cminus1 Hole e2). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+    
+Fact steps_minus_right : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), minus (num e2) (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), minus (num e2) (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, minus (num e2) t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). assert (exists n, num e2 = num n). refine (ex_intro _ e2 _). auto. apply step_context with (E:=Cminus2 (exist _ (num e2) H0) Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_modulo_left : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), modulo (snd (fst (fst (fst t)))) e2, snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), modulo (snd (fst (fst (fst t')))) e2, snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, modulo t1 e2, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Cmodulo1 Hole e2). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+    
+Fact steps_modulo_right : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), modulo (num e2) (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), modulo (num e2) (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, modulo (num e2) t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). assert (exists n, num e2 = num n). refine (ex_intro _ e2 _). auto. apply step_context with (E:=Cmodulo2 (exist _ (num e2) H0) Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_less_than_left : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), less_than (snd (fst (fst (fst t)))) e2, snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), less_than (snd (fst (fst (fst t')))) e2, snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, less_than t1 e2, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Cless_than1 Hole e2). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+    
+Fact steps_less_than_right : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), less_than (num e2) (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), less_than (num e2) (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, less_than (num e2) t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). assert (exists n, num e2 = num n). refine (ex_intro _ e2 _). auto. apply step_context with (E:=Cless_than2 (exist _ (num e2) H0) Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_and_left : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), and (snd (fst (fst (fst t)))) e2, snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), and (snd (fst (fst (fst t')))) e2, snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, and t1 e2, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Cand1 Hole e2). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+    
+Fact steps_and_right : forall l l' e1 e1' e3 e3' e4 e4' m m' t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), and tru (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), and tru (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, and tru t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Cand2 (exist _ tru eq_refl) Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_read_left : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), read (snd (fst (fst (fst t)))) e2, snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), read (snd (fst (fst (fst t')))) e2, snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, read t1 e2, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Cread1 Hole e2). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+    
+Fact steps_read_right : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), read (array e2) (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), read (array e2) (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, read (array e2) t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). assert (exists n, array e2 = array n). refine (ex_intro _ e2 _). auto. apply step_context with (E:=Cread2 (exist _ (array e2) H0) Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_write_left : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 e5 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), write (snd (fst (fst (fst t)))) e2 e5, snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), write (snd (fst (fst (fst t')))) e2 e5, snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. generalize dependent e5. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, write t1 e2 e5, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Cwrite1 Hole e2 e5). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+    
+Fact steps_write_right : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 e5 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), write (array e2) (snd (fst (fst (fst t)))) e5, snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), write (array e2) (snd (fst (fst (fst t')))) e5, snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. generalize dependent e5. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, write (array e2) t1 e5, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). assert (exists n, array e2 = array n). refine (ex_intro _ e2 _). auto. apply step_context with (E:=Cwrite2 (exist _ (array e2) H0) Hole e5). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_write_right_right : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 e5 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), write (array e2) (num e5) (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), write (array e2) (num e5) (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, write (array e2) (num e5) t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). assert (exists n, array e2 = array n). refine (ex_intro _ e2 _). auto. assert (exists n, num e5 = num n). refine (ex_intro _ e5 _). auto. apply step_context with (E:=Cwrite3 (exist _ (array e2) H0) (exist _ (num e5) H2) Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_not_left : forall l l' e1 e1' e3 e3' e4 e4' m m' t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), not (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), not (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, not t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Cnot Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_reference_left : forall l l' e1 e1' e3 e3' e4 e4' m m' t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), reference (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), reference (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, reference t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Creference Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_cast_left : forall l l' e1 e1' e3 e3' e4 e4' m m' t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), cast (snd (fst (fst (fst t)))), snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), cast (snd (fst (fst (fst t')))), snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, cast t1, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Ccast Hole). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
+
+Fact steps_case_left : forall l l' e1 e1' e3 e3' e4 e4' m m' e2 e5 t t',
+t = (l, e1, e3, e4, m) ->
+t' = (l', e1', e3', e4', m') ->
+SC_program_steps t t' ->
+SC_program_steps
+(fst (fst (fst (fst t))), case (snd (fst (fst (fst t)))) e2 e5, snd (fst (fst t)), snd (fst t), snd t) (fst (fst (fst (fst t'))), case (snd (fst (fst (fst t')))) e2 e5, snd (fst (fst t')), snd (fst t'), snd t').
+Proof. intros. generalize dependent l. generalize dependent e1. generalize dependent e3. generalize dependent e4. generalize dependent m.  generalize dependent l'. generalize dependent e1'. generalize dependent e3'. generalize dependent e4'. generalize dependent m'. generalize dependent e2. generalize dependent e5. induction H1; intros.
+  + apply SC_program_steps_reflexive.
+  + subst. destruct q. destruct p. destruct p. destruct p. simpl in *. apply SC_program_steps_transitive with (q:=(l0, case t1 e2 e5, t0, t, m0)).
+    ++ inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto.
+       +++ apply ST_synchronize1 with (event:=event). apply step_context with (E:=Ccase Hole e2 e5). auto. auto.
+       +++ apply ST_synchronize2 with (event:=event). auto. auto.
+       +++ apply ST_synchronize3 with (event:=event). auto. auto.
+    ++ apply IHSC_program_steps with (m'0:=m') (e4'0:=e4') (e3'0:=e3') (e1'0:=e1') (l'0:=l') (m:=m0) (e4:=t) (e3:=t0) (e1:=t1) (l:=l0). auto. auto. Qed.
