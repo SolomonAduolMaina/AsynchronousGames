@@ -8,6 +8,7 @@ Require Import Util.
    3. nats,
    4. bools,
    6. case statements
+   7. pairs
  *)
 
 Inductive term : Type :=
@@ -29,7 +30,10 @@ Inductive term : Type :=
   | case : term -> term -> term -> term
   | var : string -> term
   | app : term -> term -> term
-  | lam : string -> term -> term.
+  | lam : string -> term -> term
+  | paire : term -> term -> term
+  | first : term -> term
+  | second : term -> term.
 
 Definition or (s : term) (t : term) := not (and (not s) (not t)).
 
@@ -84,7 +88,8 @@ Inductive value : term -> Prop :=
   | value_yunit : value yunit
   | value_tru : value tru
   | value_fls : value fls
-  | value_lam : forall x y, value (lam x y).
+  | value_lam : forall x y, value (lam x y)
+  | value_paire : forall v1 v2, value v1 -> value v2 -> value (paire v1 v2).
 
 Fixpoint remove (s : string) (l : list string) :=
   match l with
@@ -113,6 +118,9 @@ Fixpoint fvs (e : term) : list string :=
     | var y => y :: nil
     | app e1 e2 =>  (fvs e1) ++ (fvs e2)
     | lam x e => remove x (fvs e)
+    | paire e1 e2 => (fvs e1) ++ (fvs e2)
+    | first e1 => fvs e1
+    | second e1 => fvs e1
   end.
 
 
@@ -137,6 +145,9 @@ Fixpoint subst (x : string) (v : term) (e : term) :=
     | var y => if string_dec x y then v else var y
     | app e1 e2 => app (subst x v e1) (subst x v e2)
     | lam y e => lam y (if (string_dec x y) then e else (subst x v e))
+    | paire e1 e2 => paire (subst x v e1) (subst x v e2)
+    | first e => first (subst x v e)
+    | second e => second (subst x v e)
   end.
 
 Fact subst_array : forall n x v, subst x v (array n) = array n.
@@ -196,6 +207,15 @@ Proof. intros. simpl. reflexivity. Qed.
 Fact subst_lam : forall x y v e, subst x v (lam y e) = lam y (if (string_dec x y) then e else (subst x v e)).
 Proof. intros. simpl. reflexivity. Qed.
 
+Fact subst_paire : forall e1 e2 x v, subst x v (paire e1 e2) = paire (subst x v e1) (subst x v e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_first : forall e1 x v, subst x v (first e1) = first (subst x v e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_second : forall e1 x v, subst x v (second e1) = second (subst x v e1).
+Proof. intros. simpl. reflexivity. Qed.
+
 Fact subst_closed_helper1 : forall y l x, In y l -> y <> x -> In y (remove x l).
 Proof. intros. induction l.
   + inversion H.
@@ -240,6 +260,9 @@ Proof. intros. generalize dependent x. induction e; intros.
     ++ rewrite IHe. auto. simpl in H. intros C. destruct (string_dec x s).
       +++ contradiction n.
       +++ contradiction H. apply subst_closed_helper1. auto. auto.
+  + rewrite subst_paire. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
+  + rewrite subst_first. simpl in H. rewrite IHe. auto. auto.
+  + rewrite subst_second. simpl in H. rewrite IHe. auto. auto.
 Qed.
 
 Fact subst_closed : forall x v e, fvs e = nil -> subst x v e = e.
@@ -268,7 +291,11 @@ Inductive context : Type :=
   | Ccase : context -> term -> term -> context
   | Cnot : context -> context
   | Creference : context -> context
-  | Ccast : context -> context.
+  | Ccast : context -> context
+  | Cpaire1 : context -> term -> context
+  | Cpaire2 : {v : term | value v} -> context -> context
+  | Cfirst : context -> context
+  | Csecond : context -> context.
 
 Fixpoint con_subst (E : context) (s : term) : term :=
   match E with
@@ -294,6 +321,10 @@ Fixpoint con_subst (E : context) (s : term) : term :=
     | Cnot E => not (con_subst E s)
     | Creference E => reference (con_subst E s)
     | Ccast E => cast (con_subst E s)
+    | Cpaire1 E t => paire (con_subst E s) t
+    | Cpaire2 (exist _ x _) E => paire x (con_subst E s)
+    | Cfirst E => first (con_subst E s)
+    | Csecond E => second (con_subst E s)
   end.
 
 Inductive step : term -> mem_event -> term -> Prop :=
@@ -322,4 +353,6 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_not1 : step (not tru) Tau fls
   | step_not2 : step (not fls) Tau tru
   | step_case1 : forall e1 e2, step (case tru e1 e2) Tau e1
-  | step_case2 : forall e1 e2, step (case fls e1 e2) Tau e2.
+  | step_case2 : forall e1 e2, step (case fls e1 e2) Tau e2
+  | step_fst : forall v1 v2, value v1 -> value v2 -> step (first (paire v1 v2)) Tau v1
+  | step_snd : forall v1 v2, value v1 -> value v2 -> step (second (paire v1 v2)) Tau v2.
