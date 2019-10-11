@@ -383,6 +383,13 @@ destruct (string_dec x s).
   + rewrite subst_second. rewrite translate_second. rewrite translate_second. rewrite subst_app. rewrite subst_second. rewrite IHe. rewrite subst_flush_star. reflexivity.
 Qed.
 
-
-Definition race_thread (base : nat) : term :=
-  WHILE (not (!(DONE_COUNTER base) == ZERO)) DO (SPECIAL base) ::= ZERO DONE.
+Fact translation_of_value_is_value : forall v thread base buf_size,
+    value v -> value (translate v thread base buf_size).
+Proof. intros. induction H; simpl.
+  + apply value_array.
+  + apply value_num.
+  + apply value_yunit.
+  + apply value_tru.
+  + apply value_fls.
+  + apply value_lam.
+  + apply value_paire. auto. auto. Qed.
