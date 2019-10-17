@@ -74,36 +74,30 @@ Inductive memstep : memory_model -> (thread_id * mem_event) -> memory_model -> P
                        (thread, Cast base location)
                        (buffer, mapping, local, global).
 
-(* A program is a 4-tuple (buf_size, init, s1, s2)
+(* A program is a 3-tuple (buf_size, init, threads)
   1. buf_size : nat denoting the size of the store buffers,
   2. init : (list (nat * (list nat))) denoting array variables with respective size and inital values,
-  3. s1 : term denotes the program running on the first thread,
-  4. s2 : term denotes the program running on the second thread.
+  3. threads : bool -> term denotes the two running threads
 *)
-Definition program := nat * (list (nat * (list nat))) * term * term.
+Definition program := nat * (list (nat * (list nat))) * (bool -> term).
 
 Definition TSO_machine := program * memory_model.
 
 Inductive pstep : TSO_machine -> TSO_machine -> Prop :=
-  | ST_init_allocate : forall buffer xs s1 s2 mem mem' size init,
+  | ST_init_allocate : forall buffer xs threads mem mem' size init,
                       size > 0 ->
                       length init <= size ->
                       memstep mem (true, Allocate (length xs) size init) mem'->
-                      pstep ((buffer, xs ++ ((size, init) :: nil), s1, s2), mem)
-                            ((buffer, xs, s1, s2), mem')
-  | ST_synchronize1 : forall s1 event s1' mem mem' buffer s2,
-                      step s1 event s1' ->
+                      pstep ((buffer, xs ++ ((size, init) :: nil), threads), mem)
+                            ((buffer, xs, threads), mem')
+  | ST_synchronize : forall threads thread event e mem mem' buffer threads',
+                      step (threads thread) event e ->
                       memstep mem (true, event) mem' ->
-                      pstep ((buffer, nil, s1, s2), mem)
-                            ((buffer, nil, s1', s2), mem')
-  | ST_synchronize2 : forall s1 event s2' mem mem' buffer s2,
-                      step s2 event s2' ->
-                      memstep mem (false, event) mem' ->
-                      pstep ((buffer, nil, s1, s2), mem)
-                            ((buffer, nil, s1, s2'), mem')
+                      (forall t, threads' t = if Bool.eqb thread t then e else threads t) ->
+                      pstep ((buffer, nil, threads), mem) ((buffer, nil, threads'), mem')
   | ST_flush : forall local local' thread address value xs global global' mapping program offset buffer,
                local thread = ((address, offset, value) :: xs) ->
-               snd (fst (fst program)) = nil ->
+               snd (fst program) = nil ->
                local' thread = xs ->
                local' (negb thread) = local (negb thread) ->
                global' = update_global (address + offset, value) global ->

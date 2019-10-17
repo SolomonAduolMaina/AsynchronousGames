@@ -1,4 +1,5 @@
 Require Import Strings.String.
+Open Scope string_scope.
 Require Import List.
 Require Import Util.
 Require Import Lambda.
@@ -393,3 +394,216 @@ Proof. intros. induction H; simpl.
   + apply value_fls.
   + apply value_lam.
   + apply value_paire. auto. auto. Qed.
+
+
+
+Fact translation_of_context_steps : forall e e' b B buf_size f m' m'0 l l' thread E u v u' v',
+(forall t, u t = if thread_equals t thread then translate e b B buf_size else f t) ->
+(forall t, v t = if thread_equals t thread then translate e' b B buf_size else f t) ->
+(forall t, u' t = if thread_equals t thread then translate (con_subst E e) b B buf_size else f t) ->
+(forall t, v' t = if thread_equals t thread then translate (con_subst E e') b B buf_size else f t) ->
+SC_program_steps (l, u, m') (l', v, m'0) ->
+SC_program_steps (l, u', m') (l', v', m'0).
+Proof. intros. generalize dependent l. generalize dependent l'. generalize dependent u. generalize dependent u'. generalize dependent v. generalize dependent v'. induction E; intros; try (remember (fun t => if thread_equals t thread then translate (con_subst E e) b B buf_size else f t) as threads; remember (fun t => if thread_equals t thread then translate (con_subst E e') b B buf_size else f t) as threads'); simpl in *.
+  + apply program_steps_same with (u:=u) (v:=v). auto. intros. rewrite H. rewrite H1. auto. intros. rewrite H0. rewrite H2. auto.
+  + apply steps_app_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=translate t b B buf_size).
+    ++ apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads'. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + destruct s. destruct e0. destruct H4. subst x. rewrite translate_app in *. rewrite translate_lam in *. apply steps_app_right with (threads:=threads) (threads':=threads') (thread:=thread) (x:=x0) (e2:=flush_star b B buf_size;; translate x1 b B buf_size).
+    ++ apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then plus (translate (con_subst E e) b B buf_size) (translate t b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then plus (translate (con_subst E e') b B buf_size) (translate t b B buf_size) else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_plus_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=translate t b B buf_size). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t0 thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t0 thread). auto. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + destruct s. destruct e0. subst x. rewrite translate_plus in *. rewrite translate_num in *. remember (fun t0 => if thread_equals t0 thread then plus (num x0) (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then plus (num x0) (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_plus_right with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=x0). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then minus (translate (con_subst E e) b B buf_size) (translate t b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then minus (translate (con_subst E e') b B buf_size) (translate t b B buf_size) else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_minus_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=translate t b B buf_size). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t0 thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t0 thread). auto. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + destruct s. destruct e0. subst x. rewrite translate_minus in *. rewrite translate_num in *. remember (fun t0 => if thread_equals t0 thread then minus (num x0) (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then minus (num x0) (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_minus_right with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=x0). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then modulo (translate (con_subst E e) b B buf_size) (translate t b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then modulo (translate (con_subst E e') b B buf_size) (translate t b B buf_size) else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_modulo_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=translate t b B buf_size). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t0 thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t0 thread). auto. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + destruct s. destruct e0. subst x. rewrite translate_modulo in *. rewrite translate_num in *. remember (fun t0 => if thread_equals t0 thread then modulo (num x0) (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then modulo (num x0) (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_modulo_right with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=x0). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then less_than (translate (con_subst E e) b B buf_size) (translate t b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then less_than (translate (con_subst E e') b B buf_size) (translate t b B buf_size) else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_less_than_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=translate t b B buf_size). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t0 thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t0 thread). auto. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + destruct s. destruct e0. subst x. rewrite translate_less_than in *. rewrite translate_num in *. remember (fun t0 => if thread_equals t0 thread then less_than (num x0) (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then less_than (num x0) (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_less_than_right with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=x0). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then and (translate (con_subst E e) b B buf_size) (translate t b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then and (translate (con_subst E e') b B buf_size) (translate t b B buf_size) else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_and_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=translate t b B buf_size). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t0 thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t0 thread). auto. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t0 thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + destruct s. subst x. rewrite translate_and in *. rewrite translate_tru in *. remember (fun t0 => if thread_equals t0 thread then and tru (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then and tru (translate (con_subst E e')  b B buf_size) else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_and_right with (threads:=threads) (threads':=threads') (thread:=thread). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + unfold new_read in *. remember (fun t0 => if thread_equals t0 thread then app (lam "pair" (read_code b B buf_size))  (paire (translate (con_subst E e) b B buf_size) (translate t b B buf_size)) else f t0) as threads''. remember (fun t0 => if thread_equals t0 thread then app (lam "pair" (read_code b B buf_size))  (paire (translate (con_subst E e') b B buf_size) (translate t b B buf_size)) else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ remember (fun t0 => if thread_equals t0 thread then (paire (translate (con_subst E e) b B buf_size) (translate t b B buf_size)) else f t0) as threads''''. remember (fun t0 => if thread_equals t0 thread then (paire (translate (con_subst E e') b B buf_size) (translate t b B buf_size)) else f t0) as threads'''''. apply steps_app_right with (threads:=threads'''') (threads':=threads''''') (thread:=thread) (e2:=read_code b B buf_size) (x:="pair").
+       +++ apply steps_paire_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=translate t b B buf_size). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''''. rewrite Heqthreads. intros. destruct (thread_equals t0 thread). auto. auto. rewrite Heqthreads'''''. rewrite Heqthreads'. intros. destruct (thread_equals t0 thread). auto. auto.
+       +++ rewrite Heqthreads''''. rewrite Heqthreads''. intros. destruct (thread_equals t0 thread). auto. auto.
+       +++ rewrite Heqthreads'''''. rewrite Heqthreads'''. intros. destruct (thread_equals t0 thread). auto. auto.
+    ++ intros. rewrite H1. rewrite Heqthreads''. destruct (thread_equals t0 thread). auto. auto.
+    ++ intros. rewrite H2. rewrite Heqthreads'''. destruct (thread_equals t0 thread). auto. auto.
+  + destruct s. destruct e0. subst x. rewrite translate_read in *. unfold new_read in *. rewrite translate_array in *. remember (fun t0 => if thread_equals t0 thread then app (lam "pair" (read_code b B buf_size))  (paire (array x0) (translate (con_subst E e) b B buf_size) ) else f t0) as threads''. remember (fun t0 => if thread_equals t0 thread then app (lam "pair" (read_code b B buf_size))  (paire (array x0) (translate (con_subst E e') b B buf_size)) else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ remember (fun t0 => if thread_equals t0 thread then (paire (array x0) (translate (con_subst E e) b B buf_size)) else f t0) as threads''''. remember (fun t0 => if thread_equals t0 thread then (paire (array x0) (translate (con_subst E e') b B buf_size)) else f t0) as threads'''''. apply steps_app_right with (threads:=threads'''') (threads':=threads''''') (thread:=thread) (e2:=read_code b B buf_size) (x:="pair").
+       +++ apply steps_paire_right with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=array x0). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. apply value_array. rewrite Heqthreads''''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+       +++ rewrite Heqthreads''''. rewrite Heqthreads''. intros. destruct (thread_equals t thread). auto. auto.
+       +++ rewrite Heqthreads'''''. rewrite Heqthreads'''. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. rewrite H1. rewrite Heqthreads''. destruct (thread_equals t thread). auto. auto.
+    ++ intros. rewrite H2. rewrite Heqthreads'''. destruct (thread_equals t thread). auto. auto.
+  + unfold new_write in *. remember (fun q => if thread_equals q thread then app (lam "triple" (write_code b B buf_size)) (paire (translate (con_subst E e) b B buf_size) (paire (translate t b B buf_size) (translate t0 b B buf_size))) else f q) as threads''. remember (fun q => if thread_equals q thread then app (lam "triple" (write_code b B buf_size)) (paire (translate (con_subst E e') b B buf_size) (paire (translate t b B buf_size) (translate t0 b B buf_size))) else f q) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ remember (fun q => if thread_equals q thread then paire (translate (con_subst E e) b B buf_size)
+                        (paire (translate t b B buf_size) (translate t0 b B buf_size)) else f q) as threads''''. remember (fun q => if thread_equals q thread then paire (translate (con_subst E e') b B buf_size) (paire (translate t b B buf_size) (translate t0 b B buf_size)) else f q) as threads'''''. apply steps_app_right with (threads:=threads'''') (threads':=threads''''') (thread:=thread) (e2:=write_code b B buf_size) (x:="triple").
+       +++ apply steps_paire_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=paire (translate t b B buf_size) (translate t0 b B buf_size)). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''''. rewrite Heqthreads. intros. destruct (thread_equals t1 thread) eqn:ORIG. auto. auto. rewrite Heqthreads'''''. intros. destruct (thread_equals t1 thread) eqn:ORIG. rewrite Heqthreads'. rewrite ORIG. auto. rewrite Heqthreads'. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''''. intros. rewrite Heqthreads''. destruct (thread_equals t1 thread) eqn:ORIG. auto. auto.
+       +++ rewrite Heqthreads'''''. rewrite Heqthreads'''. intros. destruct (thread_equals t1 thread). auto. auto.
+    ++ intros. rewrite H1. rewrite Heqthreads''. destruct (thread_equals t1 thread). auto. auto.
+    ++ intros. rewrite H2. rewrite Heqthreads'''. destruct (thread_equals t1 thread). auto. auto.
+  + destruct s. destruct e0. subst x. rewrite translate_write in *. unfold new_write in *. rewrite translate_array in *. remember (fun q => if thread_equals q thread then app (lam "triple" (write_code b B buf_size)) (paire (array x0) (paire (translate (con_subst E e) b B buf_size) (translate t b B buf_size))) else f q) as threads''. remember (fun q => if thread_equals q thread then app (lam "triple" (write_code b B buf_size)) (paire (array x0) (paire (translate (con_subst E e') b B buf_size) (translate t b B buf_size))) else f q) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ remember (fun q => if thread_equals q thread then (paire (array x0)
+                        (paire (translate (con_subst E e) b B buf_size)
+                           (translate t b B buf_size))) else f q) as threads''''. remember (fun q => if thread_equals q thread then (paire (array x0)
+                        (paire (translate (con_subst E e') b B buf_size)
+                           (translate t b B buf_size))) else f q) as threads'''''. apply steps_app_right with (threads:=threads'''') (threads':=threads''''') (thread:=thread) (e2:=write_code b B buf_size) (x:="triple").
+       +++ remember (fun q => if thread_equals q thread then (
+                        (paire (translate (con_subst E e) b B buf_size)
+                           (translate t b B buf_size))) else f q) as threads''''''. remember (fun q => if thread_equals q thread then (
+                        (paire (translate (con_subst E e') b B buf_size)
+                           (translate t b B buf_size))) else f q) as threads'''''''. apply steps_paire_right with (threads:=threads'''''') (threads':=threads''''''') (thread:=thread) (e2:=array x0).
+           ++++ apply steps_paire_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=translate t b B buf_size). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''''''. rewrite Heqthreads. intros. destruct (thread_equals t0 thread) eqn:ORIG. auto. auto. rewrite Heqthreads'''''''. intros. destruct (thread_equals t0 thread) eqn:ORIG. rewrite Heqthreads'. rewrite ORIG. auto. rewrite Heqthreads'. rewrite ORIG. auto.
+           ++++ apply value_array. 
+           ++++ rewrite Heqthreads''''. intros. rewrite Heqthreads''''''. destruct (thread_equals t0 thread) eqn:ORIG. auto. auto.
+           ++++ rewrite Heqthreads'''''. rewrite Heqthreads'''''''. intros. destruct (thread_equals t0 thread). auto. auto.
+       +++ rewrite Heqthreads''. rewrite Heqthreads''''. intros. destruct (thread_equals t0 thread). auto. auto.
+       +++ rewrite Heqthreads'''. rewrite Heqthreads'''''. intros. destruct (thread_equals t0 thread). auto. auto.
+    ++ intros. rewrite H1. rewrite Heqthreads''. destruct (thread_equals t0 thread). auto. auto.
+    ++ intros. rewrite H2. rewrite Heqthreads'''. destruct (thread_equals t0 thread). auto. auto.
+  + destruct s. destruct e0. destruct s0. destruct e0. subst x. subst x1. rewrite translate_write in *. unfold new_write in *. rewrite translate_array in *. rewrite translate_num in *. remember (fun q => if thread_equals q thread then app (lam "triple" (write_code b B buf_size)) (paire (array x0) (paire (num x2) (translate (con_subst E e) b B buf_size))) else f q) as threads''. remember (fun q => if thread_equals q thread then app (lam "triple" (write_code b B buf_size)) (paire (array x0) (paire (num x2) (translate (con_subst E e') b B buf_size))) else f q) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ remember (fun q => if thread_equals q thread then (paire (array x0)
+                        (paire (num x2) (translate (con_subst E e) b B buf_size))) else f q) as threads''''. remember (fun q => if thread_equals q thread then (paire (array x0)
+                        (paire (num x2) (translate (con_subst E e') b B buf_size))) else f q) as threads'''''. apply steps_app_right with (threads:=threads'''') (threads':=threads''''') (thread:=thread) (e2:=write_code b B buf_size) (x:="triple").
+       +++ remember (fun q => if thread_equals q thread then (
+                        (paire (num x2) (translate (con_subst E e) b B buf_size))) else f q) as threads''''''. remember (fun q => if thread_equals q thread then (
+                        (paire (num x2) (translate (con_subst E e') b B buf_size))) else f q) as threads'''''''. apply steps_paire_right with (threads:=threads'''''') (threads':=threads''''''') (thread:=thread) (e2:=array x0).
+           ++++ apply steps_paire_right with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=num x2). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. apply value_num. rewrite Heqthreads''''''. rewrite Heqthreads. intros. destruct (thread_equals t thread) eqn:ORIG. auto. auto. rewrite Heqthreads'''''''. intros. destruct (thread_equals t thread) eqn:ORIG. rewrite Heqthreads'. rewrite ORIG. auto. rewrite Heqthreads'. rewrite ORIG. auto.
+           ++++ apply value_array. 
+           ++++ rewrite Heqthreads''''. intros. rewrite Heqthreads''''''. destruct (thread_equals t thread) eqn:ORIG. auto. auto.
+           ++++ rewrite Heqthreads'''''. rewrite Heqthreads'''''''. intros. destruct (thread_equals t thread). auto. auto.
+       +++ rewrite Heqthreads''. rewrite Heqthreads''''. intros. destruct (thread_equals t thread). auto. auto.
+       +++ rewrite Heqthreads'''. rewrite Heqthreads'''''. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. rewrite H1. rewrite Heqthreads''. destruct (thread_equals t thread). auto. auto.
+    ++ intros. rewrite H2. rewrite Heqthreads'''. destruct (thread_equals t thread). auto. auto.
+  + apply steps_case_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=flush_star b B buf_size;; translate t b B buf_size) (e3:=flush_star b B buf_size;; translate t0 b B buf_size). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. intros. destruct (thread_equals t1 thread) eqn:ORIG.
+       +++ rewrite Heqthreads. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ intros. destruct (thread_equals t1 thread) eqn:ORIG.
+           ++++ rewrite Heqthreads'. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+           ++++ rewrite Heqthreads'. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then not (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then not (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_not_left with (threads:=threads) (threads':=threads') (thread:=thread). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then reference (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then reference (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_reference_left with (threads:=threads) (threads':=threads') (thread:=thread). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then cast (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then cast (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_cast_left with (threads:=threads) (threads':=threads') (thread:=thread). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + apply steps_paire_left with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=translate t b B buf_size). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. intros. destruct (thread_equals t0 thread) eqn:ORIG. auto. auto. intros. rewrite H. auto. auto. intros. rewrite H1. destruct (thread_equals t0 thread) eqn:ORIG. rewrite Heqthreads. rewrite ORIG. auto. rewrite Heqthreads. rewrite ORIG. auto. intros. destruct (thread_equals t0 thread) eqn:ORIG. rewrite H2. rewrite ORIG. rewrite Heqthreads'. rewrite ORIG. auto. rewrite Heqthreads'. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + destruct s. apply steps_paire_right with (threads:=threads) (threads':=threads') (thread:=thread) (e2:=translate x b B buf_size). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. intros. auto. intros. rewrite H. auto. auto. apply translation_of_value_is_value. auto. intros. destruct (thread_equals t thread) eqn:ORIG. rewrite H1. rewrite ORIG. rewrite Heqthreads. rewrite ORIG. rewrite translate_paire. auto. rewrite Heqthreads. rewrite ORIG. rewrite H1. rewrite ORIG. auto. intros. destruct (thread_equals t thread) eqn:ORIG. rewrite H2. rewrite ORIG. rewrite Heqthreads'. rewrite ORIG. rewrite translate_paire. auto. rewrite Heqthreads'. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then first (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then first (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_first_left with (threads:=threads) (threads':=threads') (thread:=thread). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then second (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then second (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var "x") (x:="x").
+    ++ apply steps_second_left with (threads:=threads) (threads':=threads') (thread:=thread). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+Qed.

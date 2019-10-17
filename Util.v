@@ -10,10 +10,10 @@ Fixpoint take {A} (n : nat) (l : list A)  :=
     | x :: xs, S n => x :: (take n xs)
   end.
 
-Fixpoint sum (l : list nat) :=
+Fixpoint sum_list (l : list nat) :=
   match l with
     | nil => 0
-    | x :: xs => x + (sum xs)
+    | x :: xs => x + (sum_list xs)
   end.
 
 Fixpoint fst_list {A B} (l : list (A * B)) : list A :=
