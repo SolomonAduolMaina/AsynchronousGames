@@ -5,4 +5,4 @@ Lambda.v
 TSO.v
 SC.v
 Translation.v
-Bisimulation.v
+Forward_Simulation.v

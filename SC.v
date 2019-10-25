@@ -120,23 +120,23 @@ Proof. intros. remember (l, threads, m) as p. remember (l', threads', m') as p'.
         +++ apply IHSC_program_steps with (threads:=t) (threads'0:=threads') (thread:=thread) (e2:=e2). auto. auto. auto. auto. Qed.
 
 
-Fact steps_app_right : forall l l' threads threads' thread m m' f g x e2,
+Fact steps_app_right : forall l l' threads threads' thread m m' f g e2,
 SC_program_steps (l, threads, m) (l', threads', m') ->
-(forall t, f t = if thread_equals t thread then app (lam x e2) (threads t) else threads t) ->
-(forall t, g t = if thread_equals t thread then app (lam x e2) (threads' t) else threads' t) ->
+(forall t, f t = if thread_equals t thread then app (lam e2) (threads t) else threads t) ->
+(forall t, g t = if thread_equals t thread then app (lam e2) (threads' t) else threads' t) ->
 SC_program_steps (l, f, m) (l', g, m').
-Proof. intros. remember (l, threads, m) as p. remember (l', threads', m') as p'. generalize dependent l. generalize dependent l'. generalize dependent m. generalize dependent m'. generalize dependent e2. generalize dependent thread. generalize dependent threads'. generalize dependent threads. generalize dependent f. generalize dependent g. generalize dependent x. induction H; intros.
+Proof. intros. remember (l, threads, m) as p. remember (l', threads', m') as p'. generalize dependent l. generalize dependent l'. generalize dependent m. generalize dependent m'. generalize dependent e2. generalize dependent thread. generalize dependent threads'. generalize dependent threads. generalize dependent f. generalize dependent g. induction H; intros.
   + inversion Heqp. inversion Heqp'. subst. apply SC_program_steps_reflexive. intros. rewrite H0. rewrite H1. rewrite H. auto.
-  +  subst. destruct q. destruct p. apply SC_program_steps_transitive with  (l0, fun thread' : bool + unit => if thread_equals thread' thread then app (lam x e2) (t thread') else t thread', m0). inversion H; subst.
+  +  subst. destruct q. destruct p. apply SC_program_steps_transitive with  (l0, fun thread' : bool + unit => if thread_equals thread' thread then app (lam e2) (t thread') else t thread', m0). inversion H; subst.
        +++ apply ST_init_allocate_array. auto. auto. auto. intros. rewrite H1. rewrite H12. auto.
        +++ destruct (thread_equals thread thread0) eqn:ORIG.
-           ++++ rewrite thread_equals_true_iff in ORIG. subst. apply ST_synchronize with (event:=event) (e:=app (lam x e2) e) (thread:=thread0). assert (exists y e', lam x e2 = lam y e'). refine (ex_intro _ x _). refine (ex_intro _ e2 _). auto. destruct thread0; simpl.
-                +++++ rewrite H1. simpl. rewrite Bool.eqb_reflx. apply step_context with (E:=Capp2 (exist _(lam x e2) H3) Hole). auto.
-                +++++ rewrite H1. simpl. apply step_context with (E:=Capp2 (exist _(lam x e2) H3) Hole). auto.
+           ++++ rewrite thread_equals_true_iff in ORIG. subst. apply ST_synchronize with (event:=event) (e:=app (lam e2) e) (thread:=thread0). assert (exists e', lam e2 = lam e'). refine (ex_intro _ e2 _). auto. destruct thread0; simpl.
+                +++++ rewrite H1. simpl. rewrite Bool.eqb_reflx. apply step_context with (E:=Capp2 (exist _(lam e2) H3) Hole). auto.
+                +++++ rewrite H1. simpl. apply step_context with (E:=Capp2 (exist _(lam e2) H3) Hole). auto.
                 +++++ auto.
                 +++++ intros. rewrite H11. rewrite H1. destruct (thread_equals t0 thread0) eqn:ORIG. auto. auto.
            ++++ apply ST_synchronize with (event:=event) (e:=e) (thread:=thread0). rewrite H1. rewrite thread_equals_commutative in ORIG. rewrite ORIG. auto. auto. intros. destruct (thread_equals t0 thread) eqn:ORIG1. rewrite thread_equals_true_iff in ORIG1. subst. rewrite ORIG. rewrite H1. assert (thread_equals thread thread = true). apply thread_equals_true_iff. auto. rewrite H3. rewrite H11. rewrite ORIG. auto. rewrite H11. rewrite H1. rewrite ORIG1. auto. 
-        +++ apply IHSC_program_steps with (x:=x) (threads:=t) (threads'0:=threads') (thread:=thread) (e2:=e2). auto. auto. auto. auto. Qed.
+        +++ apply IHSC_program_steps with (threads:=t) (threads'0:=threads') (thread:=thread) (e2:=e2). auto. auto. auto. auto. Qed.
 
 Fact steps_plus_left : forall l l' threads threads' thread m m' f g e2 ,
 SC_program_steps (l, threads, m) (l', threads', m') ->

@@ -1,6 +1,7 @@
 Require Import List.
-Require Import Strings.String.
 Require Import Util.
+Require Import Arith.PeanoNat.
+Require Import ZArith.
 
 (* Untyped Lambda Calculus with 
    1. fixed width arrays, 
@@ -28,32 +29,15 @@ Inductive term : Type :=
   | reference : term -> term (* &p *)
   | cast : term -> term (* ( int* ) n*)
   | case : term -> term -> term -> term
-  | var : string -> term
+  | var : nat -> term
   | app : term -> term -> term
-  | lam : string -> term -> term
+  | lam : term -> term
   | paire : term -> term -> term
   | first : term -> term
   | second : term -> term.
 
-Definition or (s : term) (t : term) := not (and (not s) (not t)).
+(*********************** Notation ***********************************************)
 
-Definition equals (s : term) (t : term) := not (or (less_than s t) (less_than t s)).
-
-Definition seq (s : term) (t : term) := app (app (lam "x" (lam "y" (var "y"))) s) t.
-
-Definition y_combinator := 
-  let g := lam "x" (app (var "g") (app (var "x") (var "x"))) in
-  lam "g" (app g g).
-
-Definition while_fun := 
-  lam "while" (lam "b" (lam "c" (case (var "b") (seq (var "c") (app (app (var "while") (var "b")) (var "c"))) yunit))).
-
-Definition while_fics := app y_combinator while_fun.
-
-Definition while (s : term) (t : term) := app (app while_fics s) t.
-
-Notation "x == y" :=
-  (equals x y) (at level 60).
 Notation "x << y" :=
   (less_than x y) (at level 60).
 Notation "'!' x" :=
@@ -66,13 +50,10 @@ Notation "x '::=' a" :=
   (write x (num 0) a) (at level 60).
 Notation "x '[' offset ']' '::=' a" :=
   (write x offset a) (at level 60).
-Notation "c1 ;; c2" :=
-  (seq c1 c2) (at level 80, right associativity).
-Notation "'WHILE' b 'DO' c 'DONE'" :=
-  (while b c) (at level 80, right associativity).
 Notation "'CASE' c1 'THEN' c2 'ELSE' c3 'ESAC'" :=
   (case c1 c2 c3) (at level 80, right associativity).
 
+(****************************** Memory events ***********************************)
 
 Inductive mem_event : Type :=
   | Read (loc : nat) (offset : nat) (value : nat)
@@ -82,72 +63,161 @@ Inductive mem_event : Type :=
   | Cast (n : nat) (loc : nat)
   | Tau.
 
+(******************************* Values *****************************************)
+
 Inductive value : term -> Prop :=
   | value_array : forall x, value (array x)
   | value_num : forall x, value (num x)
   | value_yunit : value yunit
   | value_tru : value tru
   | value_fls : value fls
-  | value_lam : forall x y, value (lam x y)
+  | value_lam : forall e, value (lam e)
   | value_paire : forall v1 v2, value v1 -> value v2 -> value (paire v1 v2).
 
-Fixpoint remove (s : string) (l : list string) :=
-  match l with
-    | nil => nil
-    | t :: l => if string_dec t s then (remove s l) else t :: (remove s l)
-  end.
+(*************************Shifting and Substitution ****************************)
 
-Fixpoint fvs (e : term) : list string :=
-  match e with
-    | array _ => nil
-    | num _ => nil
-    | plus e1 e2 => (fvs e1) ++ (fvs e2)
-    | minus e1 e2 =>  (fvs e1) ++ (fvs e2)
-    | modulo e1 e2 =>  (fvs e1) ++ (fvs e2)
-    | tru => nil
-    | fls => nil
-    | less_than e1 e2 =>  (fvs e1) ++ (fvs e2)
-    | not e => fvs e
-    | and e1 e2 =>  (fvs e1) ++ (fvs e2)
-    | yunit => nil
-    | write e1 e2 e3 => (fvs e1) ++ (fvs e2) ++ (fvs e3)
-    | read e1 e2 =>  (fvs e1) ++ (fvs e2)
-    | reference e => fvs e
-    | cast e => fvs e
-    | case e1 e2 e3 => (fvs e1) ++ (fvs e2) ++ (fvs e3)
-    | var y => y :: nil
-    | app e1 e2 =>  (fvs e1) ++ (fvs e2)
-    | lam x e => remove x (fvs e)
-    | paire e1 e2 => (fvs e1) ++ (fvs e2)
-    | first e1 => fvs e1
-    | second e1 => fvs e1
-  end.
-
-
-Fixpoint subst (x : string) (v : term) (e : term) :=
+Fixpoint shift_up (c : nat) (e : term) : term :=
   match e with
     | array _ => e
     | num _ => e
-    | plus e1 e2 => plus (subst x v e1) (subst x v e2)
-    | minus e1 e2 => minus (subst x v e1) (subst x v e2)
-    | modulo e1 e2 => modulo (subst x v e1) (subst x v e2)
+    | plus e1 e2 => plus (shift_up c e1) (shift_up c e2)
+    | minus e1 e2 => minus (shift_up c e1) (shift_up c e2)
+    | modulo e1 e2 => modulo (shift_up c e1) (shift_up c e2)
     | tru => tru
     | fls => fls
-    | less_than e1 e2 => less_than (subst x v e1) (subst x v e2)
-    | not e => not (subst x v e)
-    | and e1 e2 => and (subst x v e1) (subst x v e2)
+    | less_than e1 e2 => less_than (shift_up c e1) (shift_up c e2)
+    | not e => not (shift_up c e)
+    | and e1 e2 => and (shift_up c e1) (shift_up c e2)
     | yunit => yunit
-    | write e1 e2 e3 => write (subst x v e1) (subst x v e2) (subst x v e3)
-    | read e1 e2 => read (subst x v e1) (subst x v e2)
-    | reference e => reference (subst x v e)
-    | cast e => cast (subst x v e)
-    | case e1 e2 e3 => case (subst x v e1) (subst x v e2) (subst x v e3)
-    | var y => if string_dec x y then v else var y
-    | app e1 e2 => app (subst x v e1) (subst x v e2)
-    | lam y e => lam y (if (string_dec x y) then e else (subst x v e))
-    | paire e1 e2 => paire (subst x v e1) (subst x v e2)
-    | first e => first (subst x v e)
-    | second e => second (subst x v e)
+    | write e1 e2 e3 => write (shift_up c e1) (shift_up c e2) (shift_up c e3)
+    | read e1 e2 => read (shift_up c e1) (shift_up c e2)
+    | reference e => reference (shift_up c e)
+    | cast e => cast (shift_up c e)
+    | case e1 e2 e3 => case (shift_up c e1) (shift_up c e2) (shift_up c e3)
+    | var k => if k <? c then var k else var (k + 1)
+    | app e1 e2 => app (shift_up c e1) (shift_up c e2)
+    | lam e => lam (shift_up (c+1) e)
+    | paire e1 e2 => paire (shift_up c e1) (shift_up c e2)
+    | first e => first (shift_up c e)
+    | second e => second (shift_up c e)
+  end.
+
+Fact shift_up_array : forall n c, shift_up c (array n) = array n.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_num : forall n c, shift_up c (num n) = num n.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_tru : forall c, shift_up c tru = tru.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_fls : forall c, shift_up c fls = fls.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_yunit : forall c, shift_up c yunit = yunit.
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_app : forall e1 e2 c, shift_up c (app e1 e2) = app (shift_up c e1) (shift_up c e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_plus : forall e1 e2 c, shift_up c (plus e1 e2) = plus (shift_up c e1) (shift_up c e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_minus : forall e1 e2 c, shift_up c (minus e1 e2) = minus (shift_up c e1) (shift_up c e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_modulo : forall e1 e2 c, shift_up c (modulo e1 e2) = modulo (shift_up c e1) (shift_up c e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_less_than : forall e1 e2 c, shift_up c (less_than e1 e2) = less_than (shift_up c e1) (shift_up c e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_and : forall e1 e2 c, shift_up c (and e1 e2) = and (shift_up c e1) (shift_up c e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_not : forall e1  c, shift_up c (not e1) = not (shift_up c e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_cast : forall e1 c, shift_up c (cast e1) = cast (shift_up c e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_reference : forall e1 c, shift_up c (reference e1) = reference (shift_up c e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_read : forall e1 e2 c, shift_up c (read e1 e2) = read (shift_up c e1) (shift_up c e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_write : forall e1 e2 e3 c, shift_up c (write e1 e2 e3) = write (shift_up c e1) (shift_up c e2) (shift_up c e3).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_case : forall e1 e2 e3 c, shift_up c (case e1 e2 e3) = case (shift_up c e1) (shift_up c e2) (shift_up c e3).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_paire : forall e1 e2 c, shift_up c (paire e1 e2) = paire (shift_up c e1) (shift_up c e2).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_first : forall e1 c, shift_up c (first e1) = first (shift_up c e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_second : forall e1 c, shift_up c (second e1) = second (shift_up c e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_var : forall k c, shift_up c (var k) =  (if k <? c then var k else var (k + 1)).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_up_lam : forall c e, shift_up c (lam e) = lam (shift_up (c+1) e).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fixpoint shift_down (c : nat) (e : term) : term :=
+  match e with
+    | array _ => e
+    | num _ => e
+    | plus e1 e2 => plus (shift_down c e1) (shift_down c e2)
+    | minus e1 e2 => minus (shift_down c e1) (shift_down c e2)
+    | modulo e1 e2 => modulo (shift_down c e1) (shift_down c e2)
+    | tru => tru
+    | fls => fls
+    | less_than e1 e2 => less_than (shift_down c e1) (shift_down c e2)
+    | not e => not (shift_down c e)
+    | and e1 e2 => and (shift_down c e1) (shift_down c e2)
+    | yunit => yunit
+    | write e1 e2 e3 => write (shift_down c e1) (shift_down c e2) (shift_down c e3)
+    | read e1 e2 => read (shift_down c e1) (shift_down c e2)
+    | reference e => reference (shift_down c e)
+    | cast e => cast (shift_down c e)
+    | case e1 e2 e3 => case (shift_down c e1) (shift_down c e2) (shift_down c e3)
+    | var k => if k <? c then var k else var (k - 1)
+    | app e1 e2 => app (shift_down c e1) (shift_down c e2)
+    | lam e => lam (shift_down (c+1) e)
+    | paire e1 e2 => paire (shift_down c e1) (shift_down c e2)
+    | first e => first (shift_down c e)
+    | second e => second (shift_down c e)
+  end.
+
+Fixpoint subst (j : nat) (s : term) (e : term) :=
+  match e with
+    | array _ => e
+    | num _ => e
+    | plus e1 e2 => plus (subst j s e1) (subst j s e2)
+    | minus e1 e2 => minus (subst j s e1) (subst j s e2)
+    | modulo e1 e2 => modulo (subst j s e1) (subst j s e2)
+    | tru => tru
+    | fls => fls
+    | less_than e1 e2 => less_than (subst j s e1) (subst j s e2)
+    | not e => not (subst j s e)
+    | and e1 e2 => and (subst j s e1) (subst j s e2)
+    | yunit => yunit
+    | write e1 e2 e3 => write (subst j s e1) (subst j s e2) (subst j s e3)
+    | read e1 e2 => read (subst j s e1) (subst j s e2)
+    | reference e => reference (subst j s e)
+    | cast e => cast (subst j s e)
+    | case e1 e2 e3 => case (subst j s e1) (subst j s e2) (subst j s e3)
+    | var k => if k =? j then s else var k
+    | app e1 e2 => app (subst j s e1) (subst j s e2)
+    | lam e => lam (subst (j+1) (shift_up 0 s) e)
+    | paire e1 e2 => paire (subst j s e1) (subst j s e2)
+    | first e => first (subst j s e)
+    | second e => second (subst j s e)
   end.
 
 Fact subst_array : forall n x v, subst x v (array n) = array n.
@@ -201,12 +271,6 @@ Proof. intros. simpl. reflexivity. Qed.
 Fact subst_case : forall e1 e2 e3 x v, subst x v (case e1 e2 e3) = case (subst x v e1) (subst x v e2) (subst x v e3).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact subst_var : forall x y v, subst x v (var y) = if (string_dec x y) then v else (var y).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fact subst_lam : forall x y v e, subst x v (lam y e) = lam y (if (string_dec x y) then e else (subst x v e)).
-Proof. intros. simpl. reflexivity. Qed.
-
 Fact subst_paire : forall e1 e2 x v, subst x v (paire e1 e2) = paire (subst x v e1) (subst x v e2).
 Proof. intros. simpl. reflexivity. Qed.
 
@@ -216,63 +280,18 @@ Proof. intros. simpl. reflexivity. Qed.
 Fact subst_second : forall e1 x v, subst x v (second e1) = second (subst x v e1).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact subst_closed_helper1 : forall y l x, In y l -> y <> x -> In y (remove x l).
-Proof. intros. induction l.
-  + inversion H.
-  + simpl. destruct (string_dec a x).
-    ++ subst. apply IHl. destruct H. contradiction H0. auto. auto.
-    ++ simpl. destruct H. subst. left. reflexivity. right. apply IHl. auto. Qed.
+Fact subst_var : forall x k v, subst x v (var k) = if k =? x then v else var k.
+Proof. intros. simpl. reflexivity. Qed.
 
-Fact not_in_app : forall {A} (x: A) l l', (~ (In x (l ++ l'))) -> (~ (In x l)) /\ (~ (In x l')).
-Proof. intros. induction l.
-  + simpl in *. auto.
-  + simpl in *. split.
-    ++ intros C. apply H. destruct C.
-      +++ left. auto.
-      +++ right. apply in_or_app. left. auto.
-    ++ apply IHl. intros C. apply H. right. auto.
-Qed.
+Fact subst_lam : forall x v e, subst x v (lam e) = lam (subst (x+1) (shift_up 0 v) e).
+Proof. intros. simpl. reflexivity. Qed.
 
-Fact subst_idempotent : forall x v e, (~ (In x (fvs e))) -> subst x v e = e.
-Proof. intros. generalize dependent x. induction e; intros.
-  + rewrite subst_array. reflexivity.
-  + rewrite subst_num. reflexivity.
-  + rewrite subst_plus. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
-  + rewrite subst_minus. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
-  + rewrite subst_modulo. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
-  + rewrite subst_tru. reflexivity.
-  + rewrite subst_fls. reflexivity.
-  + rewrite subst_less_than. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
-  + rewrite subst_not. simpl in H. rewrite IHe. auto. auto.
-  + rewrite subst_and. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
-  + rewrite subst_yunit. auto.
-  + rewrite subst_read. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
-  + rewrite subst_write. simpl in H. apply not_in_app in H. destruct H. apply not_in_app in H0. destruct H0. rewrite IHe1. rewrite IHe2. rewrite IHe3. auto. auto. auto. auto.
-  + rewrite subst_reference. simpl in H. rewrite IHe. auto. auto.
-  + rewrite subst_cast. simpl in H. rewrite IHe. auto. auto.
-  + rewrite subst_case. simpl in H. apply not_in_app in H. destruct H. apply not_in_app in H0. destruct H0. rewrite IHe1. rewrite IHe2. rewrite IHe3. auto. auto. auto. auto.
-  + rewrite subst_var. simpl in H. destruct (string_dec x s).
-    ++ subst. contradiction H. left. reflexivity.
-    ++ reflexivity.
-  + rewrite subst_app. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
-  + rewrite subst_lam. destruct (string_dec x s).
-    ++ reflexivity.
-    ++ rewrite IHe. auto. simpl in H. intros C. destruct (string_dec x s).
-      +++ contradiction n.
-      +++ contradiction H. apply subst_closed_helper1. auto. auto.
-  + rewrite subst_paire. simpl in H. apply not_in_app in H. destruct H. rewrite IHe1. rewrite IHe2. auto. auto. auto.
-  + rewrite subst_first. simpl in H. rewrite IHe. auto. auto.
-  + rewrite subst_second. simpl in H. rewrite IHe. auto. auto.
-Qed.
-
-Fact subst_closed : forall x v e, fvs e = nil -> subst x v e = e.
-Proof. intros. apply subst_idempotent. rewrite H. auto. Qed.
-
+(************************** Contexts ********************************************)
 
 Inductive context : Type :=
   | Hole : context
   | Capp1 : context -> term -> context
-  | Capp2 : {t : term | exists x e', t = lam x e'} -> context -> context
+  | Capp2 : {t : term | exists e', t = lam e'} -> context -> context
   | Cplus1 : context -> term -> context
   | Cplus2 : {x : term | exists n, x = num n} -> context -> context
   | Cminus1 : context -> term -> context
@@ -327,11 +346,13 @@ Fixpoint con_subst (E : context) (s : term) : term :=
     | Csecond E => second (con_subst E s)
   end.
 
+(******************************** Stepping *************************************)
+
 Inductive step : term -> mem_event -> term -> Prop :=
   | step_context : forall e e' E event,
                    step e event e' ->
                    step (con_subst E e) event (con_subst E e')
-  | step_app : forall x e v, value v -> step (app (lam x e) v) Tau (subst x v e)
+  | step_app : forall e v, value v -> step (app (lam e) v) Tau (shift_down 0 (subst 0 (shift_up 0 v) e))
   | step_reference : forall x n, step (reference (array x)) (Reference x n) (num n)
   | step_cast : forall x n,  step (cast (num n)) (Cast n x) (array x)
   | step_read : forall offset value n,

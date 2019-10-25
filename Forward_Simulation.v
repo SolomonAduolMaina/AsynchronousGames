@@ -100,7 +100,7 @@ Inductive related_program (B : nat) : TSO_machine -> SC_machine -> Prop :=
 Inductive term_step : TSO_machine -> mem_event -> TSO_machine -> Prop :=
   | synchronize : forall threads thread event e mem mem' buffer threads',
                       step (threads thread) event e ->
-                      memstep mem (true, event) mem' ->
+                      memstep mem (thread, event) mem' ->
                       (forall t, threads' t = if Bool.eqb thread t then e else threads t) ->
                       term_step ((buffer, nil, threads), mem) event ((buffer, nil, threads'), mem').
 
@@ -125,13 +125,13 @@ Fact context_forward_simulation : forall B buf_size f m m0 m'' g m' thread threa
   related_memory_always B m m' ->
   related_memory_after_initial B m m' ->
   mem_flush_steps m0 m'' ->
-  memstep m (true, event) m0 ->
+  memstep m (thread, event) m0 ->
   g (inl true) = translate (f true) true B buf_size ->
   g (inl false) = translate (f false) false B buf_size ->
   g (inr tt) = race_thread B ->
   step e event e' ->
   con_subst E e = f thread ->
-  (forall (thread : bool) (f : bool -> term),
+  (forall (f : bool -> term),
            e = f thread ->
            forall g : bool + unit -> term,
            g (inl true) = translate (f true) true B buf_size ->
@@ -158,7 +158,7 @@ remember (fun thread' =>
 remember (fun t => if Bool.eqb thread t then e' else ind_f t) as ind_threads'.
 assert (exists q' : SC_machine,
          related_program B (buf_size, nil, ind_threads', m'') q' /\
-         SC_program_steps (nil, ind_g, m') q'). apply H8 with (thread:=thread) (f:=ind_f). subst ind_f. simpl. rewrite Bool.eqb_reflx. auto. subst ind_g. auto. subst ind_g. auto. subst ind_g. auto. subst ind_threads'. auto. destruct H10. destruct H10. inversion H10. subst.
+         SC_program_steps (nil, ind_g, m') q'). apply H8 with (f:=ind_f). subst ind_f. simpl. rewrite Bool.eqb_reflx. auto. subst ind_g. auto. subst ind_g. auto. subst ind_g. auto. subst ind_threads'. auto. destruct H10. destruct H10. inversion H10. subst.
  (remember (fun thread' => 
   match thread' with
     | inl true => translate (threads' true) true B buf_size
@@ -206,6 +206,29 @@ Qed.
 
 Theorem forward_simulation : forall p p' q B,
   term_flush_steps p p' -> related_program B p q -> (exists q', related_program B p' q' /\ SC_program_steps q q').
-Proof. intros. inversion H0. clear H0. subst. inversion H. subst. clear H. destruct H0. destruct H. destruct s'. simpl in *. inversion H; subst; clear H. generalize dependent threads'. generalize dependent g. remember (f thread) as e'. generalize dependent f. generalize dependent thread. induction H11; intros.
-  + apply context_forward_simulation with (f:=f) (m:=m) (m0:=m0) (thread:=thread) (E:=E) (e:=e) (e':=e') (event:=event). auto. auto. auto. auto. auto. auto. auto. auto. auto. apply IHstep. auto. auto.
-  + Admitted.
+Proof. intros. inversion H0. clear H0. subst. inversion H. subst. clear H. destruct H0. destruct H. destruct s'. simpl in *. inversion H; subst; clear H. generalize dependent threads'. generalize dependent g. remember (f thread) as e'. generalize dependent f. induction H11; intros.
+  + apply context_forward_simulation with (f:=f) (m:=m) (m0:=m0) (thread:=thread) (E:=E) (e:=e) (e':=e') (event:=event). auto. auto. auto. auto. auto. auto. auto. auto. auto.
+apply IHstep. auto. auto.
+  + inversion H13. subst. destruct thread.
+    ++ rewrite <- Heqe' in *. simpl in H3. 
+
+(*assert (step (app (lam (flush_star true B buf_size;; translate e true B buf_size))  (translate v true B buf_size)) Tau (subst x (translate v true B buf_size) (flush_star true B buf_size;; translate e true B buf_size))). apply step_app. apply translation_of_value_is_value. auto. assert (SC_program_steps (nil, g, m') (nil,
+(fun t => match t with
+        | inl true => subst x (translate v true B buf_size) (flush_star true B buf_size;; translate e true B buf_size)
+        | inl false => translate (f false) false B buf_size
+        | inr tt => race_thread B
+      end), m')). apply SC_program_steps_transitive with (q:=(nil,
+    fun t : bool + unit =>
+    match t with
+    | inl true =>
+        subst x (translate v true B buf_size)
+          (flush_star true B buf_size;; translate e true B buf_size)
+    | inl false => translate (f false) false B buf_size
+    | inr tt => race_thread B
+    end, m')). apply ST_synchronize with (thread:=inl true) (event:=Tau) (e:=subst x (translate v true B buf_size) (flush_star true B buf_size;; translate e true B buf_size)). rewrite H3. auto. apply ST_tau_step. intros. destruct t. destruct b. simpl (thread_equals (inl true) (inl true)). auto. simpl (thread_equals (inl false) (inl true)). rewrite H4. auto. destruct u. simpl (thread_equals (inr tt) (inl true)). rewrite H5. auto. apply SC_program_steps_reflexive. auto. rewrite seq_flush_subst in H7. rewrite <- trans_subst in H7.
+unfold seq in H7.*)
+
+
+
+
+ Admitted.
