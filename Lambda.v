@@ -76,123 +76,98 @@ Inductive value : term -> Prop :=
 
 (*************************Shifting and Substitution ****************************)
 
-Fixpoint shift_up (c : nat) (e : term) : term :=
+Fixpoint shift (b : bool) (c : nat) (e : term) : term :=
   match e with
     | array _ => e
     | num _ => e
-    | plus e1 e2 => plus (shift_up c e1) (shift_up c e2)
-    | minus e1 e2 => minus (shift_up c e1) (shift_up c e2)
-    | modulo e1 e2 => modulo (shift_up c e1) (shift_up c e2)
+    | plus e1 e2 => plus (shift b c e1) (shift b c e2)
+    | minus e1 e2 => minus (shift b c e1) (shift b c e2)
+    | modulo e1 e2 => modulo (shift b c e1) (shift b c e2)
     | tru => tru
     | fls => fls
-    | less_than e1 e2 => less_than (shift_up c e1) (shift_up c e2)
-    | not e => not (shift_up c e)
-    | and e1 e2 => and (shift_up c e1) (shift_up c e2)
+    | less_than e1 e2 => less_than (shift b c e1) (shift b c e2)
+    | not e => not (shift b c e)
+    | and e1 e2 => and (shift b c e1) (shift b c e2)
     | yunit => yunit
-    | write e1 e2 e3 => write (shift_up c e1) (shift_up c e2) (shift_up c e3)
-    | read e1 e2 => read (shift_up c e1) (shift_up c e2)
-    | reference e => reference (shift_up c e)
-    | cast e => cast (shift_up c e)
-    | case e1 e2 e3 => case (shift_up c e1) (shift_up c e2) (shift_up c e3)
-    | var k => if k <? c then var k else var (k + 1)
-    | app e1 e2 => app (shift_up c e1) (shift_up c e2)
-    | lam e => lam (shift_up (c+1) e)
-    | paire e1 e2 => paire (shift_up c e1) (shift_up c e2)
-    | first e => first (shift_up c e)
-    | second e => second (shift_up c e)
+    | write e1 e2 e3 => write (shift b c e1) (shift b c e2) (shift b c e3)
+    | read e1 e2 => read (shift b c e1) (shift b c e2)
+    | reference e => reference (shift b c e)
+    | cast e => cast (shift b c e)
+    | case e1 e2 e3 => case (shift b c e1) (shift b c e2) (shift b c e3)
+    | var k => var (if k <? c then k else (if b then k + 1 else k - 1))
+    | app e1 e2 => app (shift b c e1) (shift b c e2)
+    | lam e => lam (shift b (c+1) e)
+    | paire e1 e2 => paire (shift b c e1) (shift b c e2)
+    | first e => first (shift b c e)
+    | second e => second (shift b c e)
   end.
 
-Fact shift_up_array : forall n c, shift_up c (array n) = array n.
+Fact shift_array : forall n b c, shift b c (array n) = array n.
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_num : forall n c, shift_up c (num n) = num n.
+Fact shift_num : forall n c b, shift b c (num n) = num n.
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_tru : forall c, shift_up c tru = tru.
+Fact shift_tru : forall c b, shift b c tru = tru.
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_fls : forall c, shift_up c fls = fls.
+Fact shift_fls : forall c b, shift b c fls = fls.
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_yunit : forall c, shift_up c yunit = yunit.
+Fact shift_yunit : forall c b, shift b c yunit = yunit.
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_app : forall e1 e2 c, shift_up c (app e1 e2) = app (shift_up c e1) (shift_up c e2).
+Fact shift_app : forall e1 e2 c b, shift b c (app e1 e2) = app (shift b c e1) (shift b c e2).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_plus : forall e1 e2 c, shift_up c (plus e1 e2) = plus (shift_up c e1) (shift_up c e2).
+Fact shift_plus : forall e1 e2 c b, shift b c (plus e1 e2) = plus (shift b c e1) (shift b c e2).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_minus : forall e1 e2 c, shift_up c (minus e1 e2) = minus (shift_up c e1) (shift_up c e2).
+Fact shift_minus : forall e1 e2 c b, shift b c (minus e1 e2) = minus (shift b c e1) (shift b c e2).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_modulo : forall e1 e2 c, shift_up c (modulo e1 e2) = modulo (shift_up c e1) (shift_up c e2).
+Fact shift_modulo : forall e1 e2 c b, shift b c (modulo e1 e2) = modulo (shift b c e1) (shift b c e2).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_less_than : forall e1 e2 c, shift_up c (less_than e1 e2) = less_than (shift_up c e1) (shift_up c e2).
+Fact shift_less_than : forall e1 e2 c b, shift b c (less_than e1 e2) = less_than (shift b c e1) (shift b c e2).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_and : forall e1 e2 c, shift_up c (and e1 e2) = and (shift_up c e1) (shift_up c e2).
+Fact shift_and : forall e1 e2 c b, shift b c (and e1 e2) = and (shift b c e1) (shift b c e2).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_not : forall e1  c, shift_up c (not e1) = not (shift_up c e1).
+Fact shift_not : forall e1  c b, shift b c (not e1) = not (shift b c e1).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_cast : forall e1 c, shift_up c (cast e1) = cast (shift_up c e1).
+Fact shift_cast : forall e1 c b, shift b c (cast e1) = cast (shift b c e1).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_reference : forall e1 c, shift_up c (reference e1) = reference (shift_up c e1).
+Fact shift_reference : forall e1 c b, shift b c (reference e1) = reference (shift b c e1).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_read : forall e1 e2 c, shift_up c (read e1 e2) = read (shift_up c e1) (shift_up c e2).
+Fact shift_read : forall e1 e2 c b, shift b c (read e1 e2) = read (shift b c e1) (shift b c e2).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_write : forall e1 e2 e3 c, shift_up c (write e1 e2 e3) = write (shift_up c e1) (shift_up c e2) (shift_up c e3).
+Fact shift_write : forall e1 e2 e3 c b, shift b c (write e1 e2 e3) = write (shift b c e1) (shift b c e2) (shift b c e3).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_case : forall e1 e2 e3 c, shift_up c (case e1 e2 e3) = case (shift_up c e1) (shift_up c e2) (shift_up c e3).
+Fact shift_case : forall e1 e2 e3 c b, shift b c (case e1 e2 e3) = case (shift b c e1) (shift b c e2) (shift b c e3).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_paire : forall e1 e2 c, shift_up c (paire e1 e2) = paire (shift_up c e1) (shift_up c e2).
+Fact shift_paire : forall e1 e2 c b, shift b c (paire e1 e2) = paire (shift b c e1) (shift b c e2).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_first : forall e1 c, shift_up c (first e1) = first (shift_up c e1).
+Fact shift_first : forall e1 c b, shift b c (first e1) = first (shift b c e1).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_second : forall e1 c, shift_up c (second e1) = second (shift_up c e1).
+Fact shift_second : forall e1 c b, shift b c (second e1) = second (shift b c e1).
+Proof. intros. simpl. reflexivity. Qed.
+ 
+Fact shift_var : forall k c b, shift b c (var k) =  var (if k <? c then k else (if b then k+1 else k-1)).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_var : forall k c, shift_up c (var k) =  (if k <? c then var k else var (k + 1)).
+Fact shift_lam : forall c e b, shift b c (lam e) = lam (shift b (c+1) e).
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact shift_up_lam : forall c e, shift_up c (lam e) = lam (shift_up (c+1) e).
-Proof. intros. simpl. reflexivity. Qed.
-
-Fixpoint shift_down (c : nat) (e : term) : term :=
-  match e with
-    | array _ => e
-    | num _ => e
-    | plus e1 e2 => plus (shift_down c e1) (shift_down c e2)
-    | minus e1 e2 => minus (shift_down c e1) (shift_down c e2)
-    | modulo e1 e2 => modulo (shift_down c e1) (shift_down c e2)
-    | tru => tru
-    | fls => fls
-    | less_than e1 e2 => less_than (shift_down c e1) (shift_down c e2)
-    | not e => not (shift_down c e)
-    | and e1 e2 => and (shift_down c e1) (shift_down c e2)
-    | yunit => yunit
-    | write e1 e2 e3 => write (shift_down c e1) (shift_down c e2) (shift_down c e3)
-    | read e1 e2 => read (shift_down c e1) (shift_down c e2)
-    | reference e => reference (shift_down c e)
-    | cast e => cast (shift_down c e)
-    | case e1 e2 e3 => case (shift_down c e1) (shift_down c e2) (shift_down c e3)
-    | var k => if k <? c then var k else var (k - 1)
-    | app e1 e2 => app (shift_down c e1) (shift_down c e2)
-    | lam e => lam (shift_down (c+1) e)
-    | paire e1 e2 => paire (shift_down c e1) (shift_down c e2)
-    | first e => first (shift_down c e)
-    | second e => second (shift_down c e)
-  end.
 
 Fixpoint subst (j : nat) (s : term) (e : term) :=
   match e with
@@ -214,7 +189,7 @@ Fixpoint subst (j : nat) (s : term) (e : term) :=
     | case e1 e2 e3 => case (subst j s e1) (subst j s e2) (subst j s e3)
     | var k => if k =? j then s else var k
     | app e1 e2 => app (subst j s e1) (subst j s e2)
-    | lam e => lam (subst (j+1) (shift_up 0 s) e)
+    | lam e => lam (subst (j+1) (shift true 0 s) e)
     | paire e1 e2 => paire (subst j s e1) (subst j s e2)
     | first e => first (subst j s e)
     | second e => second (subst j s e)
@@ -283,7 +258,7 @@ Proof. intros. simpl. reflexivity. Qed.
 Fact subst_var : forall x k v, subst x v (var k) = if k =? x then v else var k.
 Proof. intros. simpl. reflexivity. Qed.
 
-Fact subst_lam : forall x v e, subst x v (lam e) = lam (subst (x+1) (shift_up 0 v) e).
+Fact subst_lam : forall x v e, subst x v (lam e) = lam (subst (x+1) (shift true 0 v) e).
 Proof. intros. simpl. reflexivity. Qed.
 
 (************************** Contexts ********************************************)
@@ -352,7 +327,7 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_context : forall e e' E event,
                    step e event e' ->
                    step (con_subst E e) event (con_subst E e')
-  | step_app : forall e v, value v -> step (app (lam e) v) Tau (shift_down 0 (subst 0 (shift_up 0 v) e))
+  | step_app : forall e v, value v -> step (app (lam e) v) Tau (shift false 0 (subst 0 (shift true 0 v) e))
   | step_reference : forall x n, step (reference (array x)) (Reference x n) (num n)
   | step_cast : forall x n,  step (cast (num n)) (Cast n x) (array x)
   | step_read : forall offset value n,
