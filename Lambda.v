@@ -10,6 +10,7 @@ Require Import ZArith.
    4. bools,
    6. case statements
    7. pairs
+   8. locks
  *)
 
 Inductive term : Type :=
@@ -34,7 +35,9 @@ Inductive term : Type :=
   | lam : term -> term
   | paire : term -> term -> term
   | first : term -> term
-  | second : term -> term.
+  | second : term -> term
+  | lock : term -> term
+  | unlock : term -> term.
 
 (*********************** Notation ***********************************************)
 
@@ -61,6 +64,8 @@ Inductive mem_event : Type :=
   | Allocate (loc : nat) (size : nat) (init : list nat)
   | Reference (loc : nat) (value : nat)
   | Cast (n : nat) (loc : nat)
+  | Lock (loc : nat)
+  | Unlock (loc : nat)
   | Tau.
 
 (******************************* Values *****************************************)
@@ -100,6 +105,8 @@ Fixpoint shift (b : bool) (c : nat) (e : term) : term :=
     | paire e1 e2 => paire (shift b c e1) (shift b c e2)
     | first e => first (shift b c e)
     | second e => second (shift b c e)
+    | lock e => lock (shift b c e)
+    | unlock e => unlock (shift b c e)
   end.
 
 Fact shift_array : forall n b c, shift b c (array n) = array n.
@@ -161,6 +168,12 @@ Proof. intros. simpl. reflexivity. Qed.
 
 Fact shift_second : forall e1 c b, shift b c (second e1) = second (shift b c e1).
 Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_lock : forall e1 c b, shift b c (lock e1) = lock (shift b c e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact shift_unlock : forall e1 c b, shift b c (unlock e1) = unlock (shift b c e1).
+Proof. intros. simpl. reflexivity. Qed.
  
 Fact shift_var : forall k c b, shift b c (var k) =  var (if k <? c then k else (if b then k+1 else k-1)).
 Proof. intros. simpl. reflexivity. Qed.
@@ -193,6 +206,8 @@ Fixpoint subst (j : nat) (s : term) (e : term) :=
     | paire e1 e2 => paire (subst j s e1) (subst j s e2)
     | first e => first (subst j s e)
     | second e => second (subst j s e)
+    | lock e => lock (subst j s e)
+    | unlock e => unlock (subst j s e)
   end.
 
 Fact subst_array : forall n x v, subst x v (array n) = array n.
@@ -255,6 +270,12 @@ Proof. intros. simpl. reflexivity. Qed.
 Fact subst_second : forall e1 x v, subst x v (second e1) = second (subst x v e1).
 Proof. intros. simpl. reflexivity. Qed.
 
+Fact subst_lock : forall e1 x v, subst x v (lock e1) = lock (subst x v e1).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact subst_unlock : forall e1 x v, subst x v (unlock e1) = unlock (subst x v e1).
+Proof. intros. simpl. reflexivity. Qed.
+
 Fact subst_var : forall x k v, subst x v (var k) = if k =? x then v else var k.
 Proof. intros. simpl. reflexivity. Qed.
 
@@ -289,7 +310,9 @@ Inductive context : Type :=
   | Cpaire1 : context -> term -> context
   | Cpaire2 : {v : term | value v} -> context -> context
   | Cfirst : context -> context
-  | Csecond : context -> context.
+  | Csecond : context -> context
+  | Clock : context -> context
+  | Cunlock : context -> context.
 
 Fixpoint con_subst (E : context) (s : term) : term :=
   match E with
@@ -319,6 +342,8 @@ Fixpoint con_subst (E : context) (s : term) : term :=
     | Cpaire2 (exist _ x _) E => paire x (con_subst E s)
     | Cfirst E => first (con_subst E s)
     | Csecond E => second (con_subst E s)
+    | Clock E => lock (con_subst E s)
+    | Cunlock E => unlock (con_subst E s)
   end.
 
 (******************************** Stepping *************************************)
@@ -351,4 +376,6 @@ Inductive step : term -> mem_event -> term -> Prop :=
   | step_case1 : forall e1 e2, step (case tru e1 e2) Tau e1
   | step_case2 : forall e1 e2, step (case fls e1 e2) Tau e2
   | step_fst : forall v1 v2, value v1 -> value v2 -> step (first (paire v1 v2)) Tau v1
-  | step_snd : forall v1 v2, value v1 -> value v2 -> step (second (paire v1 v2)) Tau v2.
+  | step_snd : forall v1 v2, value v1 -> value v2 -> step (second (paire v1 v2)) Tau v2
+  | step_lock : forall n, step (lock (array n)) (Lock n) yunit
+  | step_unlock : forall n, step (unlock (array n)) (Unlock n) yunit.

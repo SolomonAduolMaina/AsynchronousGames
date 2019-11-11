@@ -158,7 +158,9 @@ app (lam (write_code thread base buf_size)) (paire array (paire offset value)).
 
 
 Definition flush_star (thread : bool) (base : nat) (buf_size : nat): term :=
+  lock (SPECIAL base) ;;
   (SPECIAL base) ::= ONE ;;
+  unlock (SPECIAL base) ;;
   WHILE (and (!(SPECIAL base) == ONE) (not (!(SIZE thread base) == ZERO))) DO
     flush thread base buf_size
   DONE.
@@ -230,6 +232,12 @@ Fixpoint translate (s : term) (thread : bool) (base : nat) (buf_size : nat) : te
     | second e =>
       let x := translate e thread base buf_size in
       app (lam (seq (flush_star thread base buf_size) (var 0))) (second x)
+    | lock e =>
+      let x := translate e thread base buf_size in
+      app (lam (seq (flush_star thread base buf_size) (var 0))) (lock x)
+    | unlock e =>
+      let x := translate e thread base buf_size in
+      app (lam (seq (flush_star thread base buf_size) (var 0))) (unlock x)
   end.
 
 Fact translate_var : forall x thread base buf_size, translate (var x) thread base buf_size = var x.
@@ -287,6 +295,12 @@ Fact translate_first : forall thread base buf_size e, translate (first e) thread
 Proof. intros. simpl. reflexivity. Qed.
 
 Fact translate_second : forall thread base buf_size e, translate (second e) thread base buf_size = app (lam (seq (flush_star thread base buf_size) (var 0))) (second (translate e thread base buf_size)).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact translate_lock : forall thread base buf_size e, translate (lock e) thread base buf_size = app (lam (seq (flush_star thread base buf_size) (var 0))) (lock (translate e thread base buf_size)).
+Proof. intros. simpl. reflexivity. Qed.
+
+Fact translate_unlock : forall thread base buf_size e, translate (unlock e) thread base buf_size = app (lam (seq (flush_star thread base buf_size) (var 0))) (unlock (translate e thread base buf_size)).
 Proof. intros. simpl. reflexivity. Qed.
 
 Fact translate_case : forall thread base buf_size e1 e2 e3, translate (case e1 e2 e3) thread base buf_size = case (translate e1 thread base buf_size) (seq (flush_star thread base buf_size) (translate e2 thread base buf_size)) (seq (flush_star thread base buf_size) (translate e3 thread base buf_size)).
@@ -425,6 +439,16 @@ Proof. intros. generalize dependent c. generalize dependent e. induction n ; int
   + simpl. auto.
   + simpl. rewrite IHn. auto. Qed.
 
+Fact shift_n_c_lock : forall n c e b, shift_n_c b n c (lock e) = lock (shift_n_c b n c e).
+Proof. intros. generalize dependent c. generalize dependent e. induction n ; intros.
+  + simpl. auto.
+  + simpl. rewrite IHn. auto. Qed.
+
+Fact shift_n_c_unlock : forall n c e b, shift_n_c b n c (unlock e) = unlock (shift_n_c b n c e).
+Proof. intros. generalize dependent c. generalize dependent e. induction n ; intros.
+  + simpl. auto.
+  + simpl. rewrite IHn. auto. Qed.
+
 
 Fact shift_n_c_lam : forall n c e b, shift_n_c b n c (lam e) = lam (shift_n_c b n (c+1) e).
 Proof. intros. generalize dependent e. generalize dependent c. induction n ; intros.
@@ -484,6 +508,8 @@ Lambda.shift true (n + (c + 1)) (shift_n_c true n (c + 1) e)). apply IHe. assert
   + rewrite shift_n_c_paire. rewrite shift_n_c_paire. rewrite IHe1. rewrite IHe2. simpl. auto.
   + rewrite shift_n_c_first. rewrite shift_n_c_first. rewrite IHe. simpl. auto.
   + rewrite shift_n_c_second. rewrite shift_n_c_second. rewrite IHe. simpl. auto.
+  + rewrite shift_n_c_lock. rewrite shift_n_c_lock. rewrite IHe. simpl. auto.
+  + rewrite shift_n_c_unlock. rewrite shift_n_c_unlock. rewrite IHe. simpl. auto.
 Qed.
 
 Fact foo : forall n e b, shift_n_c b (S n) 0 e = Lambda.shift b 0 (shift_n_c b n 0 e).
@@ -558,7 +584,10 @@ Proof. intros. generalize dependent c; induction e ; intros.
   + rewrite shift_lam. rewrite translate_lam. rewrite translate_lam. rewrite shift_lam. rewrite shift_up_seq. rewrite shift_flush_star1. rewrite IHe. auto.
   + rewrite shift_paire. rewrite translate_paire. rewrite translate_paire. rewrite shift_paire. rewrite IHe1. rewrite IHe2. destruct c; simpl ; auto.
   + rewrite shift_first. rewrite translate_first. rewrite translate_first. rewrite shift_app. rewrite shift_first. rewrite shift_lam. rewrite shift_up_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto.
-  + rewrite shift_second. rewrite translate_second. rewrite translate_second. rewrite shift_app. rewrite shift_second. rewrite shift_lam. rewrite shift_up_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto. Qed.
+  + rewrite shift_second. rewrite translate_second. rewrite translate_second. rewrite shift_app. rewrite shift_second. rewrite shift_lam. rewrite shift_up_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto.
+  + rewrite shift_lock. rewrite translate_lock. rewrite translate_lock. rewrite shift_app. rewrite shift_lock. rewrite shift_lam. rewrite shift_up_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto.
+  + rewrite shift_unlock. rewrite translate_unlock. rewrite translate_unlock. rewrite shift_app. rewrite shift_unlock. rewrite shift_lam. rewrite shift_up_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto.
+Qed.
 
 Fact seq_flush_subst : forall x v thread base buf_size e, subst x v (flush_star thread base buf_size;; e) =  (flush_star thread base buf_size;; (subst x v e)).
 Proof. intros. rewrite seq_subst. rewrite subst_flush_star1. auto. Qed.
@@ -588,6 +617,8 @@ Proof. intros. generalize dependent v. generalize dependent x. induction e ; int
   + rewrite subst_paire. rewrite translate_paire. rewrite translate_paire. rewrite subst_paire. rewrite IHe1. rewrite IHe2. reflexivity.
   + rewrite subst_first. rewrite translate_first. rewrite translate_first. rewrite subst_app. rewrite subst_first. rewrite IHe. rewrite subst_flush_star. reflexivity.
   + rewrite subst_second. rewrite translate_second. rewrite translate_second. rewrite subst_app. rewrite subst_second. rewrite IHe. rewrite subst_flush_star. reflexivity.
+  + rewrite subst_lock. rewrite translate_lock. rewrite translate_lock. rewrite subst_app. rewrite subst_lock. rewrite IHe. rewrite subst_flush_star. reflexivity.
+  + rewrite subst_unlock. rewrite translate_unlock. rewrite translate_unlock. rewrite subst_app. rewrite subst_unlock. rewrite IHe. rewrite subst_flush_star. reflexivity.
 Qed.
 
 Fact translation_of_value_is_value : forall v thread base buf_size,
@@ -658,6 +689,8 @@ Fixpoint fvs (e : term) : (list nat) :=
     | paire e1 e2 => (fvs e1) ++ (fvs e2)
     | first e => fvs e
     | second e => fvs e
+    | lock e => fvs e
+    | unlock e => fvs e
   end.
 
 Fact foo2 : forall n e b, (forall k, In k (fvs e) -> k < n) -> Lambda.shift b n e = e.
@@ -681,6 +714,8 @@ Proof. intros. generalize dependent n. generalize dependent b. induction e ; int
     ++ omega.
     ++ assert (k < n). apply H. apply in_map_iff. refine (ex_intro _ (S k) _). split. omega. apply remove_in_iff. split. omega. auto. omega.
   + rewrite IHe1. rewrite IHe2. auto. intros. apply H. apply in_app_iff. right. auto. intros. apply H. apply in_app_iff. left. auto.
+  + rewrite IHe. auto. auto.
+  + rewrite IHe. auto. auto.
   + rewrite IHe. auto. auto.
   + rewrite IHe. auto. auto.
 Qed.
@@ -790,6 +825,8 @@ Proof. intros. generalize dependent k. generalize dependent b.  generalize depen
        +++  right. intros. apply H0. apply in_or_app. left. auto.
   + rewrite IHe with (m:=m). auto. auto. auto.
   + rewrite IHe with (m:=m). auto. auto. auto.
+  + rewrite IHe with (m:=m). auto. auto. auto.
+  + rewrite IHe with (m:=m). auto. auto. auto.
 Qed.
 
 Fact foo5 : forall k e, (In k (fvs e) -> False) -> Lambda.shift true k (Lambda.shift false k e) = Lambda.shift false (k+1) (Lambda.shift true k e).
@@ -816,6 +853,8 @@ Proof. intros. generalize dependent k. induction e ; intros ; simpl in * ; try a
   + rewrite IHe1. rewrite IHe2. auto. intros. contradiction H. apply in_app_iff. right. auto. intros. contradiction H. apply in_app_iff. left. auto.
   + rewrite IHe. auto. intros. rewrite in_map_iff in H. apply H. refine (ex_intro _ (S k) _). split. omega. apply remove_in_iff. split. omega. replace (S k) with (k+1). auto. omega.
   + rewrite IHe1. rewrite IHe2. auto. intros. contradiction H. apply in_app_iff. right. auto. intros. contradiction H. apply in_app_iff. left. auto.
+  + rewrite IHe. auto. auto.
+  + rewrite IHe. auto. auto.
   + rewrite IHe. auto. auto.
   + rewrite IHe. auto. auto.
 Qed.
@@ -869,6 +908,10 @@ Proof. intros. simpl. auto. Qed.
 Fact fvs_first : forall e, fvs (first e) = fvs e.
 Proof. intros. simpl. auto. Qed.
 Fact fvs_second : forall e, fvs (second e) = fvs e.
+Proof. intros. simpl. auto. Qed.
+Fact fvs_lock : forall e, fvs (lock e) = fvs e.
+Proof. intros. simpl. auto. Qed.
+Fact fvs_unlock : forall e, fvs (unlock e) = fvs e.
 Proof. intros. simpl. auto. Qed.
 Fact fvs_cast : forall e, fvs (cast e) = fvs e.
 Proof. intros. simpl. auto. Qed.
@@ -977,6 +1020,8 @@ Proof. intros. generalize dependent c. generalize dependent x. induction e ; int
     ++ intros. apply in_app_iff. apply in_app_iff in H0. destruct H0.
        +++ left. apply IHe1 in H. apply H. auto.
        +++ right. apply IHe2 in H. apply H. auto.
+  + apply IHe in H. auto.
+  + apply IHe in H. auto.
   + apply IHe in H. auto.
   + apply IHe in H. auto.
 Qed.
@@ -1115,14 +1160,14 @@ Proof. intros. generalize dependent x. induction e ; intros.
            ++++ right. apply IHe2. auto.
   + rewrite translate_lam. rewrite fvs_lam. rewrite fvs_lam. rewrite in_map_iff. rewrite in_map_iff. unfold iff. split.
     ++ intros. destruct thread.
-       +++ simpl. destruct H. destruct H. subst. apply remove_in_iff in H0. destruct H0. destruct x0. omega. refine (ex_intro _ (S x0) _). split. auto. apply remove_in_iff. split. omega. apply in_app_iff. left. apply in_map_iff. refine (ex_intro _ (S (S x0)) _ ). split. omega. apply remove_in_iff. split. omega. admit.
-       +++ simpl. destruct H. destruct H. subst. apply remove_in_iff in H0. destruct H0. destruct x0. omega. refine (ex_intro _ (S x0) _). split. auto. apply remove_in_iff. split. omega. apply in_app_iff. left. apply in_map_iff. refine (ex_intro _ (S (S x0)) _ ). split. omega. apply remove_in_iff. split. omega. admit.
+       +++ simpl. destruct H. destruct H. subst. apply remove_in_iff in H0. destruct H0. destruct x0. omega. refine (ex_intro _ (S x0) _). split. auto. apply remove_in_iff. split. omega. apply in_app_iff. left. apply in_map_iff. refine (ex_intro _ (S (S x0)) _ ). split. omega. apply remove_in_iff. split. omega. rewrite fvs_shift_up. apply IHe. auto. omega.
+       +++ simpl. destruct H. destruct H. subst. apply remove_in_iff in H0. destruct H0. destruct x0. omega. refine (ex_intro _ (S x0) _). split. auto. apply remove_in_iff. split. omega. apply in_app_iff. left. apply in_map_iff. refine (ex_intro _ (S (S x0)) _ ). split. omega. apply remove_in_iff. split. omega. rewrite fvs_shift_up. apply IHe. auto. omega.
     ++ intros. destruct thread.
        +++ simpl in H. destruct H. destruct H. subst. apply remove_in_iff in H0. destruct H0. destruct x0. omega. refine (ex_intro _ (S x0) _). split. auto. apply remove_in_iff. split. omega. apply in_app_iff in H0. destruct H0.
-           ++++ apply in_map_iff in H0. destruct H0. destruct H0. assert (x=S (S x0)). omega. subst. apply remove_in_iff in H1. destruct H1. admit.
+           ++++ apply in_map_iff in H0. destruct H0. destruct H0. assert (x=S (S x0)). omega. subst. apply remove_in_iff in H1. destruct H1. rewrite fvs_shift_up in H2. apply IHe. auto. omega.
            ++++ inversion H0.
        +++ simpl in H. destruct H. destruct H. subst. apply remove_in_iff in H0. destruct H0. destruct x0. omega. refine (ex_intro _ (S x0) _). split. auto. apply remove_in_iff. split. omega. apply in_app_iff in H0. destruct H0.
-           ++++ apply in_map_iff in H0. destruct H0. destruct H0. assert (x=S (S x0)). omega. subst. apply remove_in_iff in H1. destruct H1. admit.
+           ++++ apply in_map_iff in H0. destruct H0. destruct H0. assert (x=S (S x0)). omega. subst. apply remove_in_iff in H1. destruct H1. rewrite fvs_shift_up in H2. apply IHe. auto. omega.
            ++++ inversion H0.
   + rewrite translate_paire. rewrite fvs_paire. rewrite fvs_paire. unfold iff. split.
     ++ intros. destruct thread.
@@ -1149,9 +1194,21 @@ Proof. intros. generalize dependent x. induction e ; intros.
     ++ intros. destruct thread.
        +++ simpl in H. apply IHe. auto.
        +++ simpl in H. apply IHe. auto.
-Admitted.
-
-
+  + rewrite translate_lock. rewrite fvs_lock. rewrite fvs_app. unfold iff. split.
+    ++ intros. destruct thread.
+       +++ simpl. apply IHe. auto.
+       +++ simpl. apply IHe. auto.
+    ++ intros. destruct thread.
+       +++ simpl in H. apply IHe. auto.
+       +++ simpl in H. apply IHe. auto.
+  + rewrite translate_unlock. rewrite fvs_unlock. rewrite fvs_app. unfold iff. split.
+    ++ intros. destruct thread.
+       +++ simpl. apply IHe. auto.
+       +++ simpl. apply IHe. auto.
+    ++ intros. destruct thread.
+       +++ simpl in H. apply IHe. auto.
+       +++ simpl in H. apply IHe. auto.
+Qed.
 
 
 Fact shift_down_commutes_with_translate : forall c e thread base buf_size, (c = 0 -> (In 0 (fvs e) -> False)) -> translate (Lambda.shift false c e) thread base buf_size = Lambda.shift false c (translate e thread base buf_size).
@@ -1171,13 +1228,79 @@ Proof. intros. generalize dependent c; induction e ; intros.
   + rewrite shift_write. rewrite translate_write. rewrite translate_write. rewrite shift_app. rewrite IHe1. rewrite IHe2. rewrite IHe3. rewrite shift_new_write_star1. rewrite shift_lam. rewrite shift_down_seq. rewrite shift_flush_star1. simpl (Lambda.shift true (0 + 1) (var 0)). destruct c; simpl ; auto. intros. omega. intros. apply H. auto. simpl. apply in_app_iff. right. apply in_app_iff. right. auto. intros. auto. apply H. auto. simpl. apply in_app_iff. right. apply in_app_iff. left. auto. intros. apply H. auto. simpl. apply in_app_iff. left. auto.
   + rewrite shift_reference. rewrite translate_reference. rewrite translate_reference. rewrite shift_app. rewrite shift_reference. rewrite shift_lam. rewrite shift_down_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto. simpl in H. auto. intros. omega.
   + rewrite shift_cast. rewrite translate_cast. rewrite translate_cast. rewrite shift_app. rewrite shift_cast. rewrite shift_lam. rewrite shift_down_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto. simpl in H. auto. intros. omega.
-  + rewrite shift_case. rewrite translate_case. rewrite translate_case. rewrite shift_case. rewrite IHe1. rewrite IHe2. rewrite IHe3. rewrite shift_down_seq. rewrite shift_flush_star1. rewrite shift_down_seq. rewrite shift_flush_star1. destruct c; simpl ; auto. admit. admit. intros. apply H. auto. simpl. apply in_app_iff. right. apply in_app_iff. right. auto. intros. auto. apply H. auto. simpl. apply in_app_iff. right. apply in_app_iff. left. auto. intros. apply H. auto. simpl. apply in_app_iff. left. auto.
+  + rewrite shift_case. rewrite translate_case. rewrite translate_case. rewrite shift_case. rewrite IHe1. rewrite IHe2. rewrite IHe3. rewrite shift_down_seq. rewrite shift_flush_star1. rewrite shift_down_seq. rewrite shift_flush_star1. destruct c; simpl ; auto. intros. apply H. auto. simpl. rewrite in_app_iff. right. apply in_app_iff. right. apply fvs_translate in H1. auto. intros. apply H. auto. simpl. apply in_app_iff. right. apply in_app_iff. left. apply fvs_translate in H1. auto. intros. apply H. auto. simpl. apply in_app_iff. right. apply in_app_iff. right. auto. intros. auto. apply H. auto. simpl. apply in_app_iff. right. apply in_app_iff. left. auto. intros. apply H. auto. simpl. apply in_app_iff. left. auto.
   + simpl. auto.
   + rewrite shift_app. rewrite translate_app. rewrite translate_app. rewrite shift_app. rewrite IHe1. rewrite IHe2. destruct c; simpl ; auto. intros. apply H. auto. simpl. apply in_app_iff. right. auto. intros. apply H. auto. simpl. apply in_app_iff. left. auto.
   + rewrite shift_lam. rewrite translate_lam. rewrite translate_lam. rewrite shift_lam. rewrite shift_down_seq. rewrite shift_flush_star1. rewrite IHe. auto. intros. omega. intros. omega.
   + rewrite shift_paire. rewrite translate_paire. rewrite translate_paire. rewrite shift_paire. rewrite IHe1. rewrite IHe2. destruct c; simpl ; auto. intros. apply H. auto. simpl. apply in_app_iff. right. auto. intros. apply H. auto. simpl. apply in_app_iff. left. auto.
   + rewrite shift_first. rewrite translate_first. rewrite translate_first. rewrite shift_app. rewrite shift_first. rewrite shift_lam. rewrite shift_down_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto. simpl in H. auto. intros. omega.
-  + rewrite shift_second. rewrite translate_second. rewrite translate_second. rewrite shift_app. rewrite shift_second. rewrite shift_lam. rewrite shift_down_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto.  simpl in H. auto. intros. omega. Admitted.
+  + rewrite shift_second. rewrite translate_second. rewrite translate_second. rewrite shift_app. rewrite shift_second. rewrite shift_lam. rewrite shift_down_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto.  simpl in H. auto. intros. omega.
+  + rewrite shift_lock. rewrite translate_lock. rewrite translate_lock. rewrite shift_app. rewrite shift_lock. rewrite shift_lam. rewrite shift_down_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto.  simpl in H. auto. intros. omega. 
+  + rewrite shift_unlock. rewrite translate_unlock. rewrite translate_unlock. rewrite shift_app. rewrite shift_unlock. rewrite shift_lam. rewrite shift_down_seq. rewrite shift_flush_star1. rewrite IHe. destruct c; simpl ; auto.  simpl in H. auto. intros. omega.
+Qed.
+
+Fact shift_not_in_fvs : forall n e, In n (fvs (Lambda.shift true n e)) -> False.
+Proof. intros. generalize dependent n. induction e ; intros ; simpl in H ; try auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. auto. apply IHe2 in H. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. auto. apply IHe2 in H. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. auto. apply IHe2 in H. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. auto. apply IHe2 in H. auto.
+  + apply IHe in H. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. auto. apply IHe2 in H. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. auto. apply IHe2 in H. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. auto. apply in_app_iff in H. destruct H. apply IHe2 in H. auto. apply IHe3 in H. auto.
+  + apply IHe in H. auto.
+  + apply IHe in H. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. auto. apply in_app_iff in H. destruct H. apply IHe2 in H. auto. apply IHe3 in H. auto.
+  + destruct (n <? n0) eqn:ORIG.
+    ++ apply Nat.ltb_lt in ORIG. destruct H. omega. auto.
+    ++ apply Nat.ltb_ge in ORIG. destruct H. omega. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. auto. apply IHe2 in H. auto.
+  + apply in_map_iff in H. destruct H. destruct H. apply remove_in_iff in H0. destruct H0. apply IHe with (n:=n+1). subst. destruct x. omega. replace (S x -1 + 1) with (S x) in *. auto. omega.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. auto. apply IHe2 in H. auto.
+  + apply IHe in H. auto.
+  + apply IHe in H. auto.
+  + apply IHe in H. auto.
+  + apply IHe in H. auto.
+Qed.
+
+Fact remove_app : forall x l1 l2, remove x (l1 ++ l2) = (remove x l1) ++ (remove x l2).
+Proof. intros. generalize dependent x. generalize dependent l2. induction l1 ; intros ; simpl.
+  + auto.
+  + destruct (x =? a) eqn:ORIG.
+    ++ rewrite IHl1. auto.
+    ++ rewrite IHl1. rewrite app_comm_cons. auto.
+Qed.
+
+
+Fact fvs_subst : forall x v e y, In y (fvs (subst x v e)) -> (In y (fvs v) \/ In y (remove x (fvs e))).
+Proof. intros. generalize dependent y. generalize dependent x. generalize dependent v. induction e ; intros ; simpl in *; try contradiction H.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. left. auto. apply IHe2 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. left. auto. apply IHe2 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. left. auto. apply IHe2 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. left. auto. apply IHe2 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. auto.
+  + apply IHe in H. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. left. auto. apply IHe2 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. left. auto. apply IHe2 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. left. auto. apply in_app_iff in H. destruct H. apply IHe2 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. rewrite remove_app. apply in_app_iff. left. auto. apply IHe3 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. rewrite remove_app. apply in_app_iff. right. auto.
+  + apply IHe in H. auto.
+  + apply IHe in H. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. left. auto. apply in_app_iff in H. destruct H. apply IHe2 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. rewrite remove_app. apply in_app_iff. left. auto. apply IHe3 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. rewrite remove_app. apply in_app_iff. right. auto.
+  + destruct (n =? x) eqn:ORIG.
+    ++ left. auto.
+    ++ simpl in H. destruct H. subst. replace (x =? y) with false. right. left. auto. symmetry. apply beq_nat_false in ORIG. apply Nat.eqb_neq. intuition. contradiction H.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. left. auto. apply IHe2 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. auto.
+  + apply in_map_iff in H. destruct H. destruct H. apply remove_in_iff in H0. destruct H0. destruct x0. omega. apply IHe in H1. destruct H1. left. apply fvs_shift_up in H1. subst. replace (S x0 - 1) with x0. auto. omega. omega. right. apply remove_in_iff in H1. destruct H1. apply remove_in_iff. split. subst. omega. apply in_map_iff. subst. refine (ex_intro _ (S x0) _). split. auto. apply remove_in_iff. split. omega. auto.
+  + apply in_app_iff in H. destruct H. apply IHe1 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. left. auto. apply IHe2 in H. destruct H. left. auto. right. rewrite remove_app. apply in_app_iff. right. auto.
+  + apply IHe in H. auto.
+  + apply IHe in H. auto.
+  + apply IHe in H. auto.
+  + apply IHe in H. auto.
+Qed.
+
+Fact subst_not_in_fvs : forall x v e, In x (fvs (subst x (Lambda.shift true x v) e)) -> False.
+Proof. intros. apply fvs_subst in H. destruct H. apply shift_not_in_fvs in H. auto. apply remove_in_iff in H. destruct H. apply H. auto.
+Qed.
 
 Fact translation_of_context_steps : forall e e' b B buf_size f m' m'0 l l' thread E u v u' v',
 (forall t, u t = if thread_equals t thread then translate e b B buf_size else f t) ->
@@ -1382,6 +1505,22 @@ Proof. intros. generalize dependent l. generalize dependent l'. generalize depen
        +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
   + remember (fun t0 => if thread_equals t0 thread then second (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then second (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var 0).
     ++ apply steps_second_left with (threads:=threads) (threads':=threads') (thread:=thread). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then lock (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then lock (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var 0).
+    ++ apply steps_lock_left with (threads:=threads) (threads':=threads') (thread:=thread). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+       +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
+    ++ intros. destruct (thread_equals t thread) eqn:ORIG.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+       +++ rewrite Heqthreads'''. rewrite ORIG. rewrite H2. rewrite ORIG. auto.
+  + remember (fun t0 => if thread_equals t0 thread then unlock (translate (con_subst E e) b B buf_size) else f t0) as threads''; remember (fun t0 => if thread_equals t0 thread then unlock (translate (con_subst E e') b B buf_size)else f t0) as threads'''. apply steps_app_right with (threads:=threads'') (threads':=threads''') (thread:=thread) (e2:=flush_star b B buf_size;; var 0).
+    ++ apply steps_unlock_left with (threads:=threads) (threads':=threads') (thread:=thread). apply IHE with (u:=u) (v:=v). rewrite Heqthreads'. auto. auto. rewrite Heqthreads. auto. auto. auto. rewrite Heqthreads''. rewrite Heqthreads. intros. destruct (thread_equals t thread). auto. auto. rewrite Heqthreads'''. rewrite Heqthreads'. intros. destruct (thread_equals t thread). auto. auto.
     ++ intros. destruct (thread_equals t thread) eqn:ORIG.
        +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.
        +++ rewrite Heqthreads''. rewrite ORIG. rewrite H1. rewrite ORIG. auto.

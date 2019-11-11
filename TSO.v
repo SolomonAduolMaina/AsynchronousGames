@@ -4,10 +4,10 @@ Require Import Util.
 
 Definition thread_id := bool.
 Definition buffer_size := nat.
-Definition local_buffers := thread_id -> list (nat * nat * nat). (* address, offset, value *)
-Definition global_store := nat -> (option nat).
-Definition mapping := nat -> (option (nat * nat)). (* base, size *)
-Definition memory_model := buffer_size * mapping * local_buffers * global_store.
+Definition local_buffers := thread_id -> list (nat * nat * nat). (* thread_id -> (address, offset, value) *)
+Definition global_store := nat -> (option nat). (* location -> value *)
+Definition location_state := nat -> (option (nat * nat * bool)). (* location -> (base, size, locked) *)
+Definition memory_model := buffer_size * location_state * local_buffers * global_store.
 
 Definition queue (id : thread_id) (val : nat * nat * nat) (local : local_buffers) : local_buffers :=
 (fun b => if Bool.eqb b id then (local id) ++ (val :: nil) else local id).
@@ -24,55 +24,68 @@ Fixpoint contains_buffered_write (loc : nat * nat)  (l : list (nat * nat * nat))
 Definition update_global (val : nat * nat) (g : global_store) : global_store :=
 (fun n => if Nat.eqb n (fst val) then Some (snd val) else g n).
 
-Definition update_mapping (location : nat) (base : nat) (size : nat)  (g : mapping) : mapping :=
-(fun n => if Nat.eqb n location then Some (base, size) else g n).
+Definition update_location_state (location : nat) (base : nat) (size : nat) (locked : bool) (g : location_state) : location_state :=
+(fun n => if Nat.eqb n location then Some (base, size, locked) else g n).
 
 Inductive memstep : memory_model -> (thread_id * mem_event) -> memory_model -> Prop :=
   | ST_tau_step : forall mem thread, memstep mem (thread, Tau) mem
   | ST_local_read :
-               forall buffer local global thread xs ys value location offset mapping base size,
-               mapping location = Some (base, size) ->
+               forall buffer local global thread xs ys value location offset location_state base size,
+               location_state location = Some (base, size, false) ->
                offset < size ->
                local thread = xs ++ ((base, offset, value) :: nil) ++ ys ->
                contains_buffered_write (base, offset) xs = false ->
-               memstep (buffer, mapping, local, global)
+               memstep (buffer, location_state, local, global)
                        (thread, Read location offset value)
-                       (buffer, mapping, local, global)
+                       (buffer, location_state, local, global)
   | ST_global_read :
-               forall buffer local global thread value location offset mapping base size,
-               mapping location = Some (base, size) ->
+               forall buffer local global thread value location offset location_state base size,
+               location_state location = Some (base, size, false) ->
                offset < size ->
                contains_buffered_write (base, offset) (local thread) = false ->
                global (base + offset) = Some value ->
-               memstep (buffer, mapping, local, global)
+               memstep (buffer, location_state, local, global)
                        (thread, Read location offset value)
-                       (buffer, mapping, local, global)
-  | ST_write : forall buffer local local' global offset value location thread mapping size base,
+                       (buffer, location_state, local, global)
+  | ST_write : forall buffer local local' global offset value location thread location_state size base,
                length (local thread) < buffer ->
-               mapping location = Some (base, size) ->
+               location_state location = Some (base, size, false) ->
                offset < size ->
                local' = queue thread (base, offset, value) local ->
-               memstep (buffer, mapping, local, global)
+               memstep (buffer, location_state, local, global)
                        (thread, Write location offset value)
-                       (buffer, mapping, local', global)
-  | ST_allocate_array : forall buffer local global global' init location thread base size mapping mapping',
+                       (buffer, location_state, local', global)
+  | ST_allocate_array : forall buffer local global global' init location thread base size location_state location_state',
                (forall n, base <= n < base + size -> global n = None) ->
-               mapping location = None ->
-               mapping' = update_mapping location base size mapping ->
+               location_state location = None ->
+               location_state' = update_location_state location base size false location_state ->
                global' = allocate base (base + size - 1) init global ->
-               memstep (buffer, mapping, local, global)
+               memstep (buffer, location_state, local, global)
                        (thread, Allocate location size init)
-                       (buffer, mapping', local, global')
-  | ST_reference : forall buffer local global location thread base size mapping,
-               mapping location = Some (base, size) ->
-               memstep (buffer, mapping, local, global)
+                       (buffer, location_state', local, global')
+  | ST_reference : forall buffer local global location thread base size location_state b,
+               location_state location = Some (base, size, b) ->
+               memstep (buffer, location_state, local, global)
                        (thread, Reference location base)
-                       (buffer, mapping, local, global)
-  | ST_cast : forall buffer local global location thread mapping base size,
-               mapping location = Some (base, size) ->
-               memstep (buffer, mapping, local, global)
+                       (buffer, location_state, local, global)
+  | ST_cast : forall buffer local global location thread location_state base size b,
+               location_state location = Some (base, size, b) ->
+               memstep (buffer, location_state, local, global)
                        (thread, Cast base location)
-                       (buffer, mapping, local, global).
+                       (buffer, location_state, local, global)
+  | ST_lock : forall buffer local global global' location thread base size location_state location_state',
+               location_state location = Some (base, size, false) ->
+               location_state' = update_location_state location base size true location_state ->
+               memstep (buffer, location_state, local, global)
+                       (thread, Lock location)
+                       (buffer, location_state', local, global')
+  | ST_unlock : forall buffer local global global' location thread base size location_state location_state',
+               location_state location = Some (base, size, true) ->
+               location_state' = update_location_state location base size false location_state ->
+               memstep (buffer, location_state, local, global)
+                       (thread, Lock location)
+                       (buffer, location_state', local, global').
+
 
 (* A program is a 3-tuple (buf_size, init, threads)
   1. buf_size : nat denoting the size of the store buffers,
@@ -95,11 +108,11 @@ Inductive pstep : TSO_machine -> TSO_machine -> Prop :=
                       memstep mem (true, event) mem' ->
                       (forall t, threads' t = if Bool.eqb thread t then e else threads t) ->
                       pstep ((buffer, nil, threads), mem) ((buffer, nil, threads'), mem')
-  | ST_flush : forall local local' thread address value xs global global' mapping program offset buffer,
+  | ST_flush : forall local local' thread address value xs global global' location_state program offset buffer,
                local thread = ((address, offset, value) :: xs) ->
                snd (fst program) = nil ->
                local' thread = xs ->
                local' (negb thread) = local (negb thread) ->
                global' = update_global (address + offset, value) global ->
-               pstep (program, (buffer, mapping, local, global))
-                     (program, (buffer, mapping, local', global')).
+               pstep (program, (buffer, location_state, local, global))
+                     (program, (buffer, location_state, local', global')).

@@ -2,9 +2,9 @@ Require Import List.
 Require Import Lambda.
 Require Import Util.
 
-Definition mapping := nat -> (option (nat * nat)). (* base, size*)
-Definition global_store := nat -> (option nat).
-Definition memory_model := mapping * global_store.
+Definition location_state := nat -> (option (nat * nat * bool)). (* location -> (base, size, locked) *)
+Definition global_store := nat -> (option nat). (* location -> value *)
+Definition memory_model := location_state * global_store.
 
 Definition allocate (start : nat) (finish : nat) (init : list nat) (g : global_store) : global_store :=
 (fun n => if andb (Nat.leb start n) (Nat.leb n finish) then Some (nth (n - start) init (0%nat)) else g 0).
@@ -12,33 +12,41 @@ Definition allocate (start : nat) (finish : nat) (init : list nat) (g : global_s
 Definition update_global (val : nat * nat) (g : global_store) : global_store :=
 (fun n => if Nat.eqb n (fst val) then Some (snd val) else g n).
 
-Definition update_mapping (location : nat) (base : nat) (size : nat) (g : mapping) : mapping :=
-(fun n => if Nat.eqb n location then Some (base, size) else g n).
+Definition update_location_state (location : nat) (base : nat) (size : nat) (locked : bool) (g : location_state) : location_state :=
+(fun n => if Nat.eqb n location then Some (base, size, locked) else g n).
 
 Inductive memory_step : memory_model -> mem_event -> memory_model -> Prop :=
   | ST_tau_step : forall mem, memory_step mem Tau mem
-  | ST_read :  forall global value location offset mapping base size,
-               mapping location = Some (base, size) ->
+  | ST_read :  forall global value location offset location_state base size,
+               location_state location = Some (base, size, false) ->
                offset < size ->
                global (base + offset) = Some value ->
-               memory_step (mapping, global) (Read location offset value) (mapping, global)
-  | ST_write : forall global global' offset value location mapping base size,
-               mapping location = Some (base, size) ->
+               memory_step (location_state, global) (Read location offset value) (location_state, global)
+  | ST_write : forall global global' offset value location location_state base size,
+               location_state location = Some (base, size, false) ->
                offset < size ->
                global' = update_global (base + offset, value) global ->
-               memory_step (mapping, global) (Write location offset value) (mapping, global')
-  | ST_allocate_array : forall global global' init location size mapping base mapping',
+               memory_step (location_state, global) (Write location offset value) (location_state, global')
+  | ST_allocate_array : forall global global' init location size location_state base location_state',
                (forall n, base <= n < base + size -> global n = None) ->
-               mapping location = None ->
-               mapping' = update_mapping location base size mapping ->
+               location_state location = None ->
+               location_state' = update_location_state location base size false location_state ->
                global' = allocate base (base + size - 1) init global ->
-               memory_step (mapping, global) (Allocate location size init) (mapping', global')
-  | ST_reference : forall global location base size mapping,
-               mapping location = Some (base, size) ->
-               memory_step (mapping, global) (Reference location base) (mapping, global)
-  | ST_cast : forall global location mapping base size,
-               mapping location = Some (base, size) ->
-               memory_step (mapping, global) (Cast base location) (mapping, global).
+               memory_step (location_state, global) (Allocate location size init) (location_state', global')
+  | ST_reference : forall global location base size location_state b,
+               location_state location = Some (base, size, b) ->
+               memory_step (location_state, global) (Reference location base) (location_state, global)
+  | ST_cast : forall global location location_state base size b,
+               location_state location = Some (base, size, b) ->
+               memory_step (location_state, global) (Cast base location) (location_state, global)
+  | ST_lock : forall global location location_state location_state' base size,
+               location_state location = Some (base, size, false) ->
+               location_state' = update_location_state location base size true location_state ->
+               memory_step (location_state, global) (Lock location) (location_state', global)
+  | ST_unlock : forall global location location_state location_state' base size,
+               location_state location = Some (base, size, true) ->
+               location_state' = update_location_state location base size false location_state ->
+               memory_step (location_state, global) (Lock location) (location_state', global).
 
 (* A program is a pair (init, threads)
   1. init : (list (nat * (list nat))) denoting array variables with respective inital values,
@@ -557,6 +565,42 @@ Proof. intros. remember (l, threads, m) as p. remember (l', threads', m') as p'.
            ++++ rewrite thread_equals_true_iff in ORIG. subst. apply ST_synchronize with (event:=event) (e:=second e) (thread:=thread0). destruct thread0; simpl.
                 +++++ rewrite H1. simpl. rewrite Bool.eqb_reflx. apply step_context with (E:=Csecond Hole). auto.
                 +++++ rewrite H1. simpl. apply step_context with (E:=Csecond Hole). auto.
+                +++++ auto.
+                +++++ intros. rewrite H11. rewrite H1. destruct (thread_equals t0 thread0) eqn:ORIG. auto. auto.
+           ++++ apply ST_synchronize with (event:=event) (e:=e) (thread:=thread0). rewrite H1. rewrite thread_equals_commutative in ORIG. rewrite ORIG. auto. auto. intros. destruct (thread_equals t0 thread) eqn:ORIG1. rewrite thread_equals_true_iff in ORIG1. subst. rewrite ORIG. rewrite H1. assert (thread_equals thread thread = true). apply thread_equals_true_iff. auto. rewrite H3. rewrite H11. rewrite ORIG. auto. rewrite H11. rewrite H1. rewrite ORIG1. auto. 
+        +++ apply IHSC_program_steps with (threads:=t) (threads'0:=threads') (thread:=thread). auto. auto. auto. auto. Qed.
+
+Fact steps_lock_left : forall l l' threads threads' thread m m' f g ,
+SC_program_steps (l, threads, m) (l', threads', m') ->
+(forall t, f t = if thread_equals t thread then lock (threads t) else threads t) ->
+(forall t, g t = if thread_equals t thread then lock (threads' t) else threads' t) ->
+SC_program_steps (l, f, m) (l', g, m').
+Proof. intros. remember (l, threads, m) as p. remember (l', threads', m') as p'. generalize dependent l. generalize dependent l'. generalize dependent m. generalize dependent m'. generalize dependent thread. generalize dependent threads'. generalize dependent threads. generalize dependent f. generalize dependent g. induction H; intros.
+  + inversion Heqp. inversion Heqp'. subst. apply SC_program_steps_reflexive. intros. rewrite H0. rewrite H1. rewrite H. auto.
+  +  subst. destruct q. destruct p. apply SC_program_steps_transitive with  (l0, fun thread' : bool + unit => if thread_equals thread' thread then lock (t thread') else t thread', m0). inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto. intros. rewrite H1. rewrite H12. auto.
+       +++ destruct (thread_equals thread thread0) eqn:ORIG.
+           ++++ rewrite thread_equals_true_iff in ORIG. subst. apply ST_synchronize with (event:=event) (e:=lock e) (thread:=thread0). destruct thread0; simpl.
+                +++++ rewrite H1. simpl. rewrite Bool.eqb_reflx. apply step_context with (E:=Clock Hole). auto.
+                +++++ rewrite H1. simpl. apply step_context with (E:=Clock Hole). auto.
+                +++++ auto.
+                +++++ intros. rewrite H11. rewrite H1. destruct (thread_equals t0 thread0) eqn:ORIG. auto. auto.
+           ++++ apply ST_synchronize with (event:=event) (e:=e) (thread:=thread0). rewrite H1. rewrite thread_equals_commutative in ORIG. rewrite ORIG. auto. auto. intros. destruct (thread_equals t0 thread) eqn:ORIG1. rewrite thread_equals_true_iff in ORIG1. subst. rewrite ORIG. rewrite H1. assert (thread_equals thread thread = true). apply thread_equals_true_iff. auto. rewrite H3. rewrite H11. rewrite ORIG. auto. rewrite H11. rewrite H1. rewrite ORIG1. auto. 
+        +++ apply IHSC_program_steps with (threads:=t) (threads'0:=threads') (thread:=thread). auto. auto. auto. auto. Qed.
+
+Fact steps_unlock_left : forall l l' threads threads' thread m m' f g ,
+SC_program_steps (l, threads, m) (l', threads', m') ->
+(forall t, f t = if thread_equals t thread then unlock (threads t) else threads t) ->
+(forall t, g t = if thread_equals t thread then unlock (threads' t) else threads' t) ->
+SC_program_steps (l, f, m) (l', g, m').
+Proof. intros. remember (l, threads, m) as p. remember (l', threads', m') as p'. generalize dependent l. generalize dependent l'. generalize dependent m. generalize dependent m'. generalize dependent thread. generalize dependent threads'. generalize dependent threads. generalize dependent f. generalize dependent g. induction H; intros.
+  + inversion Heqp. inversion Heqp'. subst. apply SC_program_steps_reflexive. intros. rewrite H0. rewrite H1. rewrite H. auto.
+  +  subst. destruct q. destruct p. apply SC_program_steps_transitive with  (l0, fun thread' : bool + unit => if thread_equals thread' thread then unlock (t thread') else t thread', m0). inversion H; subst.
+       +++ apply ST_init_allocate_array. auto. auto. auto. intros. rewrite H1. rewrite H12. auto.
+       +++ destruct (thread_equals thread thread0) eqn:ORIG.
+           ++++ rewrite thread_equals_true_iff in ORIG. subst. apply ST_synchronize with (event:=event) (e:=unlock e) (thread:=thread0). destruct thread0; simpl.
+                +++++ rewrite H1. simpl. rewrite Bool.eqb_reflx. apply step_context with (E:=Cunlock Hole). auto.
+                +++++ rewrite H1. simpl. apply step_context with (E:=Cunlock Hole). auto.
                 +++++ auto.
                 +++++ intros. rewrite H11. rewrite H1. destruct (thread_equals t0 thread0) eqn:ORIG. auto. auto.
            ++++ apply ST_synchronize with (event:=event) (e:=e) (thread:=thread0). rewrite H1. rewrite thread_equals_commutative in ORIG. rewrite ORIG. auto. auto. intros. destruct (thread_equals t0 thread) eqn:ORIG1. rewrite thread_equals_true_iff in ORIG1. subst. rewrite ORIG. rewrite H1. assert (thread_equals thread thread = true). apply thread_equals_true_iff. auto. rewrite H3. rewrite H11. rewrite ORIG. auto. rewrite H11. rewrite H1. rewrite ORIG1. auto. 

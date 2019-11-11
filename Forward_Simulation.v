@@ -86,7 +86,11 @@ Definition related_memory_after_initial (B : nat) (TSO_memory : TSO.memory_model
      race_thread B), m').*)
 
 Definition race_thread (base : nat) : term :=
-  WHILE (not (!(DONE_COUNTER base) == ZERO)) DO (SPECIAL base) ::= ZERO DONE.
+  WHILE (not (!(DONE_COUNTER base) == ZERO)) DO 
+        lock (SPECIAL BASE) ;;
+        (SPECIAL base) ::= ZERO ;;
+        unlock (SPECIAL BASE) ;;
+  DONE.
 
 Inductive related_program (B : nat) : TSO_machine -> SC_machine -> Prop :=
   | related_after_initial : forall buf_size f g m m',
